@@ -104,7 +104,7 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="topbar-left">
-          <span className="topbar-logo">TVF <span>CRM</span></span>
+          <span className="topbar-logo">TVF <span>TELECOM</span> · CRM</span>
           <span className="topbar-badge">{totalAtivos} ativos</span>
         </div>
         <div className="topbar-right">
