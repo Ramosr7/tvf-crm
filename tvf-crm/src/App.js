@@ -91,6 +91,12 @@ export default function App() {
     setExpandedCard(null)
   }
 
+  async function deletarLead(lead) {
+    if (!window.confirm(`Deletar o lead de ${lead.nome || lead.chat_id}? Essa ação não pode ser desfeita.`)) return
+    await supabase.from('consultores').delete().eq('id', lead.id)
+    fetchLeads()
+  }
+
   function toggleCard(id) {
     setExpandedCard(prev => prev === id ? null : id)
     setObsTexto(prev => ({ ...prev, [id]: leads.find(l => l.id === id)?.observacoes || '' }))
@@ -178,9 +184,12 @@ export default function App() {
                     onToggle={() => toggleCard(lead.id)}
                     onMover={() => setMoveModal(lead)}
                     onFechar={() => marcarFechado(lead)}
+                    onDeletar={() => deletarLead(lead)}
                     obsTexto={obsTexto[lead.id] || ''}
                     onObsChange={v => setObsTexto(prev => ({ ...prev, [lead.id]: v }))}
                     onSalvarObs={() => salvarObs(lead)}
+                    supabase={supabase}
+                    onRefresh={fetchLeads}
                   />
                 ))}
               </div>
@@ -281,10 +290,39 @@ export default function App() {
   )
 }
 
-function LeadCard({ lead, expanded, onToggle, onMover, onFechar, obsTexto, onObsChange, onSalvarObs }) {
+function LeadCard({ lead, expanded, onToggle, onMover, onFechar, onDeletar, obsTexto, onObsChange, onSalvarObs, supabase, onRefresh }) {
+  const [editando, setEditando] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState(lead.nome || '')
+
+  async function salvarNome() {
+    await supabase.from('consultores').update({ nome: nomeEdit }).eq('id', lead.id)
+    setEditando(false)
+    onRefresh()
+  }
+
   return (
     <div className="card" onClick={onToggle}>
-      <div className="card-name">{lead.nome || 'Sem nome'}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+        {editando ? (
+          <input
+            style={{ fontSize: '13px', fontWeight: 600, border: '1px solid #660099', borderRadius: '4px', padding: '2px 6px', flex: 1, marginRight: '6px' }}
+            value={nomeEdit}
+            onChange={e => setNomeEdit(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            autoFocus
+          />
+        ) : (
+          <div className="card-name">{lead.nome || 'Sem nome'}</div>
+        )}
+        <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+          {editando ? (
+            <button onClick={salvarNome} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: 'none', background: '#660099', color: '#fff', cursor: 'pointer' }}>✓</button>
+          ) : (
+            <button onClick={() => { setEditando(true); setNomeEdit(lead.nome || '') }} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #E0D8EC', background: 'transparent', color: '#888', cursor: 'pointer' }}>✎</button>
+          )}
+          <button onClick={onDeletar} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #F5C6C6', background: 'transparent', color: '#C0451A', cursor: 'pointer' }}>✕</button>
+        </div>
+      </div>
       <div className="card-phone">{lead.chat_id}</div>
       <div className="card-tags">
         <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
