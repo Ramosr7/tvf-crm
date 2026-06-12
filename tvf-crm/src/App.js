@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import './index.css'
 
@@ -39,13 +39,15 @@ function loadColunas() {
 
 // ─── LEAD CARD ────────────────────────────────────────────────────────────────
 function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
+  const dragged = React.useRef(false)
+
   return (
     <div
       className={`card draggable${isDragging ? ' dragging' : ''}`}
       draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(lead) }}
-      onDragEnd={onDragEnd}
-      onClick={() => onOpenModal(lead)}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; dragged.current = true; onDragStart(lead) }}
+      onDragEnd={() => { onDragEnd(); setTimeout(() => { dragged.current = false }, 100) }}
+      onClick={() => { if (!dragged.current) onOpenModal(lead) }}
     >
       <div className="card-name">{lead.nome || 'Sem nome'}</div>
       <div className="card-phone">{lead.chat_id}</div>
