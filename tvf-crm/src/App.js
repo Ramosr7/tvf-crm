@@ -37,8 +37,101 @@ function loadColunas() {
   } catch { return COLUNAS_DEFAULT }
 }
 
+// ─── LEAD CARD ────────────────────────────────────────────────────────────────
+function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
+  return (
+    <div
+      className={`card draggable${isDragging ? ' dragging' : ''}`}
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(lead) }}
+      onDragEnd={onDragEnd}
+      onClick={() => onOpenModal(lead)}
+    >
+      <div className="card-name">{lead.nome || 'Sem nome'}</div>
+      <div className="card-phone">{lead.chat_id}</div>
+      <div className="card-tags">
+        <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
+          {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
+        </span>
+        {lead.operadora_atual && (
+          <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
+        )}
+      </div>
+      <div className="card-footer">
+        <span className="card-cep">
+          {lead.cep ? `${lead.cep}${lead.numero_imovel ? ` · nº ${lead.numero_imovel}` : ''}` : 'CEP não informado'}
+        </span>
+        <span className="card-date">{formatDate(lead.ultimo_contato || lead.created_at)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── COLUNA ───────────────────────────────────────────────────────────────────
+function Coluna({ nome, cor, leads, onOpenModal, onDrop, onDragOver, onDragLeave, isDragOver, onRenomear, onDragStart, onDragEnd, draggingId }) {
+  const [editando, setEditando] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState(nome)
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (editando) inputRef.current?.focus() }, [editando])
+
+  function confirmarRenomear() {
+    if (nomeEdit.trim() && nomeEdit.trim() !== nome) onRenomear(nome, nomeEdit.trim())
+    setEditando(false)
+  }
+
+  return (
+    <div
+      className={`column${isDragOver ? ' drag-over' : ''}`}
+      onDragOver={e => { e.preventDefault(); onDragOver() }}
+      onDragLeave={onDragLeave}
+      onDrop={e => { e.preventDefault(); onDrop() }}
+    >
+      <div className="col-header">
+        <div className="col-title-wrap">
+          <div className="col-dot" style={{ background: cor }} />
+          {editando ? (
+            <input
+              ref={inputRef}
+              className="col-rename-input"
+              value={nomeEdit}
+              onChange={e => setNomeEdit(e.target.value)}
+              onBlur={confirmarRenomear}
+              onKeyDown={e => { if (e.key === 'Enter') confirmarRenomear(); if (e.key === 'Escape') setEditando(false) }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <span className="col-title">{nome}</span>
+          )}
+          <button
+            className="col-rename-btn"
+            title="Renomear coluna"
+            onClick={e => { e.stopPropagation(); setEditando(true); setNomeEdit(nome) }}
+          >✎</button>
+        </div>
+        <span className="col-count">{leads.length}</span>
+      </div>
+      {leads.length === 0 && (
+        <div className={`empty${isDragOver ? ' drop-hint' : ''}`}>
+          {isDragOver ? 'Solte aqui' : 'Nenhum lead'}
+        </div>
+      )}
+      {leads.map(lead => (
+        <LeadCard
+          key={lead.id}
+          lead={lead}
+          onOpenModal={onOpenModal}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          isDragging={draggingId === lead.id}
+        />
+      ))}
+    </div>
+  )
+}
+
 // ─── MODAL DE DETALHES ────────────────────────────────────────────────────────
-function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
+function LeadModal({ lead, onClose, onRefresh, colunas, coresCol }) {
   const [nome, setNome] = useState(lead.nome || '')
   const [obs, setObs] = useState(lead.observacoes || '')
   const [statusCrm, setStatusCrm] = useState(lead.status_crm || colunas[0])
@@ -68,13 +161,9 @@ function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
     onClose()
   }
 
-  const colIdx = colunas.indexOf(statusCrm)
-  const corStatus = colIdx >= 0 ? coresCol[colIdx] : '#999'
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="lead-modal" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="lm-header">
           <div className="lm-header-left">
             <div className="lm-avatar">{(nome || '?')[0].toUpperCase()}</div>
@@ -91,55 +180,32 @@ function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
           <button className="lm-close" onClick={onClose}>✕</button>
         </div>
 
-        {/* Tags */}
         <div className="lm-tags">
           <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
             {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
           </span>
-          {lead.operadora_atual && (
-            <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
-          )}
+          {lead.operadora_atual && <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>}
           <span className="tag" style={{ background: '#f4f0f9', color: '#660099' }}>
             etapa {lead.etapa_followup || 0}
           </span>
         </div>
 
-        {/* Dados */}
         <div className="lm-section-title">Dados do lead</div>
         <div className="lm-grid">
-          <div className="lm-field">
-            <label>CEP</label>
-            <span>{lead.cep || '—'}</span>
-          </div>
-          <div className="lm-field">
-            <label>Número imóvel</label>
-            <span>{lead.numero_imovel || '—'}</span>
-          </div>
-          <div className="lm-field">
-            <label>Operadora atual</label>
-            <span>{lead.operadora_atual || '—'}</span>
-          </div>
-          <div className="lm-field">
-            <label>Criado em</label>
-            <span>{lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '—'}</span>
-          </div>
-          <div className="lm-field">
-            <label>Último contato</label>
-            <span>{formatDate(lead.ultimo_contato || lead.created_at)}</span>
-          </div>
-          <div className="lm-field">
-            <label>Follow-up ativo</label>
-            <span>{lead.followup_ativo ? '✅ Sim' : '⛔ Não'}</span>
-          </div>
+          <div className="lm-field"><label>CEP</label><span>{lead.cep || '—'}</span></div>
+          <div className="lm-field"><label>Número imóvel</label><span>{lead.numero_imovel || '—'}</span></div>
+          <div className="lm-field"><label>Operadora atual</label><span>{lead.operadora_atual || '—'}</span></div>
+          <div className="lm-field"><label>Criado em</label><span>{lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '—'}</span></div>
+          <div className="lm-field"><label>Último contato</label><span>{formatDate(lead.ultimo_contato || lead.created_at)}</span></div>
+          <div className="lm-field"><label>Follow-up ativo</label><span>{lead.followup_ativo ? '✅ Sim' : '⛔ Não'}</span></div>
         </div>
 
-        {/* Status Kanban */}
         <div className="lm-section-title">Status no Kanban</div>
         <div className="lm-status-grid">
           {colunas.map((col, i) => (
             <div
               key={col}
-              className={`lm-status-opt ${statusCrm === col ? 'active' : ''}`}
+              className={`lm-status-opt${statusCrm === col ? ' active' : ''}`}
               style={statusCrm === col ? { borderColor: coresCol[i], background: coresCol[i] + '18' } : {}}
               onClick={() => setStatusCrm(col)}
             >
@@ -149,16 +215,14 @@ function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
           ))}
         </div>
 
-        {/* Resumo do agente */}
-        {lead.observacoes && lead.observacoes.includes('Operadora') && (
+        {lead.observacoes && (
           <>
-            <div className="lm-section-title">Resumo do agente IA</div>
+            <div className="lm-section-title">Resumo / histórico</div>
             <div className="lm-resumo">{lead.observacoes}</div>
           </>
         )}
 
-        {/* Observações */}
-        <div className="lm-section-title">Observações / interações</div>
+        <div className="lm-section-title">Observações</div>
         <textarea
           className="obs-area"
           rows={4}
@@ -168,7 +232,6 @@ function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
           style={{ marginBottom: '8px' }}
         />
 
-        {/* Ações */}
         <div className="lm-actions">
           <a href={waLink(lead.chat_id)} target="_blank" rel="noreferrer" style={{ flex: 1 }}>
             <button className="btn-action whatsapp" style={{ width: '100%' }}>💬 WhatsApp</button>
@@ -189,95 +252,6 @@ function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
   )
 }
 
-// ─── CARD ─────────────────────────────────────────────────────────────────────
-function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
-  return (
-    <div
-      className={`card draggable ${isDragging ? 'dragging' : ''}`}
-      draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(lead) }}
-      onDragEnd={onDragEnd}
-      onClick={() => onOpenModal(lead)}
-    >
-      <div className="card-name">{lead.nome || 'Sem nome'}</div>
-      <div className="card-phone">{lead.chat_id}</div>
-      <div className="card-tags">
-        <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
-          {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
-        </span>
-        {lead.operadora_atual && (
-          <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
-        )}
-      </div>
-      <div className="card-footer">
-        <span className="card-cep">
-          {lead.cep ? `${lead.cep}${lead.numero_imovel ? ` · nº ${lead.numero_imovel}` : ''}` : 'CEP não informado'}
-        </span>
-        <span className="card-date">{formatDate(lead.ultimo_contato || lead.created_at)}</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── COLUNA ────────────────────────────────────────────────────────────────────
-function Coluna({ nome, cor, leads, onOpenModal, onDrop, onDragOver, onDragLeave, isDragOver, onRenomear }) {
-  const [editando, setEditando] = useState(false)
-  const [nomeEdit, setNomeEdit] = useState(nome)
-  const inputRef = useRef(null)
-
-  useEffect(() => { if (editando) inputRef.current?.focus() }, [editando])
-
-  function confirmarRenomear() {
-    if (nomeEdit.trim() && nomeEdit.trim() !== nome) onRenomear(nome, nomeEdit.trim())
-    setEditando(false)
-  }
-
-  return (
-    <div
-      className={`column ${isDragOver ? 'drag-over' : ''}`}
-      onDragOver={e => { e.preventDefault(); onDragOver() }}
-      onDragLeave={onDragLeave}
-      onDrop={e => { e.preventDefault(); onDrop() }}
-    >
-      <div className="col-header">
-        <div className="col-title-wrap">
-          <div className="col-dot" style={{ background: cor }} />
-          {editando ? (
-            <input
-              ref={inputRef}
-              className="col-rename-input"
-              value={nomeEdit}
-              onChange={e => setNomeEdit(e.target.value)}
-              onBlur={confirmarRenomear}
-              onKeyDown={e => { if (e.key === 'Enter') confirmarRenomear(); if (e.key === 'Escape') setEditando(false) }}
-              onClick={e => e.stopPropagation()}
-            />
-          ) : (
-            <span className="col-title" title="Clique no lápis para renomear">{nome}</span>
-          )}
-          <button
-            className="col-rename-btn"
-            title="Renomear coluna"
-            onClick={e => { e.stopPropagation(); setEditando(true); setNomeEdit(nome) }}
-          >✎</button>
-        </div>
-        <span className="col-count">{leads.length}</span>
-      </div>
-      {leads.length === 0 && <div className={`empty ${isDragOver ? 'drop-hint' : ''}`}>{isDragOver ? 'Solte aqui' : 'Nenhum lead'}</div>}
-      {leads.map(lead => (
-        <LeadCard
-          key={lead.id}
-          lead={lead}
-          onOpenModal={onOpenModal}
-          onDragStart={() => {}}
-          onDragEnd={() => {}}
-          isDragging={false}
-        />
-      ))}
-    </div>
-  )
-}
-
 // ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [leads, setLeads] = useState([])
@@ -287,8 +261,9 @@ export default function App() {
   const [modalLead, setModalLead] = useState(null)
   const [obsTexto, setObsTexto] = useState({})
   const [colunas, setColunas] = useState(loadColunas)
-  const [dragging, setDragging] = useState(null)   // lead sendo arrastado
-  const [dragOver, setDragOver] = useState(null)   // coluna com hover
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOver, setDragOver] = useState(null)
+  const draggingLead = useRef(null)
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
@@ -308,43 +283,37 @@ export default function App() {
     return () => supabase.removeChannel(ch)
   }, [fetchLeads])
 
-  // Renomear coluna — persiste em localStorage e atualiza status_crm dos leads afetados
   async function renomearColuna(nomeAntigo, nomeNovo) {
     const novas = colunas.map(c => c === nomeAntigo ? nomeNovo : c)
     setColunas(novas)
     localStorage.setItem('tvf_colunas', JSON.stringify(novas))
-    // Atualiza leads com o nome antigo no Supabase
     await supabase.from('consultores').update({ status_crm: nomeNovo }).eq('status_crm', nomeAntigo)
     fetchLeads()
   }
 
-  // Drag & Drop handlers
-  function handleDragStart(lead) { setDragging(lead) }
-  function handleDragEnd() { setDragging(null); setDragOver(null) }
+  function handleDragStart(lead) {
+    draggingLead.current = lead
+    setDraggingId(lead.id)
+  }
 
-  async function handleDrop(coluna) {
-    if (!dragging) return
-    if ((dragging.status_crm || colunas[0]) !== coluna) {
-      await supabase.from('consultores').update({ status_crm: coluna }).eq('id', dragging.id)
-      fetchLeads()
-    }
-    setDragging(null)
+  function handleDragEnd() {
+    draggingLead.current = null
+    setDraggingId(null)
     setDragOver(null)
   }
 
-  const leadsFechados = leads.filter(l => l.status === 'fechado')
-  const leadsRecontatos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup > 2)
-  const leadsNovos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup <= 2)
-  const porColuna = (col) => leadsNovos.filter(l => (l.status_crm || colunas[0]) === col)
-  const totalAtivos = leadsNovos.length + leadsRecontatos.length
+  async function handleDrop(coluna) {
+    const lead = draggingLead.current
+    if (!lead) return
+    if ((lead.status_crm || colunas[0]) !== coluna) {
+      await supabase.from('consultores').update({ status_crm: coluna }).eq('id', lead.id)
+      fetchLeads()
+    }
+    handleDragEnd()
+  }
 
   async function marcarFechado(lead) {
     await supabase.from('consultores').update({ status: 'fechado', status_crm: 'Fechado' }).eq('id', lead.id)
-    fetchLeads()
-  }
-
-  async function salvarObs(lead) {
-    await supabase.from('consultores').update({ observacoes: obsTexto[lead.id] || '' }).eq('id', lead.id)
     fetchLeads()
   }
 
@@ -353,6 +322,12 @@ export default function App() {
     await supabase.from('consultores').delete().eq('id', lead.id)
     fetchLeads()
   }
+
+  const leadsFechados = leads.filter(l => l.status === 'fechado')
+  const leadsRecontatos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup > 2)
+  const leadsNovos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup <= 2)
+  const porColuna = col => leadsNovos.filter(l => (l.status_crm || colunas[0]) === col)
+  const totalAtivos = leadsNovos.length + leadsRecontatos.length
 
   if (loading) return <div className="loading">Carregando leads...</div>
 
@@ -402,24 +377,22 @@ export default function App() {
         </div>
 
         {tab === 'novos' && (
-          <div className="board" onDragOver={e => e.preventDefault()}>
+          <div className="board">
             {colunas.map((col, i) => (
               <Coluna
                 key={col}
                 nome={col}
                 cor={CORES_COL[i % CORES_COL.length]}
-                leads={porColuna(col).map(lead => ({
-                  ...lead,
-                  _onDragStart: handleDragStart,
-                  _onDragEnd: handleDragEnd,
-                  _isDragging: dragging?.id === lead.id,
-                }))}
+                leads={porColuna(col)}
                 onOpenModal={setModalLead}
                 onDrop={() => handleDrop(col)}
                 onDragOver={() => setDragOver(col)}
                 onDragLeave={() => setDragOver(null)}
                 isDragOver={dragOver === col}
                 onRenomear={renomearColuna}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                draggingId={draggingId}
               />
             ))}
           </div>
@@ -483,43 +456,11 @@ export default function App() {
         <LeadModal
           lead={modalLead}
           onClose={() => setModalLead(null)}
-          supabase={supabase}
           onRefresh={fetchLeads}
           colunas={colunas}
           coresCol={CORES_COL}
         />
       )}
-    </div>
-  )
-}
-
-// Coluna precisa de LeadCard com drag real
-// Override LeadCard dentro do contexto do board
-function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
-  return (
-    <div
-      className={`card draggable ${isDragging ? 'dragging' : ''}`}
-      draggable
-      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; if (lead._onDragStart) lead._onDragStart(lead) }}
-      onDragEnd={() => { if (lead._onDragEnd) lead._onDragEnd() }}
-      onClick={() => onOpenModal(lead)}
-    >
-      <div className="card-name">{lead.nome || 'Sem nome'}</div>
-      <div className="card-phone">{lead.chat_id}</div>
-      <div className="card-tags">
-        <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
-          {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
-        </span>
-        {lead.operadora_atual && (
-          <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
-        )}
-      </div>
-      <div className="card-footer">
-        <span className="card-cep">
-          {lead.cep ? `${lead.cep}${lead.numero_imovel ? ` · nº ${lead.numero_imovel}` : ''}` : 'CEP não informado'}
-        </span>
-        <span className="card-date">{formatDate(lead.ultimo_contato || lead.created_at)}</span>
-      </div>
     </div>
   )
 }
