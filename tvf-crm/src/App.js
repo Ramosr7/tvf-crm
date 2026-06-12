@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import './index.css'
 
-const COLUNAS = ['Aguardando', 'Em contato', 'Proposta enviada', 'Sem resposta']
+const COLUNAS_DEFAULT = ['Aguardando', 'Em contato', 'Proposta enviada', 'Sem resposta']
 const CORES_COL = ['#378ADD', '#EF9F27', '#1D9E75', '#E05C2A']
 
 function tagClass(texto) {
@@ -30,26 +30,270 @@ function waLink(phone) {
   return `https://wa.me/${num}`
 }
 
+function loadColunas() {
+  try {
+    const saved = localStorage.getItem('tvf_colunas')
+    return saved ? JSON.parse(saved) : COLUNAS_DEFAULT
+  } catch { return COLUNAS_DEFAULT }
+}
+
+// ─── MODAL DE DETALHES ────────────────────────────────────────────────────────
+function LeadModal({ lead, onClose, supabase, onRefresh, colunas, coresCol }) {
+  const [nome, setNome] = useState(lead.nome || '')
+  const [obs, setObs] = useState(lead.observacoes || '')
+  const [statusCrm, setStatusCrm] = useState(lead.status_crm || colunas[0])
+  const [salvando, setSalvando] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function salvar() {
+    setSalvando(true)
+    await supabase.from('consultores').update({ nome, observacoes: obs, status_crm: statusCrm }).eq('id', lead.id)
+    setSalvando(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
+    onRefresh()
+  }
+
+  async function fechar() {
+    if (!window.confirm(`Marcar ${nome || lead.chat_id} como fechado?`)) return
+    await supabase.from('consultores').update({ status: 'fechado', status_crm: 'Fechado' }).eq('id', lead.id)
+    onRefresh()
+    onClose()
+  }
+
+  async function deletar() {
+    if (!window.confirm(`Deletar o lead de ${nome || lead.chat_id}? Essa ação não pode ser desfeita.`)) return
+    await supabase.from('consultores').delete().eq('id', lead.id)
+    onRefresh()
+    onClose()
+  }
+
+  const colIdx = colunas.indexOf(statusCrm)
+  const corStatus = colIdx >= 0 ? coresCol[colIdx] : '#999'
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="lead-modal" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="lm-header">
+          <div className="lm-header-left">
+            <div className="lm-avatar">{(nome || '?')[0].toUpperCase()}</div>
+            <div>
+              <input
+                className="lm-nome-input"
+                value={nome}
+                onChange={e => setNome(e.target.value)}
+                placeholder="Nome do lead"
+              />
+              <div className="lm-phone">{lead.chat_id}</div>
+            </div>
+          </div>
+          <button className="lm-close" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Tags */}
+        <div className="lm-tags">
+          <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
+            {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
+          </span>
+          {lead.operadora_atual && (
+            <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
+          )}
+          <span className="tag" style={{ background: '#f4f0f9', color: '#660099' }}>
+            etapa {lead.etapa_followup || 0}
+          </span>
+        </div>
+
+        {/* Dados */}
+        <div className="lm-section-title">Dados do lead</div>
+        <div className="lm-grid">
+          <div className="lm-field">
+            <label>CEP</label>
+            <span>{lead.cep || '—'}</span>
+          </div>
+          <div className="lm-field">
+            <label>Número imóvel</label>
+            <span>{lead.numero_imovel || '—'}</span>
+          </div>
+          <div className="lm-field">
+            <label>Operadora atual</label>
+            <span>{lead.operadora_atual || '—'}</span>
+          </div>
+          <div className="lm-field">
+            <label>Criado em</label>
+            <span>{lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '—'}</span>
+          </div>
+          <div className="lm-field">
+            <label>Último contato</label>
+            <span>{formatDate(lead.ultimo_contato || lead.created_at)}</span>
+          </div>
+          <div className="lm-field">
+            <label>Follow-up ativo</label>
+            <span>{lead.followup_ativo ? '✅ Sim' : '⛔ Não'}</span>
+          </div>
+        </div>
+
+        {/* Status Kanban */}
+        <div className="lm-section-title">Status no Kanban</div>
+        <div className="lm-status-grid">
+          {colunas.map((col, i) => (
+            <div
+              key={col}
+              className={`lm-status-opt ${statusCrm === col ? 'active' : ''}`}
+              style={statusCrm === col ? { borderColor: coresCol[i], background: coresCol[i] + '18' } : {}}
+              onClick={() => setStatusCrm(col)}
+            >
+              <div className="col-dot" style={{ background: coresCol[i] }} />
+              {col}
+            </div>
+          ))}
+        </div>
+
+        {/* Resumo do agente */}
+        {lead.observacoes && lead.observacoes.includes('Operadora') && (
+          <>
+            <div className="lm-section-title">Resumo do agente IA</div>
+            <div className="lm-resumo">{lead.observacoes}</div>
+          </>
+        )}
+
+        {/* Observações */}
+        <div className="lm-section-title">Observações / interações</div>
+        <textarea
+          className="obs-area"
+          rows={4}
+          placeholder="Adicione notas, histórico de interações, resultados de chamadas..."
+          value={obs}
+          onChange={e => setObs(e.target.value)}
+          style={{ marginBottom: '8px' }}
+        />
+
+        {/* Ações */}
+        <div className="lm-actions">
+          <a href={waLink(lead.chat_id)} target="_blank" rel="noreferrer" style={{ flex: 1 }}>
+            <button className="btn-action whatsapp" style={{ width: '100%' }}>💬 WhatsApp</button>
+          </a>
+          <button
+            className="btn-save-obs"
+            style={{ flex: 1, margin: 0, float: 'none', display: 'block' }}
+            onClick={salvar}
+            disabled={salvando}
+          >
+            {salvando ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar alterações'}
+          </button>
+          <button className="btn-action fechar" onClick={fechar}>✓ Fechar lead</button>
+          <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={deletar}>🗑</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── CARD ─────────────────────────────────────────────────────────────────────
+function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
+  return (
+    <div
+      className={`card draggable ${isDragging ? 'dragging' : ''}`}
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(lead) }}
+      onDragEnd={onDragEnd}
+      onClick={() => onOpenModal(lead)}
+    >
+      <div className="card-name">{lead.nome || 'Sem nome'}</div>
+      <div className="card-phone">{lead.chat_id}</div>
+      <div className="card-tags">
+        <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
+          {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
+        </span>
+        {lead.operadora_atual && (
+          <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
+        )}
+      </div>
+      <div className="card-footer">
+        <span className="card-cep">
+          {lead.cep ? `${lead.cep}${lead.numero_imovel ? ` · nº ${lead.numero_imovel}` : ''}` : 'CEP não informado'}
+        </span>
+        <span className="card-date">{formatDate(lead.ultimo_contato || lead.created_at)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── COLUNA ────────────────────────────────────────────────────────────────────
+function Coluna({ nome, cor, leads, onOpenModal, onDrop, onDragOver, onDragLeave, isDragOver, onRenomear }) {
+  const [editando, setEditando] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState(nome)
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (editando) inputRef.current?.focus() }, [editando])
+
+  function confirmarRenomear() {
+    if (nomeEdit.trim() && nomeEdit.trim() !== nome) onRenomear(nome, nomeEdit.trim())
+    setEditando(false)
+  }
+
+  return (
+    <div
+      className={`column ${isDragOver ? 'drag-over' : ''}`}
+      onDragOver={e => { e.preventDefault(); onDragOver() }}
+      onDragLeave={onDragLeave}
+      onDrop={e => { e.preventDefault(); onDrop() }}
+    >
+      <div className="col-header">
+        <div className="col-title-wrap">
+          <div className="col-dot" style={{ background: cor }} />
+          {editando ? (
+            <input
+              ref={inputRef}
+              className="col-rename-input"
+              value={nomeEdit}
+              onChange={e => setNomeEdit(e.target.value)}
+              onBlur={confirmarRenomear}
+              onKeyDown={e => { if (e.key === 'Enter') confirmarRenomear(); if (e.key === 'Escape') setEditando(false) }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <span className="col-title" title="Clique no lápis para renomear">{nome}</span>
+          )}
+          <button
+            className="col-rename-btn"
+            title="Renomear coluna"
+            onClick={e => { e.stopPropagation(); setEditando(true); setNomeEdit(nome) }}
+          >✎</button>
+        </div>
+        <span className="col-count">{leads.length}</span>
+      </div>
+      {leads.length === 0 && <div className={`empty ${isDragOver ? 'drop-hint' : ''}`}>{isDragOver ? 'Solte aqui' : 'Nenhum lead'}</div>}
+      {leads.map(lead => (
+        <LeadCard
+          key={lead.id}
+          lead={lead}
+          onOpenModal={onOpenModal}
+          onDragStart={() => {}}
+          onDragEnd={() => {}}
+          isDragging={false}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('novos')
   const [campanha, setCampanha] = useState('todos')
-  const [expandedCard, setExpandedCard] = useState(null)
+  const [modalLead, setModalLead] = useState(null)
   const [obsTexto, setObsTexto] = useState({})
-  const [moveModal, setMoveModal] = useState(null)
+  const [colunas, setColunas] = useState(loadColunas)
+  const [dragging, setDragging] = useState(null)   // lead sendo arrastado
+  const [dragOver, setDragOver] = useState(null)   // coluna com hover
 
   const fetchLeads = useCallback(async () => {
     setLoading(true)
-    let query = supabase
-      .from('consultores')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (campanha !== 'todos') {
-      query = query.eq('campanha', campanha)
-    }
-
+    let query = supabase.from('consultores').select('*').order('created_at', { ascending: false })
+    if (campanha !== 'todos') query = query.eq('campanha', campanha)
     const { data, error } = await query
     if (!error && data) setLeads(data)
     setLoading(false)
@@ -57,28 +301,42 @@ export default function App() {
 
   useEffect(() => { fetchLeads() }, [fetchLeads])
 
-  // Realtime updates
   useEffect(() => {
-    const channel = supabase
-      .channel('consultores-changes')
+    const ch = supabase.channel('consultores-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'consultores' }, fetchLeads)
       .subscribe()
-    return () => supabase.removeChannel(channel)
+    return () => supabase.removeChannel(ch)
   }, [fetchLeads])
 
-  // Classificar leads
+  // Renomear coluna — persiste em localStorage e atualiza status_crm dos leads afetados
+  async function renomearColuna(nomeAntigo, nomeNovo) {
+    const novas = colunas.map(c => c === nomeAntigo ? nomeNovo : c)
+    setColunas(novas)
+    localStorage.setItem('tvf_colunas', JSON.stringify(novas))
+    // Atualiza leads com o nome antigo no Supabase
+    await supabase.from('consultores').update({ status_crm: nomeNovo }).eq('status_crm', nomeAntigo)
+    fetchLeads()
+  }
+
+  // Drag & Drop handlers
+  function handleDragStart(lead) { setDragging(lead) }
+  function handleDragEnd() { setDragging(null); setDragOver(null) }
+
+  async function handleDrop(coluna) {
+    if (!dragging) return
+    if ((dragging.status_crm || colunas[0]) !== coluna) {
+      await supabase.from('consultores').update({ status_crm: coluna }).eq('id', dragging.id)
+      fetchLeads()
+    }
+    setDragging(null)
+    setDragOver(null)
+  }
+
   const leadsFechados = leads.filter(l => l.status === 'fechado')
   const leadsRecontatos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup > 2)
   const leadsNovos = leads.filter(l => l.status !== 'fechado' && l.etapa_followup <= 2)
-
-  // Por coluna (novos)
-  const porColuna = (coluna) => leadsNovos.filter(l => (l.status_crm || 'Aguardando') === coluna)
-
-  async function moverCard(lead, novaColuna) {
-    await supabase.from('consultores').update({ status_crm: novaColuna }).eq('id', lead.id)
-    setMoveModal(null)
-    fetchLeads()
-  }
+  const porColuna = (col) => leadsNovos.filter(l => (l.status_crm || colunas[0]) === col)
+  const totalAtivos = leadsNovos.length + leadsRecontatos.length
 
   async function marcarFechado(lead) {
     await supabase.from('consultores').update({ status: 'fechado', status_crm: 'Fechado' }).eq('id', lead.id)
@@ -86,23 +344,15 @@ export default function App() {
   }
 
   async function salvarObs(lead) {
-    const obs = obsTexto[lead.id] || ''
-    await supabase.from('consultores').update({ observacoes: obs }).eq('id', lead.id)
-    setExpandedCard(null)
-  }
-
-  async function deletarLead(lead) {
-    if (!window.confirm(`Deletar o lead de ${lead.nome || lead.chat_id}? Essa ação não pode ser desfeita.`)) return
-    await supabase.from('consultores').delete().eq('id', lead.id)
+    await supabase.from('consultores').update({ observacoes: obsTexto[lead.id] || '' }).eq('id', lead.id)
     fetchLeads()
   }
 
-  function toggleCard(id) {
-    setExpandedCard(prev => prev === id ? null : id)
-    setObsTexto(prev => ({ ...prev, [id]: leads.find(l => l.id === id)?.observacoes || '' }))
+  async function deletarLead(lead) {
+    if (!window.confirm(`Deletar o lead de ${lead.nome || lead.chat_id}?`)) return
+    await supabase.from('consultores').delete().eq('id', lead.id)
+    fetchLeads()
   }
-
-  const totalAtivos = leadsNovos.length + leadsRecontatos.length
 
   if (loading) return <div className="loading">Carregando leads...</div>
 
@@ -115,11 +365,7 @@ export default function App() {
         </div>
         <div className="topbar-right">
           {['todos', 'banda_larga', 'aparelho'].map(c => (
-            <button
-              key={c}
-              className={`btn-filter ${campanha === c ? 'active' : ''}`}
-              onClick={() => setCampanha(c)}
-            >
+            <button key={c} className={`btn-filter ${campanha === c ? 'active' : ''}`} onClick={() => setCampanha(c)}>
               {c === 'todos' ? 'Todos' : c === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
             </button>
           ))}
@@ -129,26 +375,18 @@ export default function App() {
 
       <div className="main">
         <div className="stats">
-          <div className="stat-card">
-            <div className="stat-label">Novos leads</div>
-            <div className="stat-value">{leadsNovos.length}</div>
-            <div className="stat-sub">sem atendimento anterior</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Recontatos</div>
-            <div className="stat-value">{leadsRecontatos.length}</div>
-            <div className="stat-sub">já abordados antes</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Fechados</div>
-            <div className="stat-value">{leadsFechados.length}</div>
-            <div className="stat-sub">este mês</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Total na base</div>
-            <div className="stat-value">{leads.length}</div>
-            <div className="stat-sub">todos os períodos</div>
-          </div>
+          {[
+            { label: 'Novos leads', value: leadsNovos.length, sub: 'sem atendimento anterior' },
+            { label: 'Recontatos', value: leadsRecontatos.length, sub: 'já abordados antes' },
+            { label: 'Fechados', value: leadsFechados.length, sub: 'este mês' },
+            { label: 'Total na base', value: leads.length, sub: 'todos os períodos' },
+          ].map(s => (
+            <div key={s.label} className="stat-card">
+              <div className="stat-label">{s.label}</div>
+              <div className="stat-value">{s.value}</div>
+              <div className="stat-sub">{s.sub}</div>
+            </div>
+          ))}
         </div>
 
         <div className="tabs">
@@ -158,41 +396,31 @@ export default function App() {
             { key: 'fechados', label: 'Fechados', count: leadsFechados.length },
           ].map(t => (
             <div key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-              {t.label}
-              <span className="tab-pill">{t.count}</span>
+              {t.label}<span className="tab-pill">{t.count}</span>
             </div>
           ))}
         </div>
 
         {tab === 'novos' && (
-          <div className="board">
-            {COLUNAS.map((col, i) => (
-              <div key={col} className="column">
-                <div className="col-header">
-                  <div className="col-title-wrap">
-                    <div className="col-dot" style={{ background: CORES_COL[i] }} />
-                    <span className="col-title">{col}</span>
-                  </div>
-                  <span className="col-count">{porColuna(col).length}</span>
-                </div>
-                {porColuna(col).length === 0 && <div className="empty">Nenhum lead</div>}
-                {porColuna(col).map(lead => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    expanded={expandedCard === lead.id}
-                    onToggle={() => toggleCard(lead.id)}
-                    onMover={() => setMoveModal(lead)}
-                    onFechar={() => marcarFechado(lead)}
-                    onDeletar={() => deletarLead(lead)}
-                    obsTexto={obsTexto[lead.id] || ''}
-                    onObsChange={v => setObsTexto(prev => ({ ...prev, [lead.id]: v }))}
-                    onSalvarObs={() => salvarObs(lead)}
-                    supabase={supabase}
-                    onRefresh={fetchLeads}
-                  />
-                ))}
-              </div>
+          <div className="board" onDragOver={e => e.preventDefault()}>
+            {colunas.map((col, i) => (
+              <Coluna
+                key={col}
+                nome={col}
+                cor={CORES_COL[i % CORES_COL.length]}
+                leads={porColuna(col).map(lead => ({
+                  ...lead,
+                  _onDragStart: handleDragStart,
+                  _onDragEnd: handleDragEnd,
+                  _isDragging: dragging?.id === lead.id,
+                }))}
+                onOpenModal={setModalLead}
+                onDrop={() => handleDrop(col)}
+                onDragOver={() => setDragOver(col)}
+                onDragLeave={() => setDragOver(null)}
+                isDragOver={dragOver === col}
+                onRenomear={renomearColuna}
+              />
             ))}
           </div>
         )}
@@ -201,7 +429,7 @@ export default function App() {
           <div className="list-view">
             {leadsRecontatos.length === 0 && <div className="empty" style={{ padding: '40px' }}>Nenhum recontato ainda</div>}
             {leadsRecontatos.map(lead => (
-              <div key={lead.id} className="list-card">
+              <div key={lead.id} className="list-card" onClick={() => setModalLead(lead)} style={{ cursor: 'pointer' }}>
                 <div className="list-card-top">
                   <div>
                     <span className="list-card-name">{lead.nome || 'Sem nome'}</span>
@@ -209,11 +437,7 @@ export default function App() {
                   </div>
                   <span className="badge-recontato">{lead.etapa_followup}º contato</span>
                 </div>
-                {lead.observacoes && (
-                  <div className="rc-history">
-                    Último: {lead.observacoes}
-                  </div>
-                )}
+                {lead.observacoes && <div className="rc-history">Último: {lead.observacoes}</div>}
                 <div className="list-card-footer">
                   <div className="card-tags">
                     <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
@@ -221,25 +445,8 @@ export default function App() {
                     </span>
                     {lead.operadora_atual && <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <a href={waLink(lead.chat_id)} target="_blank" rel="noreferrer">
-                      <button className="btn-action whatsapp">💬 WhatsApp</button>
-                    </a>
-                    <button className="btn-action fechar" onClick={() => marcarFechado(lead)}>✓ Fechar</button>
-                  </div>
+                  <span className="list-card-date">{formatDate(lead.ultimo_contato)}</span>
                 </div>
-                <div style={{ marginTop: '8px' }}>
-                  <textarea
-                    className="obs-area"
-                    rows={2}
-                    placeholder="Adicionar observação..."
-                    value={obsTexto[lead.id] || lead.observacoes || ''}
-                    onChange={e => setObsTexto(prev => ({ ...prev, [lead.id]: e.target.value }))}
-                  />
-                  <button className="btn-save-obs" onClick={() => salvarObs(lead)}>Salvar</button>
-                  <div style={{ clear: 'both' }} />
-                </div>
-                <div className="list-card-date" style={{ marginTop: '4px' }}>{formatDate(lead.ultimo_contato)}</div>
               </div>
             ))}
           </div>
@@ -249,7 +456,7 @@ export default function App() {
           <div className="list-view">
             {leadsFechados.length === 0 && <div className="empty" style={{ padding: '40px' }}>Nenhum lead fechado ainda</div>}
             {leadsFechados.map(lead => (
-              <div key={lead.id} className="list-card">
+              <div key={lead.id} className="list-card" onClick={() => setModalLead(lead)} style={{ cursor: 'pointer' }}>
                 <div className="list-card-top">
                   <div>
                     <span className="list-card-name">{lead.nome || 'Sem nome'}</span>
@@ -272,66 +479,39 @@ export default function App() {
         )}
       </div>
 
-      {moveModal && (
-        <div className="modal-overlay" onClick={() => setMoveModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-title">Mover para...</div>
-            {COLUNAS.filter(c => c !== moveModal.status_crm).map((col, i) => (
-              <div key={col} className="modal-option" onClick={() => moverCard(moveModal, col)}>
-                <div className="col-dot" style={{ background: CORES_COL[COLUNAS.indexOf(col)] }} />
-                {col}
-              </div>
-            ))}
-            <div className="modal-cancel" onClick={() => setMoveModal(null)}>Cancelar</div>
-          </div>
-        </div>
+      {modalLead && (
+        <LeadModal
+          lead={modalLead}
+          onClose={() => setModalLead(null)}
+          supabase={supabase}
+          onRefresh={fetchLeads}
+          colunas={colunas}
+          coresCol={CORES_COL}
+        />
       )}
     </div>
   )
 }
 
-function LeadCard({ lead, expanded, onToggle, onMover, onFechar, onDeletar, obsTexto, onObsChange, onSalvarObs, supabase, onRefresh }) {
-  const [editando, setEditando] = useState(false)
-  const [nomeEdit, setNomeEdit] = useState(lead.nome || '')
-
-  async function salvarNome() {
-    await supabase.from('consultores').update({ nome: nomeEdit }).eq('id', lead.id)
-    setEditando(false)
-    onRefresh()
-  }
-
+// Coluna precisa de LeadCard com drag real
+// Override LeadCard dentro do contexto do board
+function LeadCard({ lead, onOpenModal, onDragStart, onDragEnd, isDragging }) {
   return (
-    <div className="card" onClick={onToggle}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-        {editando ? (
-          <input
-            style={{ fontSize: '13px', fontWeight: 600, border: '1px solid #660099', borderRadius: '4px', padding: '2px 6px', flex: 1, marginRight: '6px' }}
-            value={nomeEdit}
-            onChange={e => setNomeEdit(e.target.value)}
-            onClick={e => e.stopPropagation()}
-            autoFocus
-          />
-        ) : (
-          <div className="card-name">{lead.nome || 'Sem nome'}</div>
-        )}
-        <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
-          {editando ? (
-            <button onClick={salvarNome} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: 'none', background: '#660099', color: '#fff', cursor: 'pointer' }}>✓</button>
-          ) : (
-            <button onClick={() => { setEditando(true); setNomeEdit(lead.nome || '') }} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #E0D8EC', background: 'transparent', color: '#888', cursor: 'pointer' }}>✎</button>
-          )}
-          <button onClick={onDeletar} style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #F5C6C6', background: 'transparent', color: '#C0451A', cursor: 'pointer' }}>✕</button>
-        </div>
-      </div>
+    <div
+      className={`card draggable ${isDragging ? 'dragging' : ''}`}
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; if (lead._onDragStart) lead._onDragStart(lead) }}
+      onDragEnd={() => { if (lead._onDragEnd) lead._onDragEnd() }}
+      onClick={() => onOpenModal(lead)}
+    >
+      <div className="card-name">{lead.nome || 'Sem nome'}</div>
       <div className="card-phone">{lead.chat_id}</div>
       <div className="card-tags">
         <span className={`tag ${lead.campanha === 'banda_larga' ? 'tag-bl' : 'tag-ap'}`}>
           {lead.campanha === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
         </span>
         {lead.operadora_atual && (
-          <span className={`tag ${lead.operadora_atual?.toLowerCase().includes('claro') ? 'tag-claro' : lead.operadora_atual?.toLowerCase().includes('vivo') ? 'tag-vivo' : 'tag-net'}`}>
-            {lead.operadora_atual}
-          </span>
+          <span className={tagClass(lead.operadora_atual)}>{lead.operadora_atual}</span>
         )}
       </div>
       <div className="card-footer">
@@ -340,27 +520,6 @@ function LeadCard({ lead, expanded, onToggle, onMover, onFechar, onDeletar, obsT
         </span>
         <span className="card-date">{formatDate(lead.ultimo_contato || lead.created_at)}</span>
       </div>
-
-      {expanded && (
-        <div onClick={e => e.stopPropagation()}>
-          <div className="card-actions">
-            <a href={waLink(lead.chat_id)} target="_blank" rel="noreferrer" style={{ flex: 1 }}>
-              <button className="btn-action whatsapp" style={{ width: '100%' }}>💬 WhatsApp</button>
-            </a>
-            <button className="btn-action" onClick={onMover}>↕ Mover</button>
-            <button className="btn-action fechar" onClick={onFechar}>✓ Fechar</button>
-          </div>
-          <textarea
-            className="obs-area"
-            rows={2}
-            placeholder="Adicionar observação..."
-            value={obsTexto}
-            onChange={e => onObsChange(e.target.value)}
-          />
-          <button className="btn-save-obs" onClick={onSalvarObs}>Salvar obs.</button>
-          <div style={{ clear: 'both' }} />
-        </div>
-      )}
     </div>
   )
 }
