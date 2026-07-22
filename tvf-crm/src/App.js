@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabaseClient'
+import { useAuth } from './useAuth'
+import Login from './Login'
+import PotencialCarteira from './PotencialCarteira'
+import UploadMapaParque from './UploadMapaParque'
+import UploadMailingDiario from './UploadMailingDiario'
+import RotinaDiaria from './RotinaDiaria'
+import KanbanTemperatura from './KanbanTemperatura'
 import './index.css'
 
 
@@ -387,8 +394,8 @@ function Coluna({ nome, cor, leads, onOpenModal, onDrop, onDragOver, onDragLeave
   )
 }
 
-// ─── APP ──────────────────────────────────────────────────────────────────────
-export default function App() {
+// ─── CRM LEADS (tela original) ─────────────────────────────────────────────────
+function CrmLeads() {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('novos')
@@ -463,23 +470,12 @@ export default function App() {
   if (loading) return <div className="loading">Carregando leads...</div>
 
   return (
-    <div className="app">
-      <div className="topbar">
-        <div className="topbar-left">
-          <span className="topbar-logo">TVF <span>TELECOM</span> · CRM</span>
-          <span className="topbar-badge">{leadsNovos.length + leadsRecontatos.length} ativos</span>
-        </div>
-        <div className="topbar-right">
-          {['todos', 'banda_larga', 'aparelho'].map(c => (
-            <button key={c} className={`btn-filter ${campanha === c ? 'active' : ''}`} onClick={() => setCampanha(c)}>
-              {c === 'todos' ? 'Todos' : c === 'banda_larga' ? 'Banda Larga' : 'Aparelho'}
-            </button>
-          ))}
-          <button className="btn-filter" onClick={fetchLeads}>↻</button>
-        </div>
-      </div>
-
+    <>
       <div className="main">
+        <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
+          <button className="btn-filter-light" onClick={fetchLeads}>↻ Atualizar</button>
+          <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{leadsNovos.length + leadsRecontatos.length} ativos</span>
+        </div>
         <div className="stats">
           {[
             { label: 'Novos leads', value: leadsNovos.length, sub: 'sem atendimento anterior' },
@@ -586,6 +582,65 @@ export default function App() {
         <LeadModal lead={modalLead} onClose={() => setModalLead(null)}
           onRefresh={fetchLeads} colunas={colunas} coresCol={CORES_COL} />
       )}
+    </>
+  )
+}
+
+// ─── APP (auth gate + navegação) ───────────────────────────────────────────────
+export default function App() {
+  const { session, user, loading, signOut } = useAuth()
+  const [tela, setTela] = useState('leads')
+
+  useEffect(() => {
+    if (user?.perfil === 'Consultor' && tela === 'leads') setTela('carteira')
+  }, [user, tela])
+
+  if (loading) return <div className="loading">Carregando...</div>
+  if (!session) return <Login />
+  if (!user) {
+    return (
+      <div className="loading">
+        Usuário autenticado mas sem cadastro em consultores_staff.<br />
+        Peça pra adicionar seu ID ({session.user.id}) nessa tabela.
+        <div style={{ marginTop: 12 }}>
+          <button className="btn-filter-light" onClick={signOut}>Sair</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="app">
+      <div className="topbar">
+        <div className="topbar-left">
+          <span className="topbar-logo">TVF <span>TELECOM</span> · CRM</span>
+          <div className="topbar-nav">
+            {user.perfil !== 'Consultor' && (
+              <span className={`topbar-nav-item ${tela === 'leads' ? 'active' : ''}`} onClick={() => setTela('leads')}>CRM Leads</span>
+            )}
+            <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => setTela('carteira')}>Potencial de Carteira</span>
+            <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
+            <span className={`topbar-nav-item ${tela === 'rotina' ? 'active' : ''}`} onClick={() => setTela('rotina')}>Rotina Diária</span>
+            {user.perfil === 'Gestor' && (
+              <>
+                <span className={`topbar-nav-item ${tela === 'upload_parque' ? 'active' : ''}`} onClick={() => setTela('upload_parque')}>Upload Mapa Parque</span>
+                <span className={`topbar-nav-item ${tela === 'upload_mailing' ? 'active' : ''}`} onClick={() => setTela('upload_mailing')}>Upload Mailing</span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="topbar-right">
+          <span className="topbar-badge">{user?.nome} · {user?.perfil}</span>
+          <button className="btn-filter" onClick={signOut}>Sair</button>
+        </div>
+      </div>
+
+      {tela === 'leads' && user.perfil !== 'Consultor' && <CrmLeads />}
+      {tela === 'carteira' && <PotencialCarteira user={user} />}
+      {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}
+      {tela === 'rotina' && <RotinaDiaria user={user} />}
+      {tela === 'upload_parque' && user.perfil === 'Gestor' && <UploadMapaParque />}
+      {tela === 'upload_mailing' && user.perfil === 'Gestor' && <UploadMailingDiario />}
     </div>
   )
 }

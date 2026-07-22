@@ -12,6 +12,69 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn-filter { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.8); cursor: pointer; transition: all 0.15s; }
 .btn-filter:hover { background: rgba(255,255,255,0.15); color: #fff; }
 .btn-filter.active { background: #FF6B00; color: #fff; border-color: #FF6B00; }
+.topbar-nav { display: flex; gap: 4px; margin-left: 8px; }
+.topbar-nav-item { font-size: 12px; padding: 6px 12px; border-radius: 20px; color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.15s; }
+.topbar-nav-item:hover { color: #fff; }
+.topbar-nav-item.active { background: rgba(255,255,255,0.18); color: #fff; font-weight: 600; }
+.btn-filter-light { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid #E0D8EC; background: #fff; color: #660099; cursor: pointer; transition: all 0.15s; }
+.btn-filter-light:hover { background: #F4F2F8; }
+.btn-filter-light.active { background: #660099; color: #fff; border-color: #660099; }
+
+/* LOGIN */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F4F2F8; }
+.login-box { background: #fff; border-radius: 16px; padding: 32px; width: 340px; max-width: 92vw; box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
+.login-erro { font-size: 12px; color: #C0451A; margin-top: 10px; }
+.login-logo { font-size: 16px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.3px; margin-bottom: 20px; }
+.login-logo span { color: #FF6B00; }
+
+/* CARTEIRA TABLE */
+.carteira-table-wrap { overflow-x: auto; background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; }
+.carteira-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.carteira-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #999; padding: 10px 12px; border-bottom: 1px solid #E0D8EC; white-space: nowrap; }
+.carteira-table td { padding: 8px 12px; border-bottom: 1px solid #F0EAF8; white-space: nowrap; }
+.carteira-table td .lm-input { min-width: 110px; padding: 5px 8px; }
+.carteira-table td .filter-select { padding: 5px 8px; }
+.row-highlight { background: #FFF5EE; transition: background 1.6s ease; }
+.row-pendente { background: #FFF3E0; }
+.row-pendente:hover { background: #FFEAC7; }
+
+/* META (rotina diária) */
+.meta-abaixo { background: rgba(224,52,52,0.10); }
+.meta-abaixo.lm-input { border-color: #E03434; color: #B23A2E; }
+.meta-dentro { background: rgba(29,158,117,0.10); }
+.meta-dentro.lm-input { border-color: #1D9E75; color: #1D9E75; }
+.meta-acima { background: rgba(55,138,221,0.12); }
+.meta-acima.lm-input { border-color: #378ADD; color: #1D5FAA; }
+
+/* CARTEIRA STATS — visão diagnóstica: um cartão por indicador, cor própria, zero apagado */
+.diag-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 20px; }
+.diag-stat { background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; padding: 14px 16px; border-top: 3px solid #ccc; }
+.diag-stat-valor { font-size: 22px; font-weight: 700; color: #1a1a1a; }
+.diag-stat-label { font-size: 11px; color: #888; margin-top: 3px; }
+.diag-stat-zero { opacity: 0.45; }
+.diag-stat-zero .diag-stat-valor { color: #aaa; }
+.diag-stat-neutro { border-top-color: #660099; }
+.diag-stat-neutro .diag-stat-valor { color: #660099; }
+.diag-stat-migracao { border-top-color: #FF6B00; }
+.diag-stat-migracao .diag-stat-valor { color: #FF6B00; }
+.diag-stat-bl { border-top-color: #378ADD; }
+.diag-stat-bl .diag-stat-valor { color: #378ADD; }
+.diag-stat-ti { border-top-color: #1D9E75; }
+.diag-stat-ti .diag-stat-valor { color: #1D9E75; }
+.diag-stat-voz { border-top-color: #5B2C8D; }
+.diag-stat-voz .diag-stat-valor { color: #5B2C8D; }
+.diag-stat-credito { border-top-color: #1D9E75; background: #F4FBF8; }
+.diag-stat-credito .diag-stat-valor { color: #1D9E75; font-size: 24px; }
+@media (max-width: 900px) { .diag-stats { grid-template-columns: repeat(3, 1fr); } }
+
+/* CARTEIRA TABLE STICKY */
+.carteira-table-sticky thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
+.col-ordenavel { cursor: pointer; user-select: none; }
+.col-ordenavel:hover { color: #660099; }
+.flag-ativo { background: #FFF3E0; border-color: #FFB347; color: #C0651A; font-weight: 600; }
+.carteira-table-sticky .col-sticky { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 2px 0 4px rgba(0,0,0,0.04); }
+.carteira-table-sticky thead th.col-sticky { z-index: 3; }
+.carteira-table-wrap { max-height: 70vh; overflow: auto; }
 
 .main { padding: 20px 24px; flex: 1; }
 

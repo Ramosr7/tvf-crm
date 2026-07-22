@@ -1,0 +1,24 @@
+// Lógica de cálculo de potencial a partir da carga bruta do Mapa Parque.
+// Best-effort a partir da descrição da spec (sem o script Python original) —
+// revisar contra a lógica python validada assim que disponível.
+
+function contemPalavra(texto, palavras) {
+  const t = String(texto || '').toLowerCase()
+  return palavras.some(p => t.includes(p))
+}
+
+export function calcularPotencial(row) {
+  const recMovel = String(row.rec_movel || '')
+  const numMigracao = recMovel.match(/\d+/)
+  const potencial_migracao = numMigracao ? parseInt(numMigracao[0], 10) : 0
+
+  const ofertas = [row.primeira_oferta, row.segunda_oferta, row.terceira_oferta].join(' ')
+
+  const potencial_bl = (row.fixa_basica || contemPalavra(ofertas, ['banda larga', 'fixa basica', 'bl'])) ? 1 : 0
+  const potencial_ti = (row.vivo_tech || contemPalavra(ofertas, ['vivo tech', 'oferta digital', 'digital'])) ? 1 : 0
+  const potencial_voz = (row.avancados || row.vvn || contemPalavra(ofertas, ['avancado', 'avançado', 'vvn'])) ? 1 : 0
+
+  const credito_pre_aprovado = (parseFloat(row.vl_car_movel) || 0) + (parseFloat(row.vl_car_fixa) || 0)
+
+  return { potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado }
+}
