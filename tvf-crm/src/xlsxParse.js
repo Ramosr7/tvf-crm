@@ -6,41 +6,58 @@ function normalizarCel(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
-// Acha a linha real de cabeçalho: alguns exports (ex. print-to-xlsx) jogam lixo na linha 1
-// e o cabeçalho de verdade só aparece depois. Procura nas primeiras 5 linhas.
+// Acha a linha real de cabeçalho: alguns exports (ex. print-to-xlsx, ou planilhas com
+// cards/resumo no topo) jogam lixo nas primeiras linhas e o cabeçalho de verdade só
+// aparece depois. Procura nas primeiras 20 linhas. Primeiro tenta igualdade exata
+// (evita, ex., confundir a célula "CNPJ Baixado" de uma lista de status com o
+// cabeçalho "CNPJ"); só cai pra substring se nada bater exato.
 function acharLinhaCabecalho(linhasBrutas) {
-  for (let i = 0; i < Math.min(5, linhasBrutas.length); i++) {
+  const limite = Math.min(20, linhasBrutas.length)
+  for (let i = 0; i < limite; i++) {
+    const normalizadas = linhasBrutas[i].map(normalizarCel)
+    if (normalizadas.some(c => MARCADORES_CABECALHO.includes(c))) return i
+  }
+  for (let i = 0; i < limite; i++) {
     const normalizadas = linhasBrutas[i].map(normalizarCel)
     if (normalizadas.some(c => MARCADORES_CABECALHO.some(m => c.includes(m)))) return i
   }
   return 0
 }
 
-// Lê um File (csv/xlsx) e retorna array de linhas cruas: [{ 'Cabeçalho Original': valor, ... }]
-// CSV é lido como texto UTF-8 (senão acentos viram lixo tipo "Ã"); XLSX/XLS mantém binário
-// (formato zip/XML já é UTF-8 internamente, o parser do SheetJS decodifica sozinho).
-export function parseArquivo(file) {
+function lerWorkbook(file) {
   const ehCsv = /\.csv$/i.test(file.name)
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(reader.error)
     reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: ehCsv ? 'string' : 'binary' })
-        const sheet = wb.Sheets[wb.SheetNames[0]]
-        const arrays = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false })
-        const idxCabecalho = acharLinhaCabecalho(arrays)
-        const cabecalho = arrays[idxCabecalho]
-        const linhas = arrays.slice(idxCabecalho + 1).map(linha => {
-          const obj = {}
-          cabecalho.forEach((h, i) => { obj[h] = linha[i] ?? '' })
-          return obj
-        })
-        resolve(linhas)
-      } catch (err) { reject(err) }
+      try { resolve(XLSX.read(e.target.result, { type: ehCsv ? 'string' : 'binary' })) }
+      catch (err) { reject(err) }
     }
     if (ehCsv) reader.readAsText(file, 'UTF-8')
     else reader.readAsBinaryString(file)
+  })
+}
+
+// Lista os nomes das abas de um arquivo (útil quando o arquivo tem mais de uma planilha).
+export async function listarAbas(file) {
+  const wb = await lerWorkbook(file)
+  return wb.SheetNames
+}
+
+// Lê um File (csv/xlsx) e retorna array de linhas cruas: [{ 'Cabeçalho Original': valor, ... }]
+// CSV é lido como texto UTF-8 (senão acentos viram lixo tipo "Ã"); XLSX/XLS mantém binário
+// (formato zip/XML já é UTF-8 internamente, o parser do SheetJS decodifica sozinho).
+// `aba` (opcional) seleciona a planilha pelo nome; sem isso usa a primeira.
+export async function parseArquivo(file, aba) {
+  const wb = await lerWorkbook(file)
+  const sheet = wb.Sheets[aba || wb.SheetNames[0]]
+  const arrays = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false })
+  const idxCabecalho = acharLinhaCabecalho(arrays)
+  const cabecalho = arrays[idxCabecalho]
+  return arrays.slice(idxCabecalho + 1).map(linha => {
+    const obj = {}
+    cabecalho.forEach((h, i) => { obj[h] = linha[i] ?? '' })
+    return obj
   })
 }
 

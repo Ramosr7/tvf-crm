@@ -3,10 +3,10 @@ import { supabase } from './supabaseClient'
 import { useAuth } from './useAuth'
 import Login from './Login'
 import PotencialCarteira from './PotencialCarteira'
-import UploadMapaParque from './UploadMapaParque'
-import UploadMailingDiario from './UploadMailingDiario'
 import RotinaDiaria from './RotinaDiaria'
 import KanbanTemperatura from './KanbanTemperatura'
+import Importar from './Importar'
+import Relatorios from './Relatorios'
 import './index.css'
 
 
@@ -592,7 +592,7 @@ export default function App() {
   const [tela, setTela] = useState('leads')
 
   useEffect(() => {
-    if (user?.perfil === 'Consultor' && tela === 'leads') setTela('carteira')
+    if (user?.perfil !== 'Gestor' && tela === 'leads') setTela('carteira')
   }, [user, tela])
 
   if (loading) return <div className="loading">Carregando...</div>
@@ -615,18 +615,16 @@ export default function App() {
         <div className="topbar-left">
           <span className="topbar-logo">TVF <span>TELECOM</span> · CRM</span>
           <div className="topbar-nav">
-            {user.perfil !== 'Consultor' && (
+            {user.perfil === 'Gestor' && (
               <span className={`topbar-nav-item ${tela === 'leads' ? 'active' : ''}`} onClick={() => setTela('leads')}>CRM Leads</span>
             )}
             <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => setTela('carteira')}>Potencial de Carteira</span>
             <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
             <span className={`topbar-nav-item ${tela === 'rotina' ? 'active' : ''}`} onClick={() => setTela('rotina')}>Rotina Diária</span>
-            {user.perfil === 'Gestor' && (
-              <>
-                <span className={`topbar-nav-item ${tela === 'upload_parque' ? 'active' : ''}`} onClick={() => setTela('upload_parque')}>Upload Mapa Parque</span>
-                <span className={`topbar-nav-item ${tela === 'upload_mailing' ? 'active' : ''}`} onClick={() => setTela('upload_mailing')}>Upload Mailing</span>
-              </>
+            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
+              <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => setTela('importar')}>Importar</span>
             )}
+            <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
           </div>
         </div>
         <div className="topbar-right">
@@ -635,12 +633,12 @@ export default function App() {
         </div>
       </div>
 
-      {tela === 'leads' && user.perfil !== 'Consultor' && <CrmLeads />}
+      {tela === 'leads' && user.perfil === 'Gestor' && <CrmLeads />}
       {tela === 'carteira' && <PotencialCarteira user={user} />}
       {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}
       {tela === 'rotina' && <RotinaDiaria user={user} />}
-      {tela === 'upload_parque' && user.perfil === 'Gestor' && <UploadMapaParque />}
-      {tela === 'upload_mailing' && user.perfil === 'Gestor' && <UploadMailingDiario />}
+      {tela === 'importar' && (user.perfil === 'Gestor' || user.perfil === 'Supervisor') && <Importar user={user} />}
+      {tela === 'relatorios' && <Relatorios user={user} />}
     </div>
   )
 }

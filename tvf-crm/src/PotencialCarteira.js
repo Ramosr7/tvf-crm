@@ -9,8 +9,6 @@ const STATUS_OPCOES = [
   'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
 ]
-const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
-
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -159,7 +157,8 @@ export default function PotencialCarteira({ user }) {
 
   async function removerCliente(id) {
     if (!window.confirm('Remover este cliente da carteira? Interações e produtos vendidos registrados também serão apagados.')) return
-    await supabase.from('carteira_cliente').delete().eq('id', id)
+    const { error } = await supabase.from('carteira_cliente').delete().eq('id', id)
+    if (error) { console.error('Erro ao remover:', error); alert('Erro ao remover: ' + error.message); return }
     setSelecionados(prev => { const n = new Set(prev); n.delete(id); return n })
     fetchClientes()
   }
@@ -168,8 +167,20 @@ export default function PotencialCarteira({ user }) {
     if (selecionados.size === 0) return
     if (!window.confirm(`Remover ${selecionados.size} cliente(s) selecionado(s) da carteira? Isso não pode ser desfeito.`)) return
     setRemovendo(true)
-    await supabase.from('carteira_cliente').delete().in('id', Array.from(selecionados))
+    const { error } = await supabase.from('carteira_cliente').delete().in('id', Array.from(selecionados))
     setRemovendo(false)
+    if (error) { console.error('Erro ao remover:', error); alert('Erro ao remover: ' + error.message); return }
+    setSelecionados(new Set())
+    fetchClientes()
+  }
+
+  async function flagarSelecionados(no_kanban) {
+    if (selecionados.size === 0) return
+    const campos = no_kanban
+      ? { no_kanban: true, temperatura: 'Morno', temperatura_atualizada_em: new Date().toISOString() }
+      : { no_kanban: false, temperatura: null, temperatura_atualizada_em: null }
+    const { error } = await supabase.from('carteira_cliente').update(campos).in('id', Array.from(selecionados))
+    if (error) { console.error('Erro ao atualizar Kanban:', error); alert('Erro: ' + error.message); return }
     setSelecionados(new Set())
     fetchClientes()
   }
@@ -276,9 +287,13 @@ export default function PotencialCarteira({ user }) {
           {erroCnpj && <span style={{ fontSize: 11, color: '#C0451A' }}>{erroCnpj}</span>}
           <input className="search-input" placeholder="🔍 Filtrar por CNPJ..." value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)} />
           {selecionados.size > 0 && (
-            <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={removerSelecionados} disabled={removendo}>
-              {removendo ? 'Removendo...' : `🗑 Remover ${selecionados.size} selecionado(s)`}
-            </button>
+            <>
+              <button className="btn-action" onClick={() => flagarSelecionados(true)}>🚩 Adicionar {selecionados.size} ao Kanban</button>
+              <button className="btn-action" onClick={() => flagarSelecionados(false)}>Tirar {selecionados.size} do Kanban</button>
+              <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={removerSelecionados} disabled={removendo}>
+                {removendo ? 'Removendo...' : `🗑 Remover ${selecionados.size} selecionado(s)`}
+              </button>
+            </>
           )}
           <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
         </div>
@@ -350,7 +365,7 @@ export default function PotencialCarteira({ user }) {
                 <td>{c.potencial_voz || 0}</td>
                 <td>{fmtMoeda(c.credito_pre_aprovado)}</td>
                 <td>
-                  <button className="btn-action" disabled={!STATUS_VENDA.includes(c.status)} onClick={() => setModalCliente(c)}>
+                  <button className="btn-action" onClick={() => setModalCliente(c)}>
                     {resumoVenda(c.id) || '+ Adicionar'}
                   </button>
                 </td>
