@@ -21,10 +21,11 @@ function variacao(atual, anterior) {
   return Math.round(((atual - anterior) / anterior) * 100)
 }
 
-function CardComparativo({ titulo, atualQtd, atualValor, anteriorQtd, labelAnterior, onClick }) {
+function CardComparativo({ titulo, icone, cor = 'roxo', atualQtd, atualValor, anteriorQtd, labelAnterior, onClick }) {
   const varQtd = variacao(atualQtd, anteriorQtd)
   return (
     <div className={`dash-card ${onClick ? 'dash-card-clicavel' : ''}`} onClick={onClick}>
+      {icone && <div className={`dash-card-icon cor-${cor}`}>{icone}</div>}
       <div className="dash-card-titulo">{titulo}</div>
       <div className="dash-card-numero">{atualQtd}</div>
       <div className="dash-card-valor">{fmtMoeda(atualValor)}</div>
@@ -35,9 +36,10 @@ function CardComparativo({ titulo, atualQtd, atualValor, anteriorQtd, labelAnter
   )
 }
 
-function CardSimples({ titulo, valor, sub, onClick }) {
+function CardSimples({ titulo, icone, cor = 'roxo', valor, sub, onClick }) {
   return (
     <div className={`dash-card ${onClick ? 'dash-card-clicavel' : ''}`} onClick={onClick}>
+      {icone && <div className={`dash-card-icon cor-${cor}`}>{icone}</div>}
       <div className="dash-card-titulo">{titulo}</div>
       <div className="dash-card-numero">{valor}</div>
       {sub && <div className="dash-card-valor">{sub}</div>}
@@ -309,26 +311,27 @@ export default function Dashboard({ user }) {
 
   return (
     <div className="main">
-      <div className="lm-section-title">Visão Geral</div>
+      <div className="dash-section-title">📊 Visão Geral</div>
 
       <div className="dash-grid">
-        <CardComparativo titulo="Vendas Hoje" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
+        <CardComparativo titulo="Vendas Hoje" icone="💰" cor="roxo" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
           anteriorQtd={vendasOntem.length} labelAnterior="ontem"
           onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', itens: paraItensClientes(vendasHoje) })} />
-        <CardComparativo titulo="Vendas na Semana" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
+        <CardComparativo titulo="Vendas na Semana" icone="📅" cor="laranja" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
           anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada"
           onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', itens: paraItensClientes(vendasSemana) })} />
-        <CardComparativo titulo="Vendas no Mês" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
+        <CardComparativo titulo="Vendas no Mês" icone="🗓️" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
           anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
           onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', itens: paraItensClientes(vendasMes) })} />
         <div className="dash-card">
+          <div className="dash-card-icon cor-verde">🎯</div>
           <div className="dash-card-titulo">Conversão da Carteira</div>
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
         </div>
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Potencial de Carteira</div>
+      <div className="dash-section-title">💼 Potencial de Carteira</div>
       <div className="diag-stats">
         <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{totalCarteira}</div><div className="diag-stat-label">Clientes na Carteira</div></div>
         <div className={`diag-stat diag-stat-migracao ${potencialCarteira.migracao === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.migracao}</div><div className="diag-stat-label">Pot. Migração</div></div>
@@ -338,10 +341,10 @@ export default function Dashboard({ user }) {
         <div className={`diag-stat diag-stat-credito ${potencialCarteira.credito === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{fmtMoeda(potencialCarteira.credito)}</div><div className="diag-stat-label">Crédito Pré-aprovado</div></div>
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Receita por Tipo (mês atual)</div>
+      <div className="dash-section-title">💵 Receita por Tipo (mês atual)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Produto Novo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`} />
-        <CardSimples titulo="Renovação" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`} />
+        <CardSimples titulo="Produto Novo" icone="✨" cor="roxo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`} />
+        <CardSimples titulo="Renovação" icone="🔁" cor="laranja" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`} />
       </div>
 
       {!isConsultor && melhorDoDia && (
@@ -350,18 +353,18 @@ export default function Dashboard({ user }) {
         </div>
       )}
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Tendência de Vendas (últimos 7 dias)</div>
+      <div className="dash-section-title">📈 Tendência de Vendas (últimos 7 dias)</div>
       <div className="dash-card">
         <BarChartVertical dados={dias7} />
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Indicadores de Atendimento (hoje)</div>
+      <div className="dash-section-title">📞 Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Atendimentos" valor={atendimentosHoje} sub="clientes recebidos hoje"
+        <CardSimples titulo="Atendimentos" icone="👥" cor="azul" valor={atendimentosHoje} sub="clientes recebidos hoje"
           onClick={isConsultor ? undefined : () => setModal({ titulo: 'Atendimentos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
-        <CardSimples titulo="Retornos" valor={retornosHoje} sub="retornos feitos hoje"
+        <CardSimples titulo="Retornos" icone="↩️" cor="laranja" valor={retornosHoje} sub="retornos feitos hoje"
           onClick={isConsultor ? undefined : () => setModal({ titulo: 'Retornos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
-        <CardSimples titulo="Ag. Aceite Enviados" valor={aceitesHoje} sub="enviados hoje"
+        <CardSimples titulo="Ag. Aceite Enviados" icone="✅" cor="verde" valor={aceitesHoje} sub="enviados hoje"
           onClick={isConsultor ? undefined : () => setModal({ titulo: 'Ag. Aceite hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
       </div>
 
@@ -380,7 +383,7 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Vendas por Produto (mês atual)</div>
+      <div className="dash-section-title">📦 Vendas por Produto (mês atual)</div>
       {vendasPorProdutoMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
       {vendasPorProdutoMes.length > 0 && (
         <>
@@ -402,7 +405,7 @@ export default function Dashboard({ user }) {
 
       {!isConsultor && (
         <>
-          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores — Produto Novo (mês atual)</div>
+          <div className="dash-section-title">🥇 Ranking — Produto Novo (mês atual)</div>
           {rankingNovoMes.length === 0 && <div className="empty">Nenhuma venda de produto novo este mês</div>}
           {rankingNovoMes.length > 0 && (
             <>
@@ -427,7 +430,7 @@ export default function Dashboard({ user }) {
             </>
           )}
 
-          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores — Renovação (mês atual)</div>
+          <div className="dash-section-title">🔁 Ranking — Renovação (mês atual)</div>
           {rankingRenovacaoMes.length === 0 && <div className="empty">Nenhuma venda de renovação este mês</div>}
           {rankingRenovacaoMes.length > 0 && (
             <>
