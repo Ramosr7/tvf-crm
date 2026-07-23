@@ -104,8 +104,8 @@ export default function UploadStatusAtual() {
         credito_pre_aprovado: potencialParque.credito_pre_aprovado || 0,
       } : null
 
-      const { data: existente } = await supabase.from('carteira_cliente').select('id')
-        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).is('excluido_em', null).maybeSingle()
+      const { data: existente } = await supabase.from('carteira_cliente').select('id, excluido_em')
+        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
 
       let clienteId = existente?.id
 
@@ -113,6 +113,7 @@ export default function UploadStatusAtual() {
         const { error } = await supabase.from('carteira_cliente').update({
           status, razao_social: l.razao_social || undefined, contato: l.contato || undefined,
           ...(potencial || {}),
+          excluido_em: null, excluido_por: null,
           atualizado_em: new Date().toISOString(),
         }).eq('id', existente.id)
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else atualizados++

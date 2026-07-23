@@ -110,7 +110,7 @@ export default function UploadMailingDiario() {
       const creditoFinal = valorAparelho !== null ? valorAparelho : (potencial?.credito_pre_aprovado || 0)
 
       const { data: existente } = await supabase.from('carteira_cliente').select('id')
-        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).is('excluido_em', null).maybeSingle()
+        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
 
       if (existente) {
         const { error } = await supabase.from('carteira_cliente').update({
@@ -120,6 +120,7 @@ export default function UploadMailingDiario() {
           ...(potencial || {}),
           potencial_migracao: potencialMigracao,
           credito_pre_aprovado: creditoFinal,
+          excluido_em: null, excluido_por: null,
           atualizado_em: new Date().toISOString(),
         }).eq('id', existente.id)
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else atualizados++
