@@ -131,7 +131,7 @@ export default function Dashboard({ user }) {
     }
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       qClientes,
-      supabase.from('carteira_venda_item').select('carteira_cliente_id, valor, tipo'),
+      supabase.from('carteira_venda_item').select('carteira_cliente_id, valor, tipo, subproduto'),
       supabase.from('consultores_staff').select('id, nome'),
       qRotina,
     ])
@@ -202,16 +202,42 @@ export default function Dashboard({ user }) {
   const novoMes = receitaPorTipo(vendasMes, 'Novo')
   const renovacaoMes = receitaPorTipo(vendasMes, 'Renovação')
 
-  // ranking por consultor no mês corrente
-  const porConsultor = {}
-  vendasMes.forEach(c => {
-    const id = c.consultor_id
-    if (!porConsultor[id]) porConsultor[id] = { qtd: 0, valor: 0 }
-    porConsultor[id].qtd += 1
-    porConsultor[id].valor += valorCliente(c.id)
-  })
-  const rankingMes = Object.entries(porConsultor)
-    .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
+  // ranking por consultor no mês corrente, separado por tipo (Novo/Renovação) —
+  // somar os dois junto escondia quem vendia mais de cada um
+  const idsClienteMes = new Set(vendasMes.map(c => c.id))
+  const consultorPorCliente = {}
+  clientes.forEach(c => { consultorPorCliente[c.id] = c.consultor_id })
+
+  function rankingPorTipo(tipo) {
+    const porConsultor = {}
+    itensPorCliente
+      .filter(it => idsClienteMes.has(it.carteira_cliente_id) && it.tipo === tipo)
+      .forEach(it => {
+        const consultorId = consultorPorCliente[it.carteira_cliente_id]
+        if (!consultorId) return
+        if (!porConsultor[consultorId]) porConsultor[consultorId] = { qtd: 0, valor: 0 }
+        porConsultor[consultorId].qtd += 1
+        porConsultor[consultorId].valor += Number(it.valor || 0)
+      })
+    return Object.entries(porConsultor)
+      .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
+      .sort((a, b) => b.valor - a.valor)
+  }
+  const rankingNovoMes = rankingPorTipo('Novo')
+  const rankingRenovacaoMes = rankingPorTipo('Renovação')
+
+  // vendas por produto (subproduto) no mês atual
+  const porSubprodutoMes = {}
+  itensPorCliente
+    .filter(it => idsClienteMes.has(it.carteira_cliente_id))
+    .forEach(it => {
+      const sub = it.subproduto || '—'
+      if (!porSubprodutoMes[sub]) porSubprodutoMes[sub] = { qtd: 0, valor: 0 }
+      porSubprodutoMes[sub].qtd += 1
+      porSubprodutoMes[sub].valor += Number(it.valor || 0)
+    })
+  const vendasPorProdutoMes = Object.entries(porSubprodutoMes)
+    .map(([subproduto, v]) => ({ subproduto, ...v }))
     .sort((a, b) => b.valor - a.valor)
 
   // melhor vendedor do dia
@@ -266,7 +292,9 @@ export default function Dashboard({ user }) {
     return trend
   }
 
-  const dadosRankingChart = rankingMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
+  const dadosRankingNovo = rankingNovoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
+  const dadosRankingRenovacao = rankingRenovacaoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
+  const dadosPorProduto = vendasPorProdutoMes.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: fmtMoeda(p.valor) }))
 
   return (
     <div className="main">
@@ -331,21 +359,66 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
+      <div className="lm-section-title" style={{ marginTop: 24 }}>Vendas por Produto (mês atual)</div>
+      {vendasPorProdutoMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
+      {vendasPorProdutoMes.length > 0 && (
+        <>
+          <div className="dash-card" style={{ marginBottom: 14 }}>
+            <BarChartHorizontal dados={dadosPorProduto} />
+          </div>
+          <table className="carteira-table">
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+            <tbody>
+              {vendasPorProdutoMes.map(p => (
+                <tr key={p.subproduto}>
+                  <td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       {!isConsultor && (
         <>
-          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores (mês atual)</div>
-          {rankingMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
-          {rankingMes.length > 0 && (
+          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores — Produto Novo (mês atual)</div>
+          {rankingNovoMes.length === 0 && <div className="empty">Nenhuma venda de produto novo este mês</div>}
+          {rankingNovoMes.length > 0 && (
             <>
               <div className="dash-card" style={{ marginBottom: 14 }}>
-                <BarChartHorizontal dados={dadosRankingChart} />
+                <BarChartHorizontal dados={dadosRankingNovo} />
               </div>
               <table className="carteira-table">
                 <thead>
                   <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
                 </thead>
                 <tbody>
-                  {rankingMes.map((r, i) => (
+                  {rankingNovoMes.map((r, i) => (
+                    <tr key={r.id}>
+                      <td>{i + 1}{i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : ''}</td>
+                      <td>{r.nome}</td>
+                      <td>{r.qtd}</td>
+                      <td>{fmtMoeda(r.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores — Renovação (mês atual)</div>
+          {rankingRenovacaoMes.length === 0 && <div className="empty">Nenhuma venda de renovação este mês</div>}
+          {rankingRenovacaoMes.length > 0 && (
+            <>
+              <div className="dash-card" style={{ marginBottom: 14 }}>
+                <BarChartHorizontal dados={dadosRankingRenovacao} />
+              </div>
+              <table className="carteira-table">
+                <thead>
+                  <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
+                </thead>
+                <tbody>
+                  {rankingRenovacaoMes.map((r, i) => (
                     <tr key={r.id}>
                       <td>{i + 1}{i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : ''}</td>
                       <td>{r.nome}</td>
