@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
+import AnaliseIAModal from './AnaliseIAModal'
 
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -54,6 +55,8 @@ export default function Relatorios({ user }) {
   const [resumoInteracoes, setResumoInteracoes] = useState([])
   const [abasPdf, setAbasPdf] = useState(new Set(['vendas']))
   const [gerandoPdf, setGerandoPdf] = useState(false)
+  const [dadosAnalise, setDadosAnalise] = useState(null)
+  const [gerandoAnalise, setGerandoAnalise] = useState(false)
 
   useEffect(() => {
     if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
@@ -96,6 +99,7 @@ export default function Relatorios({ user }) {
     if (!isGestor(user)) linhas = linhas.filter(v => v.carteira_cliente.consultor_id === user.id)
     setVendas(linhas)
     setLoading(false)
+    return linhas
   }, [dataDe, dataAte, filtroConsultor, user])
 
   const carregarKanban = useCallback(async () => {
@@ -118,6 +122,7 @@ export default function Relatorios({ user }) {
     if (!isGestor(user)) linhas = linhas.filter(r => r.consultor_id === user.id)
     setRotinas(linhas)
     setLoading(false)
+    return linhas
   }, [dataDe, dataAte, filtroConsultor, user])
 
   const carregarInteracoes = useCallback(async () => {
@@ -157,6 +162,7 @@ export default function Relatorios({ user }) {
 
     setResumoInteracoes(resumo)
     setLoading(false)
+    return resumo
   }, [filtroConsultor, user])
 
   useEffect(() => {
@@ -174,6 +180,57 @@ export default function Relatorios({ user }) {
     await Promise.all(Array.from(abasPdf).map(k => carregadores[k]()))
     setGerandoPdf(false)
     setTimeout(() => window.print(), 50)
+  }
+
+  async function analisarComIA() {
+    setGerandoAnalise(true)
+    const [linhasVendas, linhasRotina, linhasInteracoes] = await Promise.all([
+      carregarVendas(), carregarRotina(), carregarInteracoes(),
+    ])
+    const porConsultorVendas = agruparPorConsultor(linhasVendas, v => v.carteira_cliente?.consultor_id)
+    const porConsultorRotina = agruparPorConsultor(linhasRotina, r => r.consultor_id)
+    const porConsultorInteracoes = agruparPorConsultor(linhasInteracoes, r => r.consultor_id)
+    const idsConsultores = new Set([
+      ...Object.keys(porConsultorVendas), ...Object.keys(porConsultorRotina), ...Object.keys(porConsultorInteracoes),
+    ])
+
+    const consultores = Array.from(idsConsultores).map(id => {
+      const vendasC = porConsultorVendas[id] || []
+      const rotinaC = porConsultorRotina[id] || []
+      const interacoesC = porConsultorInteracoes[id] || []
+      const somaRotina = rotinaC.reduce((acc, r) => {
+        acc.atendimentos += r.clientes_recebidos || 0
+        acc.retornos += r.retornos || 0
+        acc.visitas += r.visitas_agendadas || 0
+        acc.agAceite += r.ag_aceite || 0
+        acc.altas += r.altas || 0
+        acc.bl += r.bl || 0
+        acc.renovacaoMovel += r.renovacao_movel || 0
+        acc.aparelho += Number(r.aparelho_valor || 0)
+        return acc
+      }, { atendimentos: 0, retornos: 0, visitas: 0, agAceite: 0, altas: 0, bl: 0, renovacaoMovel: 0, aparelho: 0 })
+      return {
+        nome: isGestor(user) ? nomeConsultor(id) : user.nome,
+        periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`,
+        vendas: {
+          qtd: vendasC.length,
+          valor: vendasC.reduce((s, v) => s + Number(v.valor || 0), 0),
+          novo: vendasC.filter(v => v.tipo === 'Novo').length,
+          renovacao: vendasC.filter(v => v.tipo === 'Renovação').length,
+        },
+        rotina: somaRotina,
+        interacoes: {
+          clientes: interacoesC.length,
+          atrasados: interacoesC.filter(r => r.atrasado).length,
+          nuncaContatados: interacoesC.filter(r => !r.ultima).length,
+          amostra: interacoesC.filter(r => r.resumoTexto).slice(0, 10)
+            .map(r => ({ cliente: r.razao_social || r.cnpj, status: r.status, resumo: r.resumoTexto })),
+        },
+      }
+    })
+
+    setGerandoAnalise(false)
+    setDadosAnalise({ periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`, consultores })
   }
 
   const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0)
@@ -225,9 +282,16 @@ export default function Relatorios({ user }) {
             <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
-        <button className="btn-save-obs" style={{ float: 'none', marginLeft: 'auto' }} onClick={gerarPdf} disabled={gerandoPdf}>
-          {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {isGestor(user) && (
+            <button className="btn-filter-light" onClick={analisarComIA} disabled={gerandoAnalise}>
+              {gerandoAnalise ? 'Analisando...' : '🤖 Analisar com IA'}
+            </button>
+          )}
+          <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
@@ -430,6 +494,10 @@ export default function Relatorios({ user }) {
           </div>
         ))}
       </div>
+
+      {dadosAnalise && (
+        <AnaliseIAModal dados={dadosAnalise} onClose={() => setDadosAnalise(null)} />
+      )}
     </div>
   )
 }
