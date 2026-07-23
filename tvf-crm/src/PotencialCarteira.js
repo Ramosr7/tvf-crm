@@ -45,6 +45,7 @@ export default function PotencialCarteira({ user }) {
   const [highlightId, setHighlightId] = useState(null)
   const [vendaItensPorCliente, setVendaItensPorCliente] = useState({})
   const [interacoesPorCliente, setInteracoesPorCliente] = useState({})
+  const [checklistPorCliente, setChecklistPorCliente] = useState({})
   const [modalCliente, setModalCliente] = useState(null)
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
@@ -94,7 +95,17 @@ export default function PotencialCarteira({ user }) {
     setInteracoesPorCliente(mapa)
   }, [])
 
-  useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes() }, [fetchClientes, fetchVendaItens, fetchInteracoes])
+  const fetchChecklists = useCallback(async () => {
+    const { data } = await supabase.from('carteira_checklist_venda').select('carteira_cliente_id, ofereceu')
+    const mapa = {}
+    for (const item of (data || [])) {
+      if (!mapa[item.carteira_cliente_id]) mapa[item.carteira_cliente_id] = []
+      mapa[item.carteira_cliente_id].push(item)
+    }
+    setChecklistPorCliente(mapa)
+  }, [])
+
+  useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists])
 
   useEffect(() => {
     if (podeAdicionarCliente(user)) {
@@ -115,6 +126,13 @@ export default function PotencialCarteira({ user }) {
   function resumoInteracao(clienteId) {
     const itens = interacoesPorCliente[clienteId] || []
     return itens.length > 0 ? `Interação (${itens.length})` : 'Interação'
+  }
+
+  function resumoChecklist(clienteId) {
+    const itens = checklistPorCliente[clienteId] || []
+    if (itens.length === 0) return 'Checklist'
+    const ofereceu = itens.filter(i => i.ofereceu).length
+    return `Checklist (${ofereceu}/${itens.length})`
   }
 
   function aplicarPreset(preset) {
@@ -467,13 +485,14 @@ export default function PotencialCarteira({ user }) {
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_voz')}>Pot. Voz{setaOrdenacao('potencial_voz')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('credito_pre_aprovado')}>Crédito Pré-aprovado{setaOrdenacao('credito_pre_aprovado')}</th>
               <th>Produtos Vendidos</th>
+              <th>Checklist</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('data_venda')}>Data Venda{setaOrdenacao('data_venda')}</th>
               {podeAdicionarCliente(user) && <th>Remover</th>}
             </tr>
           </thead>
           <tbody>
             {clientesOrdenados.length === 0 && (
-              <tr><td colSpan={17} className="empty">Nenhum cliente na carteira</td></tr>
+              <tr><td colSpan={18} className="empty">Nenhum cliente na carteira</td></tr>
             )}
             {clientesOrdenados.map(c => (
               <tr key={c.id} id={`carteira-row-${c.id}`}
@@ -519,6 +538,9 @@ export default function PotencialCarteira({ user }) {
                   </button>
                 </td>
                 <td>
+                  <button className="btn-action" onClick={() => setModalChecklistCliente(c)}>{resumoChecklist(c.id)}</button>
+                </td>
+                <td>
                   <input className="lm-input" type="date" defaultValue={c.data_venda || ''}
                     onBlur={e => atualizarCliente(c.id, { data_venda: e.target.value || null })} />
                 </td>
@@ -540,7 +562,8 @@ export default function PotencialCarteira({ user }) {
       )}
       {modalChecklistCliente && (
         <VendaChecklistModal cliente={modalChecklistCliente} user={user}
-          onClose={() => setModalChecklistCliente(null)} onConcluido={() => setModalChecklistCliente(null)} />
+          onClose={() => setModalChecklistCliente(null)}
+          onConcluido={() => { setModalChecklistCliente(null); fetchChecklists() }} />
       )}
       {mostrarLixeira && (
         <div className="modal-overlay" onClick={() => setMostrarLixeira(false)}>

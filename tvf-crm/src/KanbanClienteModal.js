@@ -113,6 +113,7 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
             <div className="lm-field"><label>Crédito Pré-aprovado</label><span>{fmtMoeda(cliente.credito_pre_aprovado)}</span></div>
             <div className="lm-field"><label>Vendido</label><span>{vendaItens.length} item(ns) · {fmtMoeda(totalVendido)}</span></div>
           </div>
+          <button type="button" className="btn-filter-light" style={{ marginTop: 8 }} onClick={() => setMostrarChecklist(true)}>📋 Ver Checklist de Venda</button>
 
           <div className="lm-section-title" style={{ marginTop: 16 }}>Contato</div>
           <div className="lm-resumo">
