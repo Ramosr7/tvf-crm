@@ -52,10 +52,22 @@ export default function Relatorios({ user }) {
   const [kanbanClientes, setKanbanClientes] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [resumoInteracoes, setResumoInteracoes] = useState([])
+  const [abasPdf, setAbasPdf] = useState(new Set(['vendas']))
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   useEffect(() => {
     if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
   }, [user])
+
+  useEffect(() => { setAbasPdf(prev => new Set(prev).add(aba)) }, [aba])
+
+  function alternarAbaPdf(key) {
+    setAbasPdf(prev => {
+      const novo = new Set(prev)
+      if (novo.has(key)) { if (novo.size > 1) novo.delete(key) } else novo.add(key)
+      return novo
+    })
+  }
 
   const nomeConsultor = (id) => staff.find(s => s.id === id)?.nome || '—'
 
@@ -117,22 +129,30 @@ export default function Relatorios({ user }) {
 
     const ids = linhasClientes.map(c => c.id)
     const { data: interacoes } = ids.length
-      ? await supabase.from('carteira_interacao').select('carteira_cliente_id, criado_em').in('carteira_cliente_id', ids)
+      ? await supabase.from('carteira_interacao').select('carteira_cliente_id, criado_em, descricao')
+          .in('carteira_cliente_id', ids).order('criado_em', { ascending: true })
       : { data: [] }
 
     const mapa = {}
     for (const it of (interacoes || [])) {
       if (!mapa[it.carteira_cliente_id]) mapa[it.carteira_cliente_id] = []
-      mapa[it.carteira_cliente_id].push(it.criado_em)
+      mapa[it.carteira_cliente_id].push(it)
     }
 
     const hoje = new Date()
     const resumo = linhasClientes.map(c => {
-      const datas = (mapa[c.id] || []).sort()
-      const ultima = datas[datas.length - 1] || null
+      const itens = mapa[c.id] || []
+      const ultimaInteracao = itens[itens.length - 1] || null
+      const ultima = ultimaInteracao?.criado_em || null
       const diasSemInteracao = ultima ? Math.floor((hoje - new Date(ultima)) / 86400000) : null
       const atrasado = diasSemInteracao === null || diasSemInteracao > DIAS_ATRASO
-      return { ...c, qtdInteracoes: datas.length, ultima, diasSemInteracao, atrasado }
+      // resumo textual das interações, pensado como insumo pra análise por IA depois
+      const resumoTexto = itens.map(it => it.descricao).join(' // ')
+      return {
+        ...c, qtdInteracoes: itens.length, ultima, diasSemInteracao, atrasado,
+        ultimaDescricao: ultimaInteracao?.descricao || '',
+        resumoTexto,
+      }
     }).sort((a, b) => (b.diasSemInteracao ?? 9999) - (a.diasSemInteracao ?? 9999))
 
     setResumoInteracoes(resumo)
@@ -145,6 +165,16 @@ export default function Relatorios({ user }) {
     if (aba === 'rotina') carregarRotina()
     if (aba === 'interacoes') carregarInteracoes()
   }, [aba, carregarVendas, carregarKanban, carregarRotina, carregarInteracoes])
+
+  async function gerarPdf() {
+    setGerandoPdf(true)
+    const carregadores = {
+      vendas: carregarVendas, kanban: carregarKanban, rotina: carregarRotina, interacoes: carregarInteracoes,
+    }
+    await Promise.all(Array.from(abasPdf).map(k => carregadores[k]()))
+    setGerandoPdf(false)
+    setTimeout(() => window.print(), 50)
+  }
 
   const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0)
   const qtdNovo = vendas.filter(v => v.tipo === 'Novo').length
@@ -166,7 +196,9 @@ export default function Relatorios({ user }) {
     return acc
   }, { clientes: 0, retornos: 0, visitas: 0, agAceite: 0, altas: 0, bl: 0, renovacao: 0, aparelho: 0 })
 
-  const tituloAba = ABAS.find(a => a.key === aba)?.label || ''
+  const tituloAba = abasPdf.size > 1
+    ? ABAS.filter(a => abasPdf.has(a.key)).map(a => a.label).join(' + ')
+    : ABAS.find(a => a.key === aba)?.label || ''
   const periodoTexto = (aba === 'kanban')
     ? 'Situação atual'
     : `${dataDe ? formatDataBR(dataDe) : 'início'} a ${dataAte ? formatDataBR(dataAte) : 'hoje'}`
@@ -193,7 +225,19 @@ export default function Relatorios({ user }) {
             <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
-        <button className="btn-save-obs" style={{ float: 'none', marginLeft: 'auto' }} onClick={() => window.print()}>📄 Exportar PDF</button>
+        <button className="btn-save-obs" style={{ float: 'none', marginLeft: 'auto' }} onClick={gerarPdf} disabled={gerandoPdf}>
+          {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
+        </button>
+      </div>
+
+      <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
+        <span style={{ fontSize: 11, color: '#888' }}>Incluir no PDF:</span>
+        {ABAS.map(a => (
+          <label key={a.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <input type="checkbox" checked={abasPdf.has(a.key)} onChange={() => alternarAbaPdf(a.key)} />
+            {a.label}
+          </label>
+        ))}
       </div>
 
       {loading && <div className="loading">Carregando...</div>}
@@ -293,15 +337,16 @@ export default function Relatorios({ user }) {
           </div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
-              <thead><tr><th>Cliente</th>{isGestor(user) && <th>Consultor</th>}<th>Status</th><th>Interações</th><th>Última Interação</th><th>Dias sem contato</th><th>Alerta</th></tr></thead>
+              <thead><tr><th>Cliente</th>{isGestor(user) && <th>Consultor</th>}<th>Status</th><th>Interações</th><th>Última Interação</th><th>Resumo</th><th>Dias sem contato</th><th>Alerta</th></tr></thead>
               <tbody>
-                {resumoInteracoes.length === 0 && <tr><td colSpan={7} className="empty">Nenhum cliente</td></tr>}
+                {resumoInteracoes.length === 0 && <tr><td colSpan={8} className="empty">Nenhum cliente</td></tr>}
                 {resumoInteracoes.map(r => (
                   <tr key={r.id} className={r.atrasado ? 'row-pendente' : ''}>
                     <td>{r.razao_social || r.cnpj}</td>
                     {isGestor(user) && <td>{nomeConsultor(r.consultor_id)}</td>}
                     <td>{r.status}</td><td>{r.qtdInteracoes}</td>
                     <td>{r.ultima ? formatDataBR(r.ultima.slice(0, 10)) : '—'}</td>
+                    <td style={{ maxWidth: 260, whiteSpace: 'normal' }} title={r.resumoTexto}>{r.ultimaDescricao || '—'}</td>
                     <td>{r.diasSemInteracao ?? '—'}</td>
                     <td>{r.atrasado ? '🔴 Atrasado' : '✅ Em dia'}</td>
                   </tr>
@@ -321,7 +366,8 @@ export default function Relatorios({ user }) {
           </div>
         </div>
 
-        {aba === 'vendas' && Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
+        {abasPdf.has('vendas') && abasPdf.size > 1 && <div className="print-secao-titulo">Vendas</div>}
+        {abasPdf.has('vendas') && Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
           const porSubproduto = {}
           for (const v of itens) porSubproduto[v.subproduto] = (porSubproduto[v.subproduto] || 0) + (v.quantidade || 1)
           const total = itens.reduce((s, v) => s + Number(v.valor || 0), 0)
@@ -334,7 +380,8 @@ export default function Relatorios({ user }) {
           )
         })}
 
-        {aba === 'rotina' && Object.entries(agruparPorConsultor(rotinas, r => r.consultor_id)).map(([consultorId, itens]) => {
+        {abasPdf.has('rotina') && abasPdf.size > 1 && <div className="print-secao-titulo">Rotina</div>}
+        {abasPdf.has('rotina') && Object.entries(agruparPorConsultor(rotinas, r => r.consultor_id)).map(([consultorId, itens]) => {
           const soma = itens.reduce((acc, r) => {
             acc.clientes += r.clientes_recebidos || 0
             acc.retornos += r.retornos || 0
@@ -357,7 +404,8 @@ export default function Relatorios({ user }) {
           )
         })}
 
-        {aba === 'kanban' && Object.entries(agruparPorConsultor(kanbanClientes, c => c.consultor_id)).map(([consultorId, itens]) => (
+        {abasPdf.has('kanban') && abasPdf.size > 1 && <div className="print-secao-titulo">Kanban</div>}
+        {abasPdf.has('kanban') && Object.entries(agruparPorConsultor(kanbanClientes, c => c.consultor_id)).map(([consultorId, itens]) => (
           <div key={consultorId} className="print-bloco">
             <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
             {['Frio', 'Morno', 'Quente', 'Descartado'].map(t => (
@@ -366,12 +414,19 @@ export default function Relatorios({ user }) {
           </div>
         ))}
 
-        {aba === 'interacoes' && Object.entries(agruparPorConsultor(resumoInteracoes, r => r.consultor_id)).map(([consultorId, itens]) => (
+        {abasPdf.has('interacoes') && abasPdf.size > 1 && <div className="print-secao-titulo">Interações</div>}
+        {abasPdf.has('interacoes') && Object.entries(agruparPorConsultor(resumoInteracoes, r => r.consultor_id)).map(([consultorId, itens]) => (
           <div key={consultorId} className="print-bloco">
             <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
             <div>Clientes: {itens.length}</div>
             <div>Atrasados: {itens.filter(r => r.atrasado).length}</div>
             <div>Nunca contatados: {itens.filter(r => !r.ultima).length}</div>
+            {itens.map(r => (
+              <div key={r.id} style={{ marginTop: 6 }}>
+                <strong>{r.razao_social || r.cnpj}</strong> — status: {r.status} — {r.qtdInteracoes} interação(ões)
+                {r.resumoTexto && <div style={{ fontSize: 11, color: '#555' }}>{r.resumoTexto}</div>}
+              </div>
+            ))}
           </div>
         ))}
       </div>

@@ -114,6 +114,7 @@ export default function Dashboard({ user }) {
   const isConsultor = user.perfil === 'Consultor'
   const [clientes, setClientes] = useState([])
   const [valorPorCliente, setValorPorCliente] = useState({})
+  const [itensPorCliente, setItensPorCliente] = useState([])
   const [staff, setStaff] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -130,7 +131,7 @@ export default function Dashboard({ user }) {
     }
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       qClientes,
-      supabase.from('carteira_venda_item').select('carteira_cliente_id, valor'),
+      supabase.from('carteira_venda_item').select('carteira_cliente_id, valor, tipo'),
       supabase.from('consultores_staff').select('id, nome'),
       qRotina,
     ])
@@ -140,6 +141,7 @@ export default function Dashboard({ user }) {
       mapa[v.carteira_cliente_id] = (mapa[v.carteira_cliente_id] || 0) + Number(v.valor || 0)
     })
     setValorPorCliente(mapa)
+    setItensPorCliente(vendaItens || [])
     setStaff(staffData || [])
     setRotinas(rotinaData || [])
     setLoading(false)
@@ -189,6 +191,16 @@ export default function Dashboard({ user }) {
 
   const totalCarteira = clientes.length
   const conversao = totalCarteira > 0 ? Math.round((vendidos.length / totalCarteira) * 100) : 0
+
+  // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período
+  function receitaPorTipo(lista, tipo) {
+    const idsNoPeriodo = new Set(lista.map(c => c.id))
+    return itensPorCliente
+      .filter(it => idsNoPeriodo.has(it.carteira_cliente_id) && it.tipo === tipo)
+      .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
+  }
+  const novoMes = receitaPorTipo(vendasMes, 'Novo')
+  const renovacaoMes = receitaPorTipo(vendasMes, 'Renovação')
 
   // ranking por consultor no mês corrente
   const porConsultor = {}
@@ -275,6 +287,12 @@ export default function Dashboard({ user }) {
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
         </div>
+      </div>
+
+      <div className="lm-section-title" style={{ marginTop: 24 }}>Receita por Tipo (mês atual)</div>
+      <div className="dash-grid">
+        <CardSimples titulo="Produto Novo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`} />
+        <CardSimples titulo="Renovação" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`} />
       </div>
 
       {!isConsultor && melhorDoDia && (

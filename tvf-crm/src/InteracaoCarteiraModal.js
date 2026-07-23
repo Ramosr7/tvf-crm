@@ -36,6 +36,14 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
 
   useEffect(() => { carregar() }, [cliente.id])
 
+  async function excluir(id) {
+    if (!window.confirm('Excluir essa interação? Não pode ser desfeito.')) return
+    const { error } = await supabase.from('carteira_interacao').delete().eq('id', id)
+    if (error) { alert('Erro ao excluir: ' + error.message); return }
+    await carregar()
+    onSaved()
+  }
+
   async function enviar(e) {
     e.preventDefault()
     if (!texto.trim()) return
@@ -75,7 +83,12 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
           <div className="lm-chat">
             {itens.map(it => (
               <div key={it.id} className={`lm-chat-msg ${it.autor_id === user.id ? 'human' : 'ai'}`}>
-                <div className="lm-chat-label">{nomeAutor(it.autor_id)} · {formatDataHora(it.criado_em)}</div>
+                <div className="lm-chat-label" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span>{nomeAutor(it.autor_id)} · {formatDataHora(it.criado_em)}</span>
+                  {user.perfil === 'Gestor' && (
+                    <span style={{ cursor: 'pointer' }} title="Excluir" onClick={() => excluir(it.id)}>🗑</span>
+                  )}
+                </div>
                 <div className="lm-chat-text">{it.descricao}</div>
               </div>
             ))}

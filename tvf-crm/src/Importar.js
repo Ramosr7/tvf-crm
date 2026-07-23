@@ -1,13 +1,11 @@
 import React, { useState } from 'react'
 import UploadMapaParque from './UploadMapaParque'
 import UploadMailingDiario from './UploadMailingDiario'
-import UploadStatusAtual from './UploadStatusAtual'
 
 export default function Importar({ user }) {
   const opcoes = [
     { key: 'mailing', label: 'Mailing (clientes do dia)', restrito: false },
     { key: 'mapa_parque', label: 'Mapa Parque', restrito: true },
-    { key: 'status', label: 'Status Atual (migração)', restrito: true },
   ].filter(o => !o.restrito || user.perfil === 'Gestor')
 
   const [aba, setAba] = useState(opcoes[0].key)
@@ -21,7 +19,6 @@ export default function Importar({ user }) {
       </div>
       {aba === 'mailing' && <UploadMailingDiario />}
       {aba === 'mapa_parque' && user.perfil === 'Gestor' && <UploadMapaParque />}
-      {aba === 'status' && user.perfil === 'Gestor' && <UploadStatusAtual />}
     </div>
   )
 }

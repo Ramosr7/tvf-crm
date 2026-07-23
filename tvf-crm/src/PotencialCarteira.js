@@ -476,7 +476,6 @@ export default function PotencialCarteira({ user }) {
               <th>Kanban</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('cnpj')}>CNPJ{setaOrdenacao('cnpj')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('razao_social')}>Razão Social{setaOrdenacao('razao_social')}</th>
-              <th className="col-ordenavel" onClick={() => pedirOrdenar('origem')}>Origem{setaOrdenacao('origem')}</th>
               <th>Contato</th>
               {podeAdicionarCliente(user) && <th>Consultor</th>}
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_migracao')}>Pot. Migração{setaOrdenacao('potencial_migracao')}</th>
@@ -492,7 +491,7 @@ export default function PotencialCarteira({ user }) {
           </thead>
           <tbody>
             {clientesOrdenados.length === 0 && (
-              <tr><td colSpan={18} className="empty">Nenhum cliente na carteira</td></tr>
+              <tr><td colSpan={17} className="empty">Nenhum cliente na carteira</td></tr>
             )}
             {clientesOrdenados.map(c => (
               <tr key={c.id} id={`carteira-row-${c.id}`}
@@ -516,7 +515,6 @@ export default function PotencialCarteira({ user }) {
                 </td>
                 <td>{c.cnpj}</td>
                 <td>{c.razao_social || '—'}</td>
-                <td>{c.origem || '—'}</td>
                 <td>
                   {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}
                 </td>
