@@ -123,7 +123,9 @@ export default function Dashboard({ user }) {
   const carregar = useCallback(async () => {
     setLoading(true)
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
-    let qClientes = supabase.from('carteira_cliente').select('id, cnpj, razao_social, status, data_venda, consultor_id').is('excluido_em', null)
+    let qClientes = supabase.from('carteira_cliente')
+      .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado')
+      .is('excluido_em', null)
     let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
     if (isConsultor) {
       qClientes = qClientes.eq('consultor_id', user.id)
@@ -191,6 +193,15 @@ export default function Dashboard({ user }) {
 
   const totalCarteira = clientes.length
   const conversao = totalCarteira > 0 ? Math.round((vendidos.length / totalCarteira) * 100) : 0
+
+  const potencialCarteira = clientes.reduce((acc, c) => {
+    acc.migracao += c.potencial_migracao || 0
+    acc.bl += c.potencial_bl || 0
+    acc.ti += c.potencial_ti || 0
+    acc.voz += c.potencial_voz || 0
+    acc.credito += Number(c.credito_pre_aprovado || 0)
+    return acc
+  }, { migracao: 0, bl: 0, ti: 0, voz: 0, credito: 0 })
 
   // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período
   function receitaPorTipo(lista, tipo) {
@@ -315,6 +326,16 @@ export default function Dashboard({ user }) {
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
         </div>
+      </div>
+
+      <div className="lm-section-title" style={{ marginTop: 24 }}>Potencial de Carteira</div>
+      <div className="diag-stats">
+        <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{totalCarteira}</div><div className="diag-stat-label">Clientes na Carteira</div></div>
+        <div className={`diag-stat diag-stat-migracao ${potencialCarteira.migracao === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.migracao}</div><div className="diag-stat-label">Pot. Migração</div></div>
+        <div className={`diag-stat diag-stat-bl ${potencialCarteira.bl === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.bl}</div><div className="diag-stat-label">Pot. BL</div></div>
+        <div className={`diag-stat diag-stat-ti ${potencialCarteira.ti === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.ti}</div><div className="diag-stat-label">Pot. TI</div></div>
+        <div className={`diag-stat diag-stat-voz ${potencialCarteira.voz === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.voz}</div><div className="diag-stat-label">Pot. Voz</div></div>
+        <div className={`diag-stat diag-stat-credito ${potencialCarteira.credito === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{fmtMoeda(potencialCarteira.credito)}</div><div className="diag-stat-label">Crédito Pré-aprovado</div></div>
       </div>
 
       <div className="lm-section-title" style={{ marginTop: 24 }}>Receita por Tipo (mês atual)</div>

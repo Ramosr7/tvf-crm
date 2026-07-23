@@ -237,6 +237,36 @@ export default function Relatorios({ user }) {
   const qtdNovo = vendas.filter(v => v.tipo === 'Novo').length
   const qtdRenovacao = vendas.filter(v => v.tipo === 'Renovação').length
 
+  // vendas por produto (subproduto) no período filtrado
+  const porSubprodutoVendas = {}
+  vendas.forEach(v => {
+    const sub = v.subproduto || '—'
+    if (!porSubprodutoVendas[sub]) porSubprodutoVendas[sub] = { qtd: 0, valor: 0 }
+    porSubprodutoVendas[sub].qtd += v.quantidade || 1
+    porSubprodutoVendas[sub].valor += Number(v.valor || 0)
+  })
+  const vendasPorProduto = Object.entries(porSubprodutoVendas)
+    .map(([subproduto, v]) => ({ subproduto, ...v }))
+    .sort((a, b) => b.valor - a.valor)
+
+  // ranking de consultores por tipo (Novo/Renovação) — somar os dois junto
+  // esconde quem vende mais de cada um
+  function rankingVendasPorTipo(tipo) {
+    const porConsultor = {}
+    vendas.filter(v => v.tipo === tipo).forEach(v => {
+      const id = v.carteira_cliente?.consultor_id
+      if (!id) return
+      if (!porConsultor[id]) porConsultor[id] = { qtd: 0, valor: 0 }
+      porConsultor[id].qtd += 1
+      porConsultor[id].valor += Number(v.valor || 0)
+    })
+    return Object.entries(porConsultor)
+      .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
+      .sort((a, b) => b.valor - a.valor)
+  }
+  const rankingVendasNovo = rankingVendasPorTipo('Novo')
+  const rankingVendasRenovacao = rankingVendasPorTipo('Renovação')
+
   const kanbanPorTemperatura = ['Frio', 'Morno', 'Quente', 'Descartado'].map(t => ({
     temperatura: t, clientes: kanbanClientes.filter(c => c.temperatura === t),
   }))
@@ -330,6 +360,49 @@ export default function Relatorios({ user }) {
               </tbody>
             </table>
           </div>
+
+          <div className="lm-section-title" style={{ marginTop: 24 }}>Vendas por Produto</div>
+          {vendasPorProduto.length === 0 && <div className="empty">Nenhuma venda no período</div>}
+          {vendasPorProduto.length > 0 && (
+            <table className="carteira-table">
+              <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+              <tbody>
+                {vendasPorProduto.map(p => (
+                  <tr key={p.subproduto}><td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {isGestor(user) && (
+            <>
+              <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Produto Novo</div>
+              {rankingVendasNovo.length === 0 && <div className="empty">Nenhuma venda de produto novo no período</div>}
+              {rankingVendasNovo.length > 0 && (
+                <table className="carteira-table">
+                  <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
+                  <tbody>
+                    {rankingVendasNovo.map((r, i) => (
+                      <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Renovação</div>
+              {rankingVendasRenovacao.length === 0 && <div className="empty">Nenhuma venda de renovação no período</div>}
+              {rankingVendasRenovacao.length > 0 && (
+                <table className="carteira-table">
+                  <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
+                  <tbody>
+                    {rankingVendasRenovacao.map((r, i) => (
+                      <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
         </>
       )}
 
