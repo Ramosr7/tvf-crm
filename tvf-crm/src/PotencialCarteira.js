@@ -6,7 +6,7 @@ import { calcularPotencial } from './potencialLogic'
 import VendaChecklistModal from './VendaChecklistModal'
 
 const STATUS_OPCOES = [
-  'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
+  'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
   'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
@@ -48,6 +48,7 @@ export default function PotencialCarteira({ user }) {
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
   const [filtroCnpj, setFiltroCnpj] = useState('')
+  const [filtroOrigem, setFiltroOrigem] = useState('')
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -117,11 +118,12 @@ export default function PotencialCarteira({ user }) {
     if (filtroDataDe && (!c.data_adicao || c.data_adicao < filtroDataDe)) return false
     if (filtroDataAte && (!c.data_adicao || c.data_adicao > filtroDataAte)) return false
     if (filtroCnpj && !c.cnpj.includes(filtroCnpj.replace(/\D/g, ''))) return false
+    if (filtroOrigem && c.origem !== filtroOrigem) return false
     return true
   })
 
   function pendente(c) {
-    return c.status === 'Aguardando Aceite' && (interacoesPorCliente[c.id] || []).length === 0
+    return (c.status === 'Aguardando Aceite' || c.status === 'Aguardando Atendimento') && (interacoesPorCliente[c.id] || []).length === 0
   }
 
   const CAMPOS_NUMERICOS = ['potencial_migracao', 'potencial_bl', 'potencial_ti', 'potencial_voz', 'credito_pre_aprovado']
@@ -236,7 +238,8 @@ export default function PotencialCarteira({ user }) {
 
       const { data: novo, error } = await supabase.from('carteira_cliente')
         .insert({
-          cnpj, razao_social: parque?.nm_cliente, consultor_id: user.id, status: 'Aguardando Aceite',
+          cnpj, razao_social: parque?.nm_cliente, consultor_id: user.id, status: 'Aguardando Atendimento',
+          origem: 'Manual',
           potencial_migracao: potencial?.potencial_migracao || 0,
           potencial_bl: potencial?.potencial_bl || 0,
           potencial_ti: potencial?.potencial_ti || 0,
@@ -308,8 +311,14 @@ export default function PotencialCarteira({ user }) {
         {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
         <label style={{ fontSize: 11, color: '#888' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} /></label>
         <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} /></label>
-        {(filtroConsultor || filtroDataDe || filtroDataAte) && (
-          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte('') }}>✕ Limpar filtros</button>
+        <select className="filter-select" value={filtroOrigem} onChange={e => setFiltroOrigem(e.target.value)}>
+          <option value="">Todas as origens</option>
+          <option value="Manual">Manual</option>
+          <option value="Mailing Diário">Mailing Diário</option>
+          <option value="Status Atual (Migração)">Status Atual (Migração)</option>
+        </select>
+        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem) && (
+          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem('') }}>✕ Limpar filtros</button>
         )}
       </div>
 
@@ -352,6 +361,7 @@ export default function PotencialCarteira({ user }) {
               <th>Kanban</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('cnpj')}>CNPJ{setaOrdenacao('cnpj')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('razao_social')}>Razão Social{setaOrdenacao('razao_social')}</th>
+              <th className="col-ordenavel" onClick={() => pedirOrdenar('origem')}>Origem{setaOrdenacao('origem')}</th>
               <th>Contato</th>
               {isGestor(user) && <th>Consultor</th>}
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_migracao')}>Pot. Migração{setaOrdenacao('potencial_migracao')}</th>
@@ -366,7 +376,7 @@ export default function PotencialCarteira({ user }) {
           </thead>
           <tbody>
             {clientesOrdenados.length === 0 && (
-              <tr><td colSpan={16} className="empty">Nenhum cliente na carteira</td></tr>
+              <tr><td colSpan={17} className="empty">Nenhum cliente na carteira</td></tr>
             )}
             {clientesOrdenados.map(c => (
               <tr key={c.id} id={`carteira-row-${c.id}`}
@@ -375,7 +385,7 @@ export default function PotencialCarteira({ user }) {
                   <td className="col-sticky"><input type="checkbox" checked={selecionados.has(c.id)} onChange={() => alternarSelecao(c.id)} /></td>
                 )}
                 <td className={podeAdicionarCliente(user) ? '' : 'col-sticky'}>
-                  <select className="filter-select" value={c.status || 'Aguardando Aceite'}
+                  <select className="filter-select" value={c.status || 'Aguardando Atendimento'}
                     onChange={e => mudarStatus(c, e.target.value)}>
                     {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -390,6 +400,7 @@ export default function PotencialCarteira({ user }) {
                 </td>
                 <td>{c.cnpj}</td>
                 <td>{c.razao_social || '—'}</td>
+                <td>{c.origem || '—'}</td>
                 <td>
                   {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}
                 </td>

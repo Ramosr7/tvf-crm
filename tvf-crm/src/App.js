@@ -7,6 +7,7 @@ import RotinaDiaria from './RotinaDiaria'
 import KanbanTemperatura from './KanbanTemperatura'
 import Importar from './Importar'
 import Relatorios from './Relatorios'
+import NotificacoesSino from './NotificacoesSino'
 import './index.css'
 
 
@@ -634,6 +635,7 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
+          <NotificacoesSino user={user} />
           <span className="topbar-badge">{user?.nome} · {user?.perfil}</span>
           <button className="btn-filter" onClick={signOut}>Sair</button>
         </div>

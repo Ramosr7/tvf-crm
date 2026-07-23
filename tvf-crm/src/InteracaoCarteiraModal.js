@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
+import LembreteModal from './LembreteModal'
 
 function formatDataHora(str) {
   const d = new Date(str)
@@ -11,6 +12,7 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [mostrarLembrete, setMostrarLembrete] = useState(false)
   const fimRef = useRef(null)
 
   async function carregar() {
@@ -51,7 +53,10 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
               <div className="lm-phone">{cliente.razao_social || cliente.cnpj}</div>
             </div>
           </div>
-          <button className="lm-close" onClick={onClose}>✕</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" className="btn-filter" onClick={() => setMostrarLembrete(true)}>🔔 Agendar Retorno</button>
+            <button className="lm-close" onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <div className="lm-body">
@@ -78,6 +83,11 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
           </form>
         </div>
       </div>
+      {mostrarLembrete && (
+        <LembreteModal cliente={cliente} user={user}
+          onClose={() => setMostrarLembrete(false)}
+          onSalvo={() => setMostrarLembrete(false)} />
+      )}
     </div>
   )
 }

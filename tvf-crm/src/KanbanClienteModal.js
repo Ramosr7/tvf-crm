@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import VendaChecklistModal from './VendaChecklistModal'
+import LembreteModal from './LembreteModal'
 
 const STATUS_GATILHO_CHECKLIST = ['Venda Realizada', 'Pedido Finalizado']
 
 const STATUS_OPCOES = [
-  'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
+  'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
   'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
@@ -55,9 +56,10 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
     if (!error) { setTexto(''); await carregar(); onSaved() }
   }
 
-  const [status, setStatus] = useState(cliente.status || 'Aguardando Aceite')
+  const [status, setStatus] = useState(cliente.status || 'Aguardando Atendimento')
   const [salvandoStatus, setSalvandoStatus] = useState(false)
   const [mostrarChecklist, setMostrarChecklist] = useState(false)
+  const [mostrarLembrete, setMostrarLembrete] = useState(false)
 
   async function mudarStatus(novoStatus) {
     setStatus(novoStatus)
@@ -109,7 +111,10 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
             {cliente.contato ? cliente.contato.split(' · ').map((l, i) => <div key={i}>{l}</div>) : 'Sem contato registrado'}
           </div>
 
-          <div className="lm-section-title" style={{ marginTop: 16 }}>Interações ({interacoes.length})</div>
+          <div className="lm-section-title" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Interações ({interacoes.length})</span>
+            <button type="button" className="btn-filter" onClick={() => setMostrarLembrete(true)}>🔔 Agendar Retorno</button>
+          </div>
           {loading && <div className="empty">Carregando...</div>}
           {!loading && interacoes.length === 0 && <div className="empty">Nenhuma interação registrada ainda</div>}
           <div className="lm-chat" style={{ maxHeight: 220 }}>
@@ -134,6 +139,11 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
       {mostrarChecklist && (
         <VendaChecklistModal cliente={{ ...cliente, status }} user={user}
           onClose={() => setMostrarChecklist(false)} onConcluido={() => setMostrarChecklist(false)} />
+      )}
+      {mostrarLembrete && (
+        <LembreteModal cliente={cliente} user={user}
+          onClose={() => setMostrarLembrete(false)}
+          onSalvo={() => setMostrarLembrete(false)} />
       )}
     </div>
   )

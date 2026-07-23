@@ -17,7 +17,7 @@ const ALIASES = {
 }
 
 const STATUS_OPCOES = [
-  'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
+  'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
   'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
@@ -104,7 +104,7 @@ export default function UploadStatusAtual() {
       const l = linhas[i]
       setProgresso(`Importando ${i + 1} de ${linhas.length}...`)
       if (!l.statusMapeado) semStatusReconhecido++
-      const status = l.statusMapeado || 'Aguardando Aceite'
+      const status = l.statusMapeado || 'Aguardando Atendimento'
 
       // BL/TI/Voz/Crédito: usa o que já vem pronto na planilha do consultor (mais confiável).
       // Migração: SEMPRE vem do Mapa Parque — a planilha não rastreia isso direito.
@@ -139,6 +139,7 @@ export default function UploadStatusAtual() {
       } else {
         const { data: novo, error } = await supabase.from('carteira_cliente').insert({
           cnpj: l.cnpj, razao_social: l.razao_social, contato: l.contato, consultor_id: consultorId, status,
+          origem: 'Status Atual (Migração)',
           potencial_migracao: potencial?.potencial_migracao || 0,
           potencial_bl: potencial?.potencial_bl || 0,
           potencial_ti: potencial?.potencial_ti || 0,
