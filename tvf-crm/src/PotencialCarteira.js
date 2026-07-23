@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
 import InteracaoCarteiraModal from './InteracaoCarteiraModal'
+import { calcularPotencial } from './potencialLogic'
 
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
@@ -200,29 +201,53 @@ export default function PotencialCarteira({ user }) {
 
   async function adicionarCliente(e) {
     e.preventDefault()
-    const cnpj = novoCnpj.replace(/\D/g, '')
-    if (!cnpj) return
+    const cnpjs = [...new Set(
+      novoCnpj.split(/[;\n]/).map(c => c.replace(/\D/g, '')).filter(Boolean)
+    )]
+    if (cnpjs.length === 0) return
     setErroCnpj('')
     setBuscandoCnpj(true)
 
-    const { data: existente } = await supabase.from('carteira_cliente').select('id').eq('cnpj', cnpj).eq('consultor_id', user.id).maybeSingle()
+    let criados = 0, jaExistiam = 0
+    let primeiroExistenteId = null
+    const novosClientes = []
 
-    if (existente) {
-      setHighlightId(existente.id)
-      setTimeout(() => setHighlightId(null), 2000)
-      document.getElementById(`carteira-row-${existente.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setBuscandoCnpj(false)
-      return
+    for (const cnpj of cnpjs) {
+      const { data: existente } = await supabase.from('carteira_cliente').select('id').eq('cnpj', cnpj).eq('consultor_id', user.id).maybeSingle()
+      if (existente) {
+        jaExistiam++
+        if (!primeiroExistenteId) primeiroExistenteId = existente.id
+        continue
+      }
+
+      const { data: parque } = await supabase.from('mapa_parque_import')
+        .select('*').eq('nr_cnpj', cnpj).order('importado_em', { ascending: false }).limit(1).maybeSingle()
+      const potencial = parque ? calcularPotencial(parque) : null
+
+      const { data: novo, error } = await supabase.from('carteira_cliente')
+        .insert({
+          cnpj, razao_social: parque?.nm_cliente, consultor_id: user.id, status: 'Aguardando Aceite',
+          potencial_migracao: potencial?.potencial_migracao || 0,
+          potencial_bl: potencial?.potencial_bl || 0,
+          potencial_ti: potencial?.potencial_ti || 0,
+          potencial_voz: potencial?.potencial_voz || 0,
+          credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
+        })
+        .select().single()
+
+      if (!error) { criados++; novosClientes.push(novo) }
     }
 
-    const { data: novo, error } = await supabase.from('carteira_cliente')
-      .insert({ cnpj, consultor_id: user.id, status: 'Aguardando Aceite' })
-      .select().single()
-
     setBuscandoCnpj(false)
-    if (error) { setErroCnpj('Erro ao adicionar cliente'); return }
     setNovoCnpj('')
-    setClientes(prev => [novo, ...prev])
+    if (novosClientes.length > 0) setClientes(prev => [...novosClientes, ...prev])
+
+    if (jaExistiam > 0 && criados === 0) {
+      setHighlightId(primeiroExistenteId)
+      setTimeout(() => setHighlightId(null), 2000)
+      document.getElementById(`carteira-row-${primeiroExistenteId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    setErroCnpj(cnpjs.length > 1 ? `${criados} adicionado(s), ${jaExistiam} já existia(m).` : '')
   }
 
   const totalClientes = clientesFiltrados.length
@@ -280,7 +305,7 @@ export default function PotencialCarteira({ user }) {
 
       {podeAdicionarCliente(user) && (
         <div className="kanban-toolbar">
-          <input className="search-input" placeholder="CNPJ do novo cliente" value={novoCnpj} onChange={e => setNovoCnpj(e.target.value)} />
+          <input className="search-input" placeholder="CNPJ(s) separados por ; " value={novoCnpj} onChange={e => setNovoCnpj(e.target.value)} />
           <button className="btn-save-obs" style={{ float: 'none' }} onClick={adicionarCliente} disabled={buscandoCnpj || !novoCnpj.trim()}>
             {buscandoCnpj ? 'Adicionando...' : '+ Adicionar Cliente'}
           </button>

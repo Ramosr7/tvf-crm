@@ -613,7 +613,10 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="topbar-left">
-          <span className="topbar-logo">TVF <span>TELECOM</span> · CRM</span>
+          <div className="topbar-logo-wrap">
+            <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="topbar-logo-img" />
+            <span className="topbar-logo-texto">CRM</span>
+          </div>
           <div className="topbar-nav">
             {user.perfil === 'Gestor' && (
               <span className={`topbar-nav-item ${tela === 'leads' ? 'active' : ''}`} onClick={() => setTela('leads')}>CRM Leads</span>

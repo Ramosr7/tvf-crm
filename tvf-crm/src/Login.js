@@ -19,7 +19,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-box" onSubmit={entrar}>
-        <div className="login-logo">TVF <span>TELECOM</span> · CRM</div>
+        <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="login-logo-img" />
         <div className="lm-field-edit">
           <label>E-mail</label>
           <input className="lm-input" type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus />

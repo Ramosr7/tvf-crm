@@ -9,8 +9,14 @@ function contemPalavra(texto, palavras) {
 
 export function calcularPotencial(row) {
   const recMovel = String(row.rec_movel || '')
+  const movel = String(row.movel || '')
   const numMigracao = recMovel.match(/\d+/)
-  const potencial_migracao = numMigracao ? parseInt(numMigracao[0], 10) : 0
+  // Aquisição de linhas novas (rec_movel tem número) soma o número; Renovação/Blindagem
+  // (rec_movel sem número, mas indica renovação) conta como 1 — os dois compõem o mesmo pilar.
+  let potencial_migracao
+  if (numMigracao) potencial_migracao = parseInt(numMigracao[0], 10)
+  else if (contemPalavra(recMovel, ['renova']) || contemPalavra(movel, ['renova', 'blindagem'])) potencial_migracao = 1
+  else potencial_migracao = 0
 
   const ofertas = [row.primeira_oferta, row.segunda_oferta, row.terceira_oferta].join(' ')
 

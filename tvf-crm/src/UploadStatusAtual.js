@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { parseArquivo, listarAbas, mapearCampos, extrairCnpj } from './xlsxParse'
+import { calcularPotencial } from './potencialLogic'
 
 const ALIASES = {
   cnpj: ['cnpj'],
@@ -8,6 +9,11 @@ const ALIASES = {
   contato: ['contato'],
   status: ['status'],
   observacao: ['observacoes', 'observacao', 'interacao', 'obs'],
+  pot_migracao: ['potmigracao'],
+  pot_bl: ['potbl'],
+  pot_ti: ['potti'],
+  pot_voz: ['potvoz'],
+  credito: ['creditota', 'creditopreaprov', 'creditopreaprovado'],
 }
 
 const STATUS_OPCOES = [
@@ -24,6 +30,13 @@ function normalizar(s) {
 function mapearStatus(bruto) {
   const alvo = normalizar(bruto)
   return STATUS_OPCOES.find(s => normalizar(s) === alvo) || null
+}
+
+function paraNumero(str) {
+  if (str === '' || str == null) return null
+  const limpo = String(str).replace(/[^0-9.-]/g, '')
+  const n = parseFloat(limpo)
+  return isNaN(n) ? null : n
 }
 
 export default function UploadStatusAtual() {
@@ -63,18 +76,28 @@ export default function UploadStatusAtual() {
       const m = mapearCampos(l, ALIASES)
       const cnpj = extrairCnpj(m.cnpj) || m.cnpj.replace(/\D/g, '')
       const statusMapeado = mapearStatus(m.status)
-      return { ...m, cnpj, statusMapeado, statusOriginal: m.status }
+      return {
+        ...m,
+        cnpj,
+        statusMapeado,
+        statusOriginal: m.status,
+        potMigracaoPlanilha: paraNumero(m.pot_migracao),
+        potBlPlanilha: paraNumero(m.pot_bl),
+        potTiPlanilha: paraNumero(m.pot_ti),
+        potVozPlanilha: paraNumero(m.pot_voz),
+        creditoPlanilha: paraNumero(m.credito),
+      }
     }).filter(l => l.cnpj)
     setLinhas(mapeadas)
   }
 
-  useEffect(() => { if (abaEscolhida) processarAba(abaEscolhida) }, [abaEscolhida]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (abaEscolhida) processarAba(abaEscolhida) }, [abaEscolhida]) // eslint-disable-line
 
   async function importar() {
     if (!consultorId) return
     setImportando(true)
     setResultado(null)
-    let criados = 0, atualizados = 0, semStatusReconhecido = 0, falhas = 0
+    let criados = 0, atualizados = 0, semStatusReconhecido = 0, falhas = 0, daPlanilha = 0, doMapaParque = 0
     const errosAmostra = []
 
     for (let i = 0; i < linhas.length; i++) {
@@ -82,6 +105,24 @@ export default function UploadStatusAtual() {
       setProgresso(`Importando ${i + 1} de ${linhas.length}...`)
       if (!l.statusMapeado) semStatusReconhecido++
       const status = l.statusMapeado || 'Aguardando Aceite'
+
+      // BL/TI/Voz/Crédito: usa o que já vem pronto na planilha do consultor (mais confiável).
+      // Migração: SEMPRE vem do Mapa Parque — a planilha não rastreia isso direito.
+      const temNaPlanilha = [l.potBlPlanilha, l.potTiPlanilha, l.potVozPlanilha, l.creditoPlanilha].some(v => v !== null)
+      if (temNaPlanilha) daPlanilha++
+
+      const { data: parque } = await supabase.from('mapa_parque_import')
+        .select('*').eq('nr_cnpj', l.cnpj).order('importado_em', { ascending: false }).limit(1).maybeSingle()
+      const potencialParque = parque ? calcularPotencial(parque) : null
+      if (potencialParque) doMapaParque++
+
+      const potencial = (temNaPlanilha || potencialParque) ? {
+        potencial_migracao: potencialParque?.potencial_migracao || 0,
+        potencial_bl: l.potBlPlanilha ?? potencialParque?.potencial_bl ?? 0,
+        potencial_ti: l.potTiPlanilha ?? potencialParque?.potencial_ti ?? 0,
+        potencial_voz: l.potVozPlanilha ?? potencialParque?.potencial_voz ?? 0,
+        credito_pre_aprovado: l.creditoPlanilha ?? potencialParque?.credito_pre_aprovado ?? 0,
+      } : null
 
       const { data: existente } = await supabase.from('carteira_cliente').select('id')
         .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
@@ -91,12 +132,18 @@ export default function UploadStatusAtual() {
       if (existente) {
         const { error } = await supabase.from('carteira_cliente').update({
           status, razao_social: l.razao_social || undefined, contato: l.contato || undefined,
+          ...(potencial || {}),
           atualizado_em: new Date().toISOString(),
         }).eq('id', existente.id)
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else atualizados++
       } else {
         const { data: novo, error } = await supabase.from('carteira_cliente').insert({
           cnpj: l.cnpj, razao_social: l.razao_social, contato: l.contato, consultor_id: consultorId, status,
+          potencial_migracao: potencial?.potencial_migracao || 0,
+          potencial_bl: potencial?.potencial_bl || 0,
+          potencial_ti: potencial?.potencial_ti || 0,
+          potencial_voz: potencial?.potencial_voz || 0,
+          credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
         }).select().single()
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else { criados++; clienteId = novo.id }
       }
@@ -114,7 +161,7 @@ export default function UploadStatusAtual() {
 
     setImportando(false)
     setProgresso('')
-    setResultado({ criados, atualizados, semStatusReconhecido, falhas, errosAmostra })
+    setResultado({ criados, atualizados, semStatusReconhecido, falhas, errosAmostra, daPlanilha, doMapaParque })
     setLinhas([])
     setArquivo(null)
     setAbas([])
@@ -125,9 +172,10 @@ export default function UploadStatusAtual() {
     <div className="main">
       <div className="lm-section-title">Upload Status Atual (migração)</div>
       <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe a planilha que o consultor já usa hoje (CNPJ + Status + Observação) pra popular a carteira dele já com o
-        histórico. A observação vira a primeira interação registrada — só entra se o cliente ainda não tiver nenhuma.
-        Se o arquivo tiver várias abas (uma por consultor), escolhe a aba certa abaixo.
+        Sobe a planilha que o consultor já usa hoje (CNPJ + Status + Observação + Potencial). Usa o potencial que já vem
+        pronto na própria planilha; só cruza com o Mapa Parque se a planilha não trouxer o valor. A observação vira a
+        primeira interação registrada — só entra se o cliente ainda não tiver nenhuma. Se o arquivo tiver várias abas
+        (uma por consultor), escolhe a aba certa abaixo.
       </p>
 
       <div className="kanban-toolbar">
@@ -150,13 +198,15 @@ export default function UploadStatusAtual() {
         <>
           <div className="carteira-table-wrap" style={{ marginBottom: 12 }}>
             <table className="carteira-table">
-              <thead><tr><th>CNPJ</th><th>Razão Social</th><th>Status (planilha)</th><th>Status (mapeado)</th><th>Observação</th></tr></thead>
+              <thead><tr><th>CNPJ</th><th>Razão Social</th><th>Status</th><th>Pot. Migração</th><th>Pot. BL</th><th>Pot. TI</th><th>Pot. Voz</th><th>Crédito</th></tr></thead>
               <tbody>
                 {linhas.slice(0, 30).map((l, i) => (
                   <tr key={i} style={!l.statusMapeado ? { background: '#FFF5EE' } : {}}>
-                    <td>{l.cnpj}</td><td>{l.razao_social}</td><td>{l.statusOriginal}</td>
-                    <td>{l.statusMapeado || <span style={{ color: '#C0451A' }}>não reconhecido → Aguardando Aceite</span>}</td>
-                    <td>{l.observacao}</td>
+                    <td>{l.cnpj}</td><td>{l.razao_social}</td>
+                    <td>{l.statusMapeado || <span style={{ color: '#C0451A' }}>{l.statusOriginal || '—'} → Aguardando Aceite</span>}</td>
+                    <td>{l.potMigracaoPlanilha ?? '—'}</td><td>{l.potBlPlanilha ?? '—'}</td>
+                    <td>{l.potTiPlanilha ?? '—'}</td><td>{l.potVozPlanilha ?? '—'}</td>
+                    <td>{l.creditoPlanilha ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -173,10 +223,9 @@ export default function UploadStatusAtual() {
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>
           {resultado.criados} clientes novos, {resultado.atualizados} atualizados. {resultado.semStatusReconhecido} vieram com status não reconhecido (ficaram "Aguardando Aceite").
+          {' '}{resultado.daPlanilha} usaram o potencial da própria planilha, {resultado.doMapaParque} vieram do Mapa Parque.
           {resultado.falhas > 0 && (
-            <div className="login-erro" style={{ marginTop: 8 }}>
-              {resultado.falhas} linha(s) falharam. Exemplo(s): {resultado.errosAmostra.join(' | ')}
-            </div>
+            <div className="login-erro" style={{ marginTop: 8 }}>{resultado.falhas} linha(s) falharam.</div>
           )}
         </div>
       )}

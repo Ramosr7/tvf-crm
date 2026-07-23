@@ -30,6 +30,16 @@ const DIAS_ATRASO = 5
 
 const isGestor = (user) => user.perfil === 'Gestor'
 
+function agruparPorConsultor(lista, pegarConsultorId) {
+  const mapa = {}
+  for (const item of lista) {
+    const id = pegarConsultorId(item) || 'sem-consultor'
+    if (!mapa[id]) mapa[id] = []
+    mapa[id].push(item)
+  }
+  return mapa
+}
+
 export default function Relatorios({ user }) {
   const [aba, setAba] = useState('vendas')
   const [staff, setStaff] = useState([])
@@ -156,6 +166,11 @@ export default function Relatorios({ user }) {
     return acc
   }, { clientes: 0, retornos: 0, visitas: 0, agAceite: 0, altas: 0, bl: 0, renovacao: 0, aparelho: 0 })
 
+  const tituloAba = ABAS.find(a => a.key === aba)?.label || ''
+  const periodoTexto = (aba === 'kanban')
+    ? 'Situação atual'
+    : `${dataDe ? formatDataBR(dataDe) : 'início'} a ${dataAte ? formatDataBR(dataAte) : 'hoje'}`
+
   return (
     <div className="main">
       <div className="tabs">
@@ -178,6 +193,7 @@ export default function Relatorios({ user }) {
             <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
+        <button className="btn-save-obs" style={{ float: 'none', marginLeft: 'auto' }} onClick={() => window.print()}>📄 Exportar PDF</button>
       </div>
 
       {loading && <div className="loading">Carregando...</div>}
@@ -295,6 +311,70 @@ export default function Relatorios({ user }) {
           </div>
         </>
       )}
+
+      <div className="print-relatorio">
+        <div className="print-cabecalho">
+          <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="print-logo" />
+          <div>
+            <div className="print-titulo">Relatório de {tituloAba}</div>
+            <div className="print-periodo">{periodoTexto}</div>
+          </div>
+        </div>
+
+        {aba === 'vendas' && Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
+          const porSubproduto = {}
+          for (const v of itens) porSubproduto[v.subproduto] = (porSubproduto[v.subproduto] || 0) + (v.quantidade || 1)
+          const total = itens.reduce((s, v) => s + Number(v.valor || 0), 0)
+          return (
+            <div key={consultorId} className="print-bloco">
+              <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+              {Object.entries(porSubproduto).map(([sub, qtd]) => <div key={sub}>{sub}: {qtd}</div>)}
+              <div>Receita: {fmtMoeda(total)}</div>
+            </div>
+          )
+        })}
+
+        {aba === 'rotina' && Object.entries(agruparPorConsultor(rotinas, r => r.consultor_id)).map(([consultorId, itens]) => {
+          const soma = itens.reduce((acc, r) => {
+            acc.clientes += r.clientes_recebidos || 0
+            acc.retornos += r.retornos || 0
+            acc.visitas += r.visitas_agendadas || 0
+            acc.altas += r.altas || 0
+            acc.bl += r.bl || 0
+            acc.aparelho += Number(r.aparelho_valor || 0)
+            return acc
+          }, { clientes: 0, retornos: 0, visitas: 0, altas: 0, bl: 0, aparelho: 0 })
+          return (
+            <div key={consultorId} className="print-bloco">
+              <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+              <div>Clientes: {soma.clientes}</div>
+              <div>Retornos: {soma.retornos}</div>
+              <div>Visitas: {soma.visitas}</div>
+              <div>Altas: {soma.altas}</div>
+              <div>BL: {soma.bl}</div>
+              <div>Aparelho: {fmtMoeda(soma.aparelho)}</div>
+            </div>
+          )
+        })}
+
+        {aba === 'kanban' && Object.entries(agruparPorConsultor(kanbanClientes, c => c.consultor_id)).map(([consultorId, itens]) => (
+          <div key={consultorId} className="print-bloco">
+            <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+            {['Frio', 'Morno', 'Quente', 'Descartado'].map(t => (
+              <div key={t}>{t}: {itens.filter(c => c.temperatura === t).length}</div>
+            ))}
+          </div>
+        ))}
+
+        {aba === 'interacoes' && Object.entries(agruparPorConsultor(resumoInteracoes, r => r.consultor_id)).map(([consultorId, itens]) => (
+          <div key={consultorId} className="print-bloco">
+            <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+            <div>Clientes: {itens.length}</div>
+            <div>Atrasados: {itens.filter(r => r.atrasado).length}</div>
+            <div>Nunca contatados: {itens.filter(r => !r.ultima).length}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
