@@ -33,7 +33,7 @@ export default function KanbanTemperatura({ user }) {
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).order('razao_social')
+    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).is('excluido_em', null).order('razao_social')
     setClientes(data || [])
     setLoading(false)
   }, [])

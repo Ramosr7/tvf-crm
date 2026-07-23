@@ -125,7 +125,7 @@ export default function UploadStatusAtual() {
       } : null
 
       const { data: existente } = await supabase.from('carteira_cliente').select('id')
-        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
+        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).is('excluido_em', null).maybeSingle()
 
       let clienteId = existente?.id
 

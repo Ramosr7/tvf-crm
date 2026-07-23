@@ -111,6 +111,7 @@ function ModalDetalhe({ titulo, tipo, itens, onClose }) {
 }
 
 export default function Dashboard({ user }) {
+  const isConsultor = user.perfil === 'Consultor'
   const [clientes, setClientes] = useState([])
   const [valorPorCliente, setValorPorCliente] = useState({})
   const [staff, setStaff] = useState([])
@@ -121,11 +122,17 @@ export default function Dashboard({ user }) {
   const carregar = useCallback(async () => {
     setLoading(true)
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
+    let qClientes = supabase.from('carteira_cliente').select('id, cnpj, razao_social, status, data_venda, consultor_id').is('excluido_em', null)
+    let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
+    if (isConsultor) {
+      qClientes = qClientes.eq('consultor_id', user.id)
+      qRotina = qRotina.eq('consultor_id', user.id)
+    }
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
-      supabase.from('carteira_cliente').select('id, cnpj, razao_social, status, data_venda, consultor_id'),
+      qClientes,
       supabase.from('carteira_venda_item').select('carteira_cliente_id, valor'),
       supabase.from('consultores_staff').select('id, nome'),
-      supabase.from('rotina_diaria').select('*').gte('data', iso(de14)),
+      qRotina,
     ])
     setClientes(clientesData || [])
     const mapa = {}
@@ -136,7 +143,7 @@ export default function Dashboard({ user }) {
     setStaff(staffData || [])
     setRotinas(rotinaData || [])
     setLoading(false)
-  }, [])
+  }, [isConsultor, user.id])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -270,7 +277,7 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
-      {melhorDoDia && (
+      {!isConsultor && melhorDoDia && (
         <div className="dash-destaque">
           🏆 Melhor vendedor do dia: <strong>{melhorDoDia.nome}</strong> — {melhorDoDia.qtd} venda(s) · {fmtMoeda(melhorDoDia.valor)}
         </div>
@@ -284,11 +291,11 @@ export default function Dashboard({ user }) {
       <div className="lm-section-title" style={{ marginTop: 24 }}>Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
         <CardSimples titulo="Atendimentos" valor={atendimentosHoje} sub="clientes recebidos hoje"
-          onClick={() => setModal({ titulo: 'Atendimentos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Atendimentos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
         <CardSimples titulo="Retornos" valor={retornosHoje} sub="retornos feitos hoje"
-          onClick={() => setModal({ titulo: 'Retornos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Retornos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
         <CardSimples titulo="Ag. Aceite Enviados" valor={aceitesHoje} sub="enviados hoje"
-          onClick={() => setModal({ titulo: 'Ag. Aceite hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Ag. Aceite hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
       </div>
 
       <div className="dash-grid" style={{ marginTop: 14 }}>
@@ -306,28 +313,32 @@ export default function Dashboard({ user }) {
         </div>
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores (mês atual)</div>
-      {rankingMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
-      {rankingMes.length > 0 && (
+      {!isConsultor && (
         <>
-          <div className="dash-card" style={{ marginBottom: 14 }}>
-            <BarChartHorizontal dados={dadosRankingChart} />
-          </div>
-          <table className="carteira-table">
-            <thead>
-              <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
-            </thead>
-            <tbody>
-              {rankingMes.map((r, i) => (
-                <tr key={r.id}>
-                  <td>{i + 1}{i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : ''}</td>
-                  <td>{r.nome}</td>
-                  <td>{r.qtd}</td>
-                  <td>{fmtMoeda(r.valor)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores (mês atual)</div>
+          {rankingMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
+          {rankingMes.length > 0 && (
+            <>
+              <div className="dash-card" style={{ marginBottom: 14 }}>
+                <BarChartHorizontal dados={dadosRankingChart} />
+              </div>
+              <table className="carteira-table">
+                <thead>
+                  <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
+                </thead>
+                <tbody>
+                  {rankingMes.map((r, i) => (
+                    <tr key={r.id}>
+                      <td>{i + 1}{i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : ''}</td>
+                      <td>{r.nome}</td>
+                      <td>{r.qtd}</td>
+                      <td>{fmtMoeda(r.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </>
       )}
 

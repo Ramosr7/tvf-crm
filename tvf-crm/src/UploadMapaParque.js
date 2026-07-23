@@ -78,7 +78,7 @@ export default function UploadMapaParque() {
     const cnpjParaIds = new Map()
     let inicio = 0
     while (true) {
-      const { data, error } = await supabase.from('carteira_cliente').select('id, cnpj').range(inicio, inicio + 999)
+      const { data, error } = await supabase.from('carteira_cliente').select('id, cnpj').is('excluido_em', null).range(inicio, inicio + 999)
       if (error || !data || data.length === 0) break
       for (const row of data) {
         if (!cnpjParaIds.has(row.cnpj)) cnpjParaIds.set(row.cnpj, [])

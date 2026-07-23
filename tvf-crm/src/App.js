@@ -595,7 +595,7 @@ export default function App() {
 
   useEffect(() => {
     if (tela === 'leads') setTela('carteira')
-    if (user?.perfil === 'Consultor' && (tela === 'relatorios' || tela === 'dashboard')) setTela('carteira')
+    if (user?.perfil === 'Consultor' && tela === 'relatorios') setTela('carteira')
   }, [user, tela])
 
   if (loading) return <div className="loading">Carregando...</div>
@@ -621,9 +621,7 @@ export default function App() {
             <span className="topbar-logo-texto">CRM</span>
           </div>
           <div className="topbar-nav">
-            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-              <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => setTela('dashboard')}>Início</span>
-            )}
+            <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => setTela('dashboard')}>Início</span>
             <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => setTela('carteira')}>Potencial de Carteira</span>
             <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
             <span className={`topbar-nav-item ${tela === 'rotina' ? 'active' : ''}`} onClick={() => setTela('rotina')}>Rotina Diária</span>
@@ -642,7 +640,7 @@ export default function App() {
         </div>
       </div>
 
-      {tela === 'dashboard' && (user.perfil === 'Gestor' || user.perfil === 'Supervisor') && <Dashboard user={user} />}
+      {tela === 'dashboard' && <Dashboard user={user} />}
       {tela === 'leads' && user.perfil === 'Gestor' && <CrmLeads />}
       {tela === 'carteira' && <PotencialCarteira user={user} />}
       {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}

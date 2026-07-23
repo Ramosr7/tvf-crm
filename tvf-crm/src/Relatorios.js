@@ -88,7 +88,7 @@ export default function Relatorios({ user }) {
 
   const carregarKanban = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).order('temperatura')
+    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).is('excluido_em', null).order('temperatura')
     let linhas = data || []
     if (isGestor(user) && filtroConsultor) linhas = linhas.filter(c => c.consultor_id === filtroConsultor)
     setKanbanClientes(linhas)
@@ -110,7 +110,7 @@ export default function Relatorios({ user }) {
 
   const carregarInteracoes = useCallback(async () => {
     setLoading(true)
-    const { data: clientes } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id')
+    const { data: clientes } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id').is('excluido_em', null)
     let linhasClientes = clientes || []
     if (isGestor(user) && filtroConsultor) linhasClientes = linhasClientes.filter(c => c.consultor_id === filtroConsultor)
     if (!isGestor(user)) linhasClientes = linhasClientes.filter(c => c.consultor_id === user.id)

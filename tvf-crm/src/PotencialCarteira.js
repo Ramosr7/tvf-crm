@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
 import InteracaoCarteiraModal from './InteracaoCarteiraModal'
@@ -53,12 +54,21 @@ export default function PotencialCarteira({ user }) {
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
+  const [lixeira, setLixeira] = useState([])
+  const [mostrarLixeira, setMostrarLixeira] = useState(false)
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('carteira_cliente').select('*').order('razao_social', { ascending: true })
+    const { data, error } = await supabase.from('carteira_cliente').select('*')
+      .is('excluido_em', null).order('razao_social', { ascending: true })
     if (!error && data) setClientes(data)
     setLoading(false)
+  }, [])
+
+  const fetchLixeira = useCallback(async () => {
+    const { data } = await supabase.from('carteira_cliente').select('*')
+      .not('excluido_em', 'is', null).order('excluido_em', { ascending: false })
+    setLixeira(data || [])
   }, [])
 
   const fetchVendaItens = useCallback(async () => {
@@ -85,7 +95,8 @@ export default function PotencialCarteira({ user }) {
 
   useEffect(() => {
     if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
-  }, [user])
+    if (podeAdicionarCliente(user)) fetchLixeira()
+  }, [user, fetchLixeira])
 
   const nomeConsultor = (id) => staff.find(s => s.id === id)?.nome || '—'
 
@@ -164,22 +175,58 @@ export default function PotencialCarteira({ user }) {
   }
 
   async function removerCliente(id) {
-    if (!window.confirm('Remover este cliente da carteira? Interações e produtos vendidos registrados também serão apagados.')) return
-    const { error } = await supabase.from('carteira_cliente').delete().eq('id', id)
+    if (!window.confirm('Remover este cliente da carteira? Ele vai pra Lixeira e pode ser restaurado depois.')) return
+    const { error } = await supabase.from('carteira_cliente')
+      .update({ excluido_em: new Date().toISOString(), excluido_por: user.id }).eq('id', id)
     if (error) { console.error('Erro ao remover:', error); alert('Erro ao remover: ' + error.message); return }
     setSelecionados(prev => { const n = new Set(prev); n.delete(id); return n })
     fetchClientes()
+    if (podeAdicionarCliente(user)) fetchLixeira()
   }
 
   async function removerSelecionados() {
     if (selecionados.size === 0) return
-    if (!window.confirm(`Remover ${selecionados.size} cliente(s) selecionado(s) da carteira? Isso não pode ser desfeito.`)) return
+    if (!window.confirm(`Remover ${selecionados.size} cliente(s) selecionado(s) da carteira? Vão pra Lixeira e podem ser restaurados depois.`)) return
     setRemovendo(true)
-    const { error } = await supabase.from('carteira_cliente').delete().in('id', Array.from(selecionados))
+    const { error } = await supabase.from('carteira_cliente')
+      .update({ excluido_em: new Date().toISOString(), excluido_por: user.id }).in('id', Array.from(selecionados))
     setRemovendo(false)
     if (error) { console.error('Erro ao remover:', error); alert('Erro ao remover: ' + error.message); return }
     setSelecionados(new Set())
     fetchClientes()
+    if (podeAdicionarCliente(user)) fetchLixeira()
+  }
+
+  async function restaurarCliente(id) {
+    const { error } = await supabase.from('carteira_cliente')
+      .update({ excluido_em: null, excluido_por: null }).eq('id', id)
+    if (error) { alert('Erro ao restaurar: ' + error.message); return }
+    fetchClientes()
+    fetchLixeira()
+  }
+
+  function exportarXlsx() {
+    const linhas = clientesFiltrados.map(c => ({
+      Status: c.status || '',
+      CNPJ: c.cnpj,
+      'Razão Social': c.razao_social || '',
+      Origem: c.origem || '',
+      Contato: c.contato || '',
+      Consultor: nomeConsultor(c.consultor_id),
+      'Pot. Migração': c.potencial_migracao || 0,
+      'Pot. BL': c.potencial_bl || 0,
+      'Pot. TI': c.potencial_ti || 0,
+      'Pot. Voz': c.potencial_voz || 0,
+      'Crédito Pré-aprovado': Number(c.credito_pre_aprovado || 0),
+      'Vendido (R$)': (vendaItensPorCliente[c.id] || []).reduce((s, i) => s + Number(i.valor || 0), 0),
+      'Data Venda': c.data_venda || '',
+      'Data Adição': c.data_adicao || '',
+      Observações: c.observacoes || '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(linhas)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Potencial de Carteira')
+    XLSX.writeFile(wb, `potencial_carteira_${dataISO(new Date())}.xlsx`)
   }
 
   async function flagarSelecionados(no_kanban) {
@@ -227,10 +274,16 @@ export default function PotencialCarteira({ user }) {
     const novosClientes = []
 
     for (const cnpj of cnpjs) {
-      const { data: existente } = await supabase.from('carteira_cliente').select('id').eq('cnpj', cnpj).eq('consultor_id', user.id).maybeSingle()
-      if (existente) {
+      const { data: existente } = await supabase.from('carteira_cliente').select('id, excluido_em')
+        .eq('cnpj', cnpj).eq('consultor_id', user.id).maybeSingle()
+      if (existente && !existente.excluido_em) {
         jaExistiam++
         if (!primeiroExistenteId) primeiroExistenteId = existente.id
+        continue
+      }
+      if (existente && existente.excluido_em) {
+        await supabase.from('carteira_cliente').update({ excluido_em: null, excluido_por: null }).eq('id', existente.id)
+        criados++
         continue
       }
 
@@ -256,6 +309,8 @@ export default function PotencialCarteira({ user }) {
     setBuscandoCnpj(false)
     setNovoCnpj('')
     if (novosClientes.length > 0) setClientes(prev => [...novosClientes, ...prev])
+    fetchClientes()
+    if (podeAdicionarCliente(user)) fetchLixeira()
 
     if (jaExistiam > 0 && criados === 0) {
       setHighlightId(primeiroExistenteId)
@@ -345,12 +400,15 @@ export default function PotencialCarteira({ user }) {
               </button>
             </>
           )}
+          <button className="btn-filter-light" onClick={exportarXlsx}>⬇ Exportar</button>
+          <button className="btn-filter-light" onClick={() => setMostrarLixeira(true)}>🗑 Lixeira{lixeira.length > 0 && ` (${lixeira.length})`}</button>
           <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
         </div>
       )}
       {!podeAdicionarCliente(user) && (
         <div className="kanban-toolbar">
           <input className="search-input" placeholder="🔍 Filtrar por CNPJ..." value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)} />
+          <button className="btn-filter-light" onClick={exportarXlsx}>⬇ Exportar</button>
           <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
         </div>
       )}
@@ -444,6 +502,32 @@ export default function PotencialCarteira({ user }) {
       {modalChecklistCliente && (
         <VendaChecklistModal cliente={modalChecklistCliente} user={user}
           onClose={() => setModalChecklistCliente(null)} onConcluido={() => setModalChecklistCliente(null)} />
+      )}
+      {mostrarLixeira && (
+        <div className="modal-overlay" onClick={() => setMostrarLixeira(false)}>
+          <div className="lead-modal" style={{ width: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="lm-header">
+              <div className="lm-header-left">
+                <div style={{ fontSize: 17, fontWeight: 700 }}>Lixeira</div>
+              </div>
+              <button className="lm-close" onClick={() => setMostrarLixeira(false)}>✕</button>
+            </div>
+            <div className="lm-body">
+              {lixeira.length === 0 && <div className="empty">Nenhum cliente removido</div>}
+              {lixeira.map(c => (
+                <div key={c.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{c.razao_social || c.cnpj}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      {c.cnpj} · removido em {new Date(c.excluido_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <button className="btn-action" onClick={() => restaurarCliente(c.id)}>↩ Restaurar</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
