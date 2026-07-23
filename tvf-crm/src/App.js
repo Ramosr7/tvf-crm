@@ -593,6 +593,7 @@ export default function App() {
 
   useEffect(() => {
     if (user?.perfil !== 'Gestor' && tela === 'leads') setTela('carteira')
+    if (user?.perfil === 'Consultor' && tela === 'relatorios') setTela('carteira')
   }, [user, tela])
 
   if (loading) return <div className="loading">Carregando...</div>
@@ -627,7 +628,9 @@ export default function App() {
             {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
               <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => setTela('importar')}>Importar</span>
             )}
-            <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
+            {user.perfil !== 'Consultor' && (
+              <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
+            )}
           </div>
         </div>
         <div className="topbar-right">
@@ -641,7 +644,7 @@ export default function App() {
       {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}
       {tela === 'rotina' && <RotinaDiaria user={user} />}
       {tela === 'importar' && (user.perfil === 'Gestor' || user.perfil === 'Supervisor') && <Importar user={user} />}
-      {tela === 'relatorios' && <Relatorios user={user} />}
+      {tela === 'relatorios' && user.perfil !== 'Consultor' && <Relatorios user={user} />}
     </div>
   )
 }

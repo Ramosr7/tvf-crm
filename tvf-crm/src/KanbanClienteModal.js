@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
+import VendaChecklistModal from './VendaChecklistModal'
+
+const STATUS_GATILHO_CHECKLIST = ['Venda Realizada', 'Pedido Finalizado']
+
+const STATUS_OPCOES = [
+  'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
+  'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
+  'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
+  'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
+]
 
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -45,6 +55,19 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
     if (!error) { setTexto(''); await carregar(); onSaved() }
   }
 
+  const [status, setStatus] = useState(cliente.status || 'Aguardando Aceite')
+  const [salvandoStatus, setSalvandoStatus] = useState(false)
+  const [mostrarChecklist, setMostrarChecklist] = useState(false)
+
+  async function mudarStatus(novoStatus) {
+    setStatus(novoStatus)
+    setSalvandoStatus(true)
+    await supabase.from('carteira_cliente').update({ status: novoStatus }).eq('id', cliente.id)
+    setSalvandoStatus(false)
+    onSaved()
+    if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) setMostrarChecklist(true)
+  }
+
   const dias = diasDesde(cliente.temperatura_atualizada_em)
   const totalVendido = vendaItens.reduce((s, i) => s + Number(i.valor || 0), 0)
 
@@ -65,7 +88,12 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
         <div className="lm-body">
           <div className="lm-section-title">Resumo</div>
           <div className="lm-grid-3">
-            <div className="lm-field"><label>Status</label><span>{cliente.status}</span></div>
+            <div className="lm-field-edit">
+              <label>Status{salvandoStatus && ' (salvando...)'}</label>
+              <select className="filter-select" style={{ width: '100%' }} value={status} onChange={e => mudarStatus(e.target.value)}>
+                {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div className="lm-field"><label>Temperatura</label><span>{cliente.temperatura}{dias !== null && ` (${dias}d)`}</span></div>
             {nomeConsultor && <div className="lm-field"><label>Consultor</label><span>{nomeConsultor}</span></div>}
             <div className="lm-field"><label>Pot. Migração</label><span>{cliente.potencial_migracao || 0}</span></div>
@@ -103,6 +131,10 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
           </form>
         </div>
       </div>
+      {mostrarChecklist && (
+        <VendaChecklistModal cliente={{ ...cliente, status }} user={user}
+          onClose={() => setMostrarChecklist(false)} onConcluido={() => setMostrarChecklist(false)} />
+      )}
     </div>
   )
 }

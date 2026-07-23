@@ -14,6 +14,13 @@ const ALIASES = {
   status: ['status'],
 }
 
+function paraValorReal(str) {
+  if (!str) return null
+  const limpo = String(str).replace(/[^\d,]/g, '').replace(',', '.')
+  const n = parseFloat(limpo)
+  return isNaN(n) ? null : n
+}
+
 export default function UploadMailingDiario() {
   const [staff, setStaff] = useState([])
   const [consultorId, setConsultorId] = useState('')
@@ -98,6 +105,9 @@ export default function UploadMailingDiario() {
       if (potencial) comPotencial++
       // MÓVEL M17 do mailing é mais confiável que o rec_movel do Mapa Parque pra saber quantas linhas migrar
       const potencialMigracao = l.movel_m17 !== null ? l.movel_m17 : (potencial?.potencial_migracao || 0)
+      // Valores Aparelhos do mailing é a mesma informação de Crédito Pré-aprovado — prioriza sobre o Mapa Parque
+      const valorAparelho = paraValorReal(l.valores_aparelhos)
+      const creditoFinal = valorAparelho !== null ? valorAparelho : (potencial?.credito_pre_aprovado || 0)
 
       const { data: existente } = await supabase.from('carteira_cliente').select('id')
         .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
@@ -109,6 +119,7 @@ export default function UploadMailingDiario() {
           observacoes,
           ...(potencial || {}),
           potencial_migracao: potencialMigracao,
+          credito_pre_aprovado: creditoFinal,
           atualizado_em: new Date().toISOString(),
         }).eq('id', existente.id)
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else atualizados++
@@ -124,7 +135,7 @@ export default function UploadMailingDiario() {
           potencial_bl: potencial?.potencial_bl || 0,
           potencial_ti: potencial?.potencial_ti || 0,
           potencial_voz: potencial?.potencial_voz || 0,
-          credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
+          credito_pre_aprovado: creditoFinal,
         })
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else criados++
       }

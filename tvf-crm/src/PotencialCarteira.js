@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
 import InteracaoCarteiraModal from './InteracaoCarteiraModal'
 import { calcularPotencial } from './potencialLogic'
+import VendaChecklistModal from './VendaChecklistModal'
 
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
@@ -10,6 +11,7 @@ const STATUS_OPCOES = [
   'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
 ]
+const STATUS_GATILHO_CHECKLIST = ['Venda Realizada', 'Pedido Finalizado']
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -44,6 +46,7 @@ export default function PotencialCarteira({ user }) {
   const [interacoesPorCliente, setInteracoesPorCliente] = useState({})
   const [modalCliente, setModalCliente] = useState(null)
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
+  const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
   const [filtroCnpj, setFiltroCnpj] = useState('')
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
@@ -197,6 +200,13 @@ export default function PotencialCarteira({ user }) {
     setClientes(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
     const { error } = await supabase.from('carteira_cliente').update(campos).eq('id', id)
     if (error) { console.error('Erro ao atualizar cliente:', error); fetchClientes() }
+  }
+
+  function mudarStatus(c, novoStatus) {
+    atualizarCliente(c.id, { status: novoStatus })
+    if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) {
+      setModalChecklistCliente({ ...c, status: novoStatus })
+    }
   }
 
   async function adicionarCliente(e) {
@@ -366,7 +376,7 @@ export default function PotencialCarteira({ user }) {
                 )}
                 <td className={podeAdicionarCliente(user) ? '' : 'col-sticky'}>
                   <select className="filter-select" value={c.status || 'Aguardando Aceite'}
-                    onChange={e => atualizarCliente(c.id, { status: e.target.value })}>
+                    onChange={e => mudarStatus(c, e.target.value)}>
                     {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </td>
@@ -413,6 +423,10 @@ export default function PotencialCarteira({ user }) {
       {modalInteracaoCliente && (
         <InteracaoCarteiraModal cliente={modalInteracaoCliente} user={user}
           onClose={() => setModalInteracaoCliente(null)} onSaved={fetchInteracoes} />
+      )}
+      {modalChecklistCliente && (
+        <VendaChecklistModal cliente={modalChecklistCliente} user={user}
+          onClose={() => setModalChecklistCliente(null)} onConcluido={() => setModalChecklistCliente(null)} />
       )}
     </div>
   )
