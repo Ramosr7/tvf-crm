@@ -12,7 +12,7 @@ function normalizarCel(s) {
 // (evita, ex., confundir a célula "CNPJ Baixado" de uma lista de status com o
 // cabeçalho "CNPJ"); só cai pra substring se nada bater exato.
 function acharLinhaCabecalho(linhasBrutas) {
-  const limite = Math.min(20, linhasBrutas.length)
+  const limite = Math.min(200, linhasBrutas.length)
   for (let i = 0; i < limite; i++) {
     const normalizadas = linhasBrutas[i].map(normalizarCel)
     if (normalizadas.some(c => MARCADORES_CABECALHO.includes(c))) return i
