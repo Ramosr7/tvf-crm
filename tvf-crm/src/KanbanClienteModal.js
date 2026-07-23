@@ -26,19 +26,27 @@ function diasDesde(str) {
 export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClose, onSaved }) {
   const [interacoes, setInteracoes] = useState([])
   const [vendaItens, setVendaItens] = useState([])
+  const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const fimRef = useRef(null)
 
+  function nomeAutor(id) {
+    if (id === user.id) return 'Você'
+    return staff.find(s => s.id === id)?.nome || 'Equipe'
+  }
+
   async function carregar() {
     setLoading(true)
-    const [{ data: intData }, { data: vendaData }] = await Promise.all([
+    const [{ data: intData }, { data: vendaData }, { data: staffData }] = await Promise.all([
       supabase.from('carteira_interacao').select('*').eq('carteira_cliente_id', cliente.id).order('criado_em', { ascending: true }),
       supabase.from('carteira_venda_item').select('*').eq('carteira_cliente_id', cliente.id),
+      supabase.from('consultores_staff').select('id, nome'),
     ])
     setInteracoes(intData || [])
     setVendaItens(vendaData || [])
+    setStaff(staffData || [])
     setLoading(false)
     setTimeout(() => fimRef.current?.scrollIntoView(), 50)
   }
@@ -119,8 +127,8 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
           {!loading && interacoes.length === 0 && <div className="empty">Nenhuma interação registrada ainda</div>}
           <div className="lm-chat" style={{ maxHeight: 220 }}>
             {interacoes.map(it => (
-              <div key={it.id} className="lm-chat-msg human">
-                <div className="lm-chat-label">{formatDataHora(it.criado_em)}</div>
+              <div key={it.id} className={`lm-chat-msg ${it.autor_id === user.id ? 'human' : 'ai'}`}>
+                <div className="lm-chat-label">{nomeAutor(it.autor_id)} · {formatDataHora(it.criado_em)}</div>
                 <div className="lm-chat-text">{it.descricao}</div>
               </div>
             ))}

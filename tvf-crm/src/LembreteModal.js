@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import { PILARES_LEMBRETE } from './sondagens'
 
@@ -7,8 +7,18 @@ function agoraLocalISO() {
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
 }
+function paraInputLocal(isoStr) {
+  const d = new Date(isoStr)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+function formatDataHora(str) {
+  return new Date(str).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 export default function LembreteModal({ cliente, user, onClose, onSalvo }) {
+  const [pendentes, setPendentes] = useState([])
+  const [editandoId, setEditandoId] = useState(null)
   const [pilar, setPilar] = useState(PILARES_LEMBRETE[0].key)
   const [dataHora, setDataHora] = useState(agoraLocalISO())
   const [nota, setNota] = useState('')
@@ -16,18 +26,50 @@ export default function LembreteModal({ cliente, user, onClose, onSalvo }) {
 
   const pilarInfo = PILARES_LEMBRETE.find(p => p.key === pilar)
 
+  const carregarPendentes = useCallback(async () => {
+    const { data } = await supabase.from('carteira_lembrete').select('*')
+      .eq('carteira_cliente_id', cliente.id).eq('concluido', false)
+      .order('data_hora', { ascending: true })
+    setPendentes(data || [])
+  }, [cliente.id])
+
+  useEffect(() => { carregarPendentes() }, [carregarPendentes])
+
+  function editar(l) {
+    setEditandoId(l.id)
+    setPilar(l.pilar || PILARES_LEMBRETE[0].key)
+    setDataHora(paraInputLocal(l.data_hora))
+    setNota(l.nota || '')
+  }
+
+  function novoLembrete() {
+    setEditandoId(null)
+    setPilar(PILARES_LEMBRETE[0].key)
+    setDataHora(agoraLocalISO())
+    setNota('')
+  }
+
+  async function concluir(id) {
+    await supabase.from('carteira_lembrete').update({ concluido: true }).eq('id', id)
+    if (editandoId === id) novoLembrete()
+    carregarPendentes()
+  }
+
   async function salvar(e) {
     e.preventDefault()
     setSalvando(true)
-    const { error } = await supabase.from('carteira_lembrete').insert({
+    const payload = {
       carteira_cliente_id: cliente.id,
       data_hora: new Date(dataHora).toISOString(),
       pilar,
       nota,
       autor_id: user.id,
-    })
+    }
+    const { error } = editandoId
+      ? await supabase.from('carteira_lembrete').update(payload).eq('id', editandoId)
+      : await supabase.from('carteira_lembrete').insert(payload)
     setSalvando(false)
-    if (!error) onSalvo()
+    if (!error) { await carregarPendentes(); onSalvo() }
   }
 
   return (
@@ -43,32 +85,62 @@ export default function LembreteModal({ cliente, user, onClose, onSalvo }) {
           <button className="lm-close" onClick={onClose}>✕</button>
         </div>
 
-        <form className="lm-body" onSubmit={salvar}>
-          <div className="lm-field-edit">
-            <label>Produto / Pilar a ofertar</label>
-            <select className="filter-select" style={{ width: '100%' }} value={pilar} onChange={e => setPilar(e.target.value)}>
-              {PILARES_LEMBRETE.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-            </select>
-          </div>
-
-          {pilarInfo && (
-            <div className="lm-resumo">{pilarInfo.sondagem}</div>
+        <div className="lm-body">
+          {pendentes.length > 0 && (
+            <>
+              <div className="lm-section-title" style={{ marginBottom: 8 }}>Retornos agendados</div>
+              {pendentes.map(l => {
+                const info = PILARES_LEMBRETE.find(p => p.key === l.pilar)
+                return (
+                  <div key={l.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{formatDataHora(l.data_hora)} · {info?.label || l.pilar}</div>
+                      {l.nota && <div style={{ fontSize: 12, color: '#666' }}>{l.nota}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      <button type="button" className="btn-action" onClick={() => editar(l)}>Atualizar</button>
+                      <button type="button" className="btn-action" onClick={() => concluir(l.id)}>✓ Concluir</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
           )}
 
-          <div className="lm-field-edit">
-            <label>Data e hora do retorno</label>
-            <input className="lm-input" type="datetime-local" value={dataHora} onChange={e => setDataHora(e.target.value)} required />
-          </div>
+          <form onSubmit={salvar}>
+            <div className="lm-section-title" style={{ marginTop: pendentes.length > 0 ? 16 : 0, marginBottom: 8 }}>
+              {editandoId ? 'Atualizar retorno' : 'Novo retorno'}
+              {editandoId && (
+                <button type="button" className="btn-filter-light" style={{ marginLeft: 8 }} onClick={novoLembrete}>Cancelar edição</button>
+              )}
+            </div>
 
-          <div className="lm-field-edit">
-            <label>Nota (opcional)</label>
-            <textarea className="obs-area" rows={2} value={nota} onChange={e => setNota(e.target.value)} placeholder="Algo específico pra lembrar..." />
-          </div>
+            <div className="lm-field-edit">
+              <label>Produto / Pilar a ofertar</label>
+              <select className="filter-select" style={{ width: '100%' }} value={pilar} onChange={e => setPilar(e.target.value)}>
+                {PILARES_LEMBRETE.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+            </div>
 
-          <button className="btn-save-obs" style={{ float: 'none', width: '100%' }} type="submit" disabled={salvando}>
-            {salvando ? 'Salvando...' : 'Agendar'}
-          </button>
-        </form>
+            {pilarInfo && (
+              <div className="lm-resumo">{pilarInfo.sondagem}</div>
+            )}
+
+            <div className="lm-field-edit">
+              <label>Data e hora do retorno</label>
+              <input className="lm-input" type="datetime-local" value={dataHora} onChange={e => setDataHora(e.target.value)} required />
+            </div>
+
+            <div className="lm-field-edit">
+              <label>Nota (opcional)</label>
+              <textarea className="obs-area" rows={2} value={nota} onChange={e => setNota(e.target.value)} placeholder="Algo específico pra lembrar..." />
+            </div>
+
+            <button className="btn-save-obs" style={{ float: 'none', width: '100%' }} type="submit" disabled={salvando}>
+              {salvando ? 'Salvando...' : editandoId ? 'Atualizar' : 'Agendar'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )

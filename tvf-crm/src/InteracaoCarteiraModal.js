@@ -9,17 +9,27 @@ function formatDataHora(str) {
 
 export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved }) {
   const [itens, setItens] = useState([])
+  const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [mostrarLembrete, setMostrarLembrete] = useState(false)
   const fimRef = useRef(null)
 
+  function nomeAutor(id) {
+    if (id === user.id) return 'Você'
+    return staff.find(s => s.id === id)?.nome || 'Equipe'
+  }
+
   async function carregar() {
     setLoading(true)
-    const { data } = await supabase.from('carteira_interacao').select('*')
-      .eq('carteira_cliente_id', cliente.id).order('criado_em', { ascending: true })
+    const [{ data }, { data: staffData }] = await Promise.all([
+      supabase.from('carteira_interacao').select('*')
+        .eq('carteira_cliente_id', cliente.id).order('criado_em', { ascending: true }),
+      supabase.from('consultores_staff').select('id, nome'),
+    ])
     setItens(data || [])
+    setStaff(staffData || [])
     setLoading(false)
     setTimeout(() => fimRef.current?.scrollIntoView(), 50)
   }
@@ -64,8 +74,8 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
           {!loading && itens.length === 0 && <div className="empty">Nenhuma interação registrada ainda</div>}
           <div className="lm-chat">
             {itens.map(it => (
-              <div key={it.id} className="lm-chat-msg human">
-                <div className="lm-chat-label">{formatDataHora(it.criado_em)}</div>
+              <div key={it.id} className={`lm-chat-msg ${it.autor_id === user.id ? 'human' : 'ai'}`}>
+                <div className="lm-chat-label">{nomeAutor(it.autor_id)} · {formatDataHora(it.criado_em)}</div>
                 <div className="lm-chat-text">{it.descricao}</div>
               </div>
             ))}

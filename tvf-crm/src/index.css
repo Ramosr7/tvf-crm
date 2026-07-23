@@ -81,6 +81,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .sino-dropdown { position: absolute; top: 40px; right: 0; width: 320px; max-height: 400px; overflow-y: auto; background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); padding: 12px; z-index: 300; }
 .sino-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #999; margin-bottom: 8px; }
 .sino-item { padding: 10px 0; border-bottom: 1px solid #F0EAF8; font-size: 13px; }
+.sino-item-clicavel { cursor: pointer; }
+.sino-item-clicavel:hover { background: #FAF8FD; }
 .sino-item:last-child { border-bottom: none; }
 .sino-sondagem { font-size: 11px; color: #660099; background: #F7F4FC; border-radius: 6px; padding: 6px 8px; margin-top: 4px; line-height: 1.4; }
 .carteira-table-sticky .col-sticky { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 2px 0 4px rgba(0,0,0,0.04); }
@@ -91,6 +93,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 10px; }
 .dash-card { background: #fff; border: 1px solid #E0D8EC; border-radius: 12px; padding: 16px 18px; }
+.dash-card-clicavel { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+.dash-card-clicavel:hover { box-shadow: 0 4px 14px rgba(139,63,209,0.15); border-color: #C9B3E8; }
 .dash-card-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #999; margin-bottom: 6px; }
 .dash-card-numero { font-size: 28px; font-weight: 700; color: #4A1078; line-height: 1.1; }
 .dash-card-valor { font-size: 13px; color: #666; margin-top: 2px; }

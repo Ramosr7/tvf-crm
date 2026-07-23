@@ -21,10 +21,10 @@ function variacao(atual, anterior) {
   return Math.round(((atual - anterior) / anterior) * 100)
 }
 
-function CardComparativo({ titulo, atualQtd, atualValor, anteriorQtd, labelAnterior }) {
+function CardComparativo({ titulo, atualQtd, atualValor, anteriorQtd, labelAnterior, onClick }) {
   const varQtd = variacao(atualQtd, anteriorQtd)
   return (
-    <div className="dash-card">
+    <div className={`dash-card ${onClick ? 'dash-card-clicavel' : ''}`} onClick={onClick}>
       <div className="dash-card-titulo">{titulo}</div>
       <div className="dash-card-numero">{atualQtd}</div>
       <div className="dash-card-valor">{fmtMoeda(atualValor)}</div>
@@ -35,9 +35,9 @@ function CardComparativo({ titulo, atualQtd, atualValor, anteriorQtd, labelAnter
   )
 }
 
-function CardSimples({ titulo, valor, sub }) {
+function CardSimples({ titulo, valor, sub, onClick }) {
   return (
-    <div className="dash-card">
+    <div className={`dash-card ${onClick ? 'dash-card-clicavel' : ''}`} onClick={onClick}>
       <div className="dash-card-titulo">{titulo}</div>
       <div className="dash-card-numero">{valor}</div>
       {sub && <div className="dash-card-valor">{sub}</div>}
@@ -79,18 +79,50 @@ function BarChartHorizontal({ dados }) {
   )
 }
 
+function ModalDetalhe({ titulo, tipo, itens, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="lead-modal" style={{ width: 480 }} onClick={e => e.stopPropagation()}>
+        <div className="lm-header">
+          <div className="lm-header-left">
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{titulo}</div>
+          </div>
+          <button className="lm-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="lm-body">
+          {itens.length === 0 && <div className="empty">Nenhum registro</div>}
+          {tipo === 'clientes' && itens.map(c => (
+            <div key={c.id} className="sino-item">
+              <div style={{ fontWeight: 700 }}>{c.razao_social || c.cnpj}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>{c.consultorNome} · {c.status}</div>
+              {c.valor > 0 && <div style={{ fontSize: 12, marginTop: 2 }}>{fmtMoeda(c.valor)}</div>}
+            </div>
+          ))}
+          {tipo === 'consultores' && itens.map((r, i) => (
+            <div key={i} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 700 }}>{r.nome}</div>
+              <div>{r.valor}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard({ user }) {
   const [clientes, setClientes] = useState([])
   const [valorPorCliente, setValorPorCliente] = useState({})
   const [staff, setStaff] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [modal, setModal] = useState(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
-      supabase.from('carteira_cliente').select('id, status, data_venda, consultor_id'),
+      supabase.from('carteira_cliente').select('id, cnpj, razao_social, status, data_venda, consultor_id'),
       supabase.from('carteira_venda_item').select('carteira_cliente_id, valor'),
       supabase.from('consultores_staff').select('id, nome'),
       supabase.from('rotina_diaria').select('*').gte('data', iso(de14)),
@@ -135,6 +167,9 @@ export default function Dashboard({ user }) {
   function somaValor(lista) {
     return lista.reduce((s, c) => s + valorCliente(c.id), 0)
   }
+  function paraItensClientes(lista) {
+    return lista.map(c => ({ ...c, consultorNome: nomeConsultor(c.consultor_id), valor: valorCliente(c.id) }))
+  }
 
   const vendasHoje = vendidos.filter(c => c.data_venda === hojeISO)
   const vendasOntem = vendidos.filter(c => c.data_venda === ontemISO)
@@ -175,10 +210,17 @@ export default function Dashboard({ user }) {
 
   // indicadores de atendimento (rotina diária) de hoje, somados na equipe toda
   const rotinasHoje = rotinas.filter(r => r.data === hojeISO)
-  const somaCampo = (campo) => rotinasHoje.reduce((s, r) => s + (Number(r[campo]) || 0), 0)
-  const atendimentosHoje = somaCampo('clientes_recebidos')
-  const retornosHoje = somaCampo('retornos')
-  const aceitesHoje = somaCampo('ag_aceite')
+  const somaCampo = (lista, campo) => lista.reduce((s, r) => s + (Number(r[campo]) || 0), 0)
+  const atendimentosHoje = somaCampo(rotinasHoje, 'clientes_recebidos')
+  const retornosHoje = somaCampo(rotinasHoje, 'retornos')
+  const aceitesHoje = somaCampo(rotinasHoje, 'ag_aceite')
+
+  function breakdownConsultores(campo) {
+    return rotinasHoje
+      .map(r => ({ nome: nomeConsultor(r.consultor_id), valor: Number(r[campo]) || 0 }))
+      .filter(r => r.valor > 0)
+      .sort((a, b) => b.valor - a.valor)
+  }
 
   // vendas por dia, últimos 7 dias, pra gráfico de tendência
   const dias7 = []
@@ -191,6 +233,20 @@ export default function Dashboard({ user }) {
     })
   }
 
+  // rotina (atendimento) por dia, últimos 7 dias, somada na equipe toda
+  function trendRotina(campo) {
+    const trend = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoje); d.setDate(d.getDate() - i)
+      const dISO = iso(d)
+      trend.push({
+        label: dISO.slice(8, 10) + '/' + dISO.slice(5, 7),
+        valor: somaCampo(rotinas.filter(r => r.data === dISO), campo),
+      })
+    }
+    return trend
+  }
+
   const dadosRankingChart = rankingMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
 
   return (
@@ -199,11 +255,14 @@ export default function Dashboard({ user }) {
 
       <div className="dash-grid">
         <CardComparativo titulo="Vendas Hoje" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
-          anteriorQtd={vendasOntem.length} labelAnterior="ontem" />
+          anteriorQtd={vendasOntem.length} labelAnterior="ontem"
+          onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', itens: paraItensClientes(vendasHoje) })} />
         <CardComparativo titulo="Vendas na Semana" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
-          anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada" />
+          anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada"
+          onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', itens: paraItensClientes(vendasSemana) })} />
         <CardComparativo titulo="Vendas no Mês" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
-          anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado" />
+          anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
+          onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', itens: paraItensClientes(vendasMes) })} />
         <div className="dash-card">
           <div className="dash-card-titulo">Conversão da Carteira</div>
           <div className="dash-card-numero">{conversao}%</div>
@@ -224,9 +283,27 @@ export default function Dashboard({ user }) {
 
       <div className="lm-section-title" style={{ marginTop: 24 }}>Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Atendimentos" valor={atendimentosHoje} sub="clientes recebidos hoje" />
-        <CardSimples titulo="Retornos" valor={retornosHoje} sub="retornos feitos hoje" />
-        <CardSimples titulo="Ag. Aceite Enviados" valor={aceitesHoje} sub="enviados hoje" />
+        <CardSimples titulo="Atendimentos" valor={atendimentosHoje} sub="clientes recebidos hoje"
+          onClick={() => setModal({ titulo: 'Atendimentos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
+        <CardSimples titulo="Retornos" valor={retornosHoje} sub="retornos feitos hoje"
+          onClick={() => setModal({ titulo: 'Retornos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
+        <CardSimples titulo="Ag. Aceite Enviados" valor={aceitesHoje} sub="enviados hoje"
+          onClick={() => setModal({ titulo: 'Ag. Aceite hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
+      </div>
+
+      <div className="dash-grid" style={{ marginTop: 14 }}>
+        <div className="dash-card">
+          <div className="dash-card-titulo">Atendimentos — últimos 7 dias</div>
+          <BarChartVertical dados={trendRotina('clientes_recebidos')} altura={110} />
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-titulo">Retornos — últimos 7 dias</div>
+          <BarChartVertical dados={trendRotina('retornos')} altura={110} />
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-titulo">Ag. Aceite — últimos 7 dias</div>
+          <BarChartVertical dados={trendRotina('ag_aceite')} altura={110} />
+        </div>
       </div>
 
       <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking de Consultores (mês atual)</div>
@@ -252,6 +329,10 @@ export default function Dashboard({ user }) {
             </tbody>
           </table>
         </>
+      )}
+
+      {modal && (
+        <ModalDetalhe titulo={modal.titulo} tipo={modal.tipo} itens={modal.itens} onClose={() => setModal(null)} />
       )}
     </div>
   )

@@ -49,6 +49,7 @@ export default function PotencialCarteira({ user }) {
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
   const [filtroCnpj, setFiltroCnpj] = useState('')
   const [filtroOrigem, setFiltroOrigem] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -119,6 +120,7 @@ export default function PotencialCarteira({ user }) {
     if (filtroDataAte && (!c.data_adicao || c.data_adicao > filtroDataAte)) return false
     if (filtroCnpj && !c.cnpj.includes(filtroCnpj.replace(/\D/g, ''))) return false
     if (filtroOrigem && c.origem !== filtroOrigem) return false
+    if (filtroStatus && c.status !== filtroStatus) return false
     return true
   })
 
@@ -317,8 +319,12 @@ export default function PotencialCarteira({ user }) {
           <option value="Mailing Diário">Mailing Diário</option>
           <option value="Status Atual (Migração)">Status Atual (Migração)</option>
         </select>
-        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem) && (
-          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem('') }}>✕ Limpar filtros</button>
+        <select className="filter-select" value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+          <option value="">Todos os status</option>
+          {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem || filtroStatus) && (
+          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem(''); setFiltroStatus('') }}>✕ Limpar filtros</button>
         )}
       </div>
 
@@ -395,7 +401,7 @@ export default function PotencialCarteira({ user }) {
                 </td>
                 <td>
                   <button className={`btn-action ${c.no_kanban ? 'flag-ativo' : ''}`} onClick={() => alternarKanban(c)}>
-                    {c.no_kanban ? `🚩 ${c.temperatura}` : '🚩 Flagar'}
+                    {c.no_kanban ? `🚩 ${c.temperatura}` : '➤ Enviar ao Kanban'}
                   </button>
                 </td>
                 <td>{c.cnpj}</td>
