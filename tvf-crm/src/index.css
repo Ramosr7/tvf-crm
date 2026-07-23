@@ -216,7 +216,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .lm-tab:hover { color: #660099; }
 .lm-tab.active { color: #660099; border-bottom-color: #FF6B00; }
 .lm-body { display: flex; flex-direction: column; gap: 12px; }
-.lm-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #999; margin-bottom: -8px; }
+.lm-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #999; margin-bottom: 8px; }
+.lm-body .lm-section-title { margin-bottom: -8px; }
 .lm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lm-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 .lm-field-edit label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; margin-bottom: 4px; }
