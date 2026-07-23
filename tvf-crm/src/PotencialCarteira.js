@@ -56,6 +56,9 @@ export default function PotencialCarteira({ user }) {
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
   const [lixeira, setLixeira] = useState([])
   const [mostrarLixeira, setMostrarLixeira] = useState(false)
+  const [consultorDestino, setConsultorDestino] = useState(user.id)
+  const [consultorTransferencia, setConsultorTransferencia] = useState('')
+  const [transferindo, setTransferindo] = useState(false)
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
@@ -94,8 +97,10 @@ export default function PotencialCarteira({ user }) {
   useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes() }, [fetchClientes, fetchVendaItens, fetchInteracoes])
 
   useEffect(() => {
-    if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
-    if (podeAdicionarCliente(user)) fetchLixeira()
+    if (podeAdicionarCliente(user)) {
+      supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
+      fetchLixeira()
+    }
   }, [user, fetchLixeira])
 
   const nomeConsultor = (id) => staff.find(s => s.id === id)?.nome || '—'
@@ -126,7 +131,7 @@ export default function PotencialCarteira({ user }) {
   }
 
   const clientesFiltrados = clientes.filter(c => {
-    if (isGestor(user) && filtroConsultor && c.consultor_id !== filtroConsultor) return false
+    if (podeAdicionarCliente(user) && filtroConsultor && c.consultor_id !== filtroConsultor) return false
     if (filtroDataDe && (!c.data_adicao || c.data_adicao < filtroDataDe)) return false
     if (filtroDataAte && (!c.data_adicao || c.data_adicao > filtroDataAte)) return false
     if (filtroCnpj && !c.cnpj.includes(filtroCnpj.replace(/\D/g, ''))) return false
@@ -240,6 +245,23 @@ export default function PotencialCarteira({ user }) {
     fetchClientes()
   }
 
+  async function transferirCliente(c, novoConsultorId) {
+    if (!novoConsultorId || novoConsultorId === c.consultor_id) return
+    atualizarCliente(c.id, { consultor_id: novoConsultorId })
+  }
+
+  async function transferirSelecionados() {
+    if (selecionados.size === 0 || !consultorTransferencia) return
+    setTransferindo(true)
+    const { error } = await supabase.from('carteira_cliente')
+      .update({ consultor_id: consultorTransferencia }).in('id', Array.from(selecionados))
+    setTransferindo(false)
+    if (error) { alert('Erro ao transferir: ' + error.message); return }
+    setSelecionados(new Set())
+    setConsultorTransferencia('')
+    fetchClientes()
+  }
+
   async function alternarKanban(c) {
     const campos = c.no_kanban
       ? { no_kanban: false, temperatura: null, temperatura_atualizada_em: null }
@@ -275,7 +297,7 @@ export default function PotencialCarteira({ user }) {
 
     for (const cnpj of cnpjs) {
       const { data: existente } = await supabase.from('carteira_cliente').select('id, excluido_em')
-        .eq('cnpj', cnpj).eq('consultor_id', user.id).maybeSingle()
+        .eq('cnpj', cnpj).eq('consultor_id', consultorDestino || user.id).maybeSingle()
       if (existente && !existente.excluido_em) {
         jaExistiam++
         if (!primeiroExistenteId) primeiroExistenteId = existente.id
@@ -293,7 +315,7 @@ export default function PotencialCarteira({ user }) {
 
       const { data: novo, error } = await supabase.from('carteira_cliente')
         .insert({
-          cnpj, razao_social: parque?.nm_cliente, consultor_id: user.id, status: 'Aguardando Atendimento',
+          cnpj, razao_social: parque?.nm_cliente, consultor_id: consultorDestino || user.id, status: 'Aguardando Atendimento',
           origem: 'Manual',
           potencial_migracao: potencial?.potencial_migracao || 0,
           potencial_bl: potencial?.potencial_bl || 0,
@@ -359,7 +381,7 @@ export default function PotencialCarteira({ user }) {
       </div>
 
       <div className="kanban-toolbar">
-        {isGestor(user) && (
+        {podeAdicionarCliente(user) && (
           <select className="filter-select" value={filtroConsultor} onChange={e => setFiltroConsultor(e.target.value)}>
             <option value="">Todos os consultores</option>
             {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -386,6 +408,10 @@ export default function PotencialCarteira({ user }) {
       {podeAdicionarCliente(user) && (
         <div className="kanban-toolbar">
           <input className="search-input" placeholder="CNPJ(s) separados por ; " value={novoCnpj} onChange={e => setNovoCnpj(e.target.value)} />
+          <select className="filter-select" value={consultorDestino} onChange={e => setConsultorDestino(e.target.value)} title="Consultor que vai receber o(s) cliente(s)">
+            <option value={user.id}>Você ({user.nome})</option>
+            {staff.filter(s => s.id !== user.id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+          </select>
           <button className="btn-save-obs" style={{ float: 'none' }} onClick={adicionarCliente} disabled={buscandoCnpj || !novoCnpj.trim()}>
             {buscandoCnpj ? 'Adicionando...' : '+ Adicionar Cliente'}
           </button>
@@ -395,6 +421,13 @@ export default function PotencialCarteira({ user }) {
             <>
               <button className="btn-action" onClick={() => flagarSelecionados(true)}>🚩 Adicionar {selecionados.size} ao Kanban</button>
               <button className="btn-action" onClick={() => flagarSelecionados(false)}>Tirar {selecionados.size} do Kanban</button>
+              <select className="filter-select" value={consultorTransferencia} onChange={e => setConsultorTransferencia(e.target.value)}>
+                <option value="">Transferir para...</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              </select>
+              <button className="btn-action" onClick={transferirSelecionados} disabled={!consultorTransferencia || transferindo}>
+                {transferindo ? 'Transferindo...' : `↔ Transferir ${selecionados.size}`}
+              </button>
               <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={removerSelecionados} disabled={removendo}>
                 {removendo ? 'Removendo...' : `🗑 Remover ${selecionados.size} selecionado(s)`}
               </button>
@@ -427,7 +460,7 @@ export default function PotencialCarteira({ user }) {
               <th className="col-ordenavel" onClick={() => pedirOrdenar('razao_social')}>Razão Social{setaOrdenacao('razao_social')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('origem')}>Origem{setaOrdenacao('origem')}</th>
               <th>Contato</th>
-              {isGestor(user) && <th>Consultor</th>}
+              {podeAdicionarCliente(user) && <th>Consultor</th>}
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_migracao')}>Pot. Migração{setaOrdenacao('potencial_migracao')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_bl')}>Pot. BL{setaOrdenacao('potencial_bl')}</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('potencial_ti')}>Pot. TI{setaOrdenacao('potencial_ti')}</th>
@@ -468,7 +501,13 @@ export default function PotencialCarteira({ user }) {
                 <td>
                   {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}
                 </td>
-                {isGestor(user) && <td>{nomeConsultor(c.consultor_id)}</td>}
+                {podeAdicionarCliente(user) && (
+                  <td>
+                    <select className="filter-select" value={c.consultor_id || ''} onChange={e => transferirCliente(c, e.target.value)}>
+                      {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                    </select>
+                  </td>
+                )}
                 <td>{c.potencial_migracao || 0}</td>
                 <td>{c.potencial_bl || 0}</td>
                 <td>{c.potencial_ti || 0}</td>
