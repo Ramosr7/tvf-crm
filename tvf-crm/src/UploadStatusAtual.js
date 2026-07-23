@@ -204,7 +204,9 @@ export default function UploadStatusAtual() {
           {resultado.criados} clientes novos, {resultado.atualizados} atualizados. {resultado.semStatusReconhecido} vieram com status não reconhecido (ficaram "Aguardando Atendimento").
           {' '}{resultado.doMapaParque} tiveram potencial encontrado no Mapa Parque.
           {resultado.falhas > 0 && (
-            <div className="login-erro" style={{ marginTop: 8 }}>{resultado.falhas} linha(s) falharam.</div>
+            <div className="login-erro" style={{ marginTop: 8 }}>
+              {resultado.falhas} linha(s) falharam. Exemplo(s): {resultado.errosAmostra.join(' | ')}
+            </div>
           )}
         </div>
       )}
