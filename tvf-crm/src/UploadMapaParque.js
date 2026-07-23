@@ -10,6 +10,7 @@ const ALIASES = {
   nm_cliente: ['nmcliente'],
   movel: ['movel'],
   rec_movel: ['recmovel'],
+  qt_movel_term: ['qtmovelterm'],
   fixa_basica: ['fixabasica'],
   primeira_oferta: ['primeiraoferta'],
   segunda_oferta: ['segundaoferta'],
@@ -48,6 +49,7 @@ export default function UploadMapaParque() {
       m.nr_cnpj = extrairCnpj(m.nr_cnpj) || m.nr_cnpj.replace(/\D/g, '')
       m.vl_car_movel = parseFloat(String(m.vl_car_movel).replace(',', '.')) || 0
       m.vl_car_fixa = parseFloat(String(m.vl_car_fixa).replace(',', '.')) || 0
+      m.qt_movel_term = parseInt(String(m.qt_movel_term).replace(/\D/g, ''), 10) || 0
       return m
     }).filter(l => l.nr_cnpj)
     setLinhas(mapeadas)
@@ -114,7 +116,14 @@ export default function UploadMapaParque() {
       }
 
       const idsProcessados = pendentes.map(p => p.id)
-      await supabase.from('mapa_parque_import').update({ processado: true }).in('id', idsProcessados)
+      const { data: marcados, error: erroMarcar } = await supabase.from('mapa_parque_import')
+        .update({ processado: true }).in('id', idsProcessados).select('id')
+      if (erroMarcar || !marcados || marcados.length === 0) {
+        setProcessando(false)
+        setProgresso('')
+        setResultado({ erro: `Não consegui marcar o lote como processado (RLS/permissão?): ${erroMarcar?.message || 'nenhuma linha atualizada'}. Processadas até aqui: ${totalProcessadas}.` })
+        return
+      }
       totalProcessadas += pendentes.length
       paginaInicio += pendentes.length
       if (pendentes.length < CHUNK_PROCESSAR) break

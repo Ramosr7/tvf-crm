@@ -12,10 +12,13 @@ export function calcularPotencial(row) {
   const movel = String(row.movel || '')
   const numMigracao = recMovel.match(/\d+/)
   // Aquisição de linhas novas (rec_movel tem número) soma o número; Renovação/Blindagem
-  // (rec_movel sem número, mas indica renovação) conta como 1 — os dois compõem o mesmo pilar.
+  // (rec_movel sem número, mas indica renovação) conta o parque móvel total do cliente
+  // (qt_movel_term) — os dois compõem o mesmo pilar.
   let potencial_migracao
   if (numMigracao) potencial_migracao = parseInt(numMigracao[0], 10)
-  else if (contemPalavra(recMovel, ['renova']) || contemPalavra(movel, ['renova', 'blindagem'])) potencial_migracao = 1
+  else if (contemPalavra(recMovel, ['renova']) || contemPalavra(movel, ['renova', 'blindagem'])) {
+    potencial_migracao = Number(row.qt_movel_term) || 1
+  }
   else potencial_migracao = 0
 
   const ofertas = [row.primeira_oferta, row.segunda_oferta, row.terceira_oferta].join(' ')
