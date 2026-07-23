@@ -8,6 +8,7 @@ import KanbanTemperatura from './KanbanTemperatura'
 import Importar from './Importar'
 import Relatorios from './Relatorios'
 import NotificacoesSino from './NotificacoesSino'
+import Dashboard from './Dashboard'
 import './index.css'
 
 
@@ -590,11 +591,11 @@ function CrmLeads() {
 // ─── APP (auth gate + navegação) ───────────────────────────────────────────────
 export default function App() {
   const { session, user, loading, signOut } = useAuth()
-  const [tela, setTela] = useState('leads')
+  const [tela, setTela] = useState('dashboard')
 
   useEffect(() => {
-    if (user?.perfil !== 'Gestor' && tela === 'leads') setTela('carteira')
-    if (user?.perfil === 'Consultor' && tela === 'relatorios') setTela('carteira')
+    if (tela === 'leads') setTela('carteira')
+    if (user?.perfil === 'Consultor' && (tela === 'relatorios' || tela === 'dashboard')) setTela('carteira')
   }, [user, tela])
 
   if (loading) return <div className="loading">Carregando...</div>
@@ -620,8 +621,8 @@ export default function App() {
             <span className="topbar-logo-texto">CRM</span>
           </div>
           <div className="topbar-nav">
-            {user.perfil === 'Gestor' && (
-              <span className={`topbar-nav-item ${tela === 'leads' ? 'active' : ''}`} onClick={() => setTela('leads')}>CRM Leads</span>
+            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
+              <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => setTela('dashboard')}>Início</span>
             )}
             <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => setTela('carteira')}>Potencial de Carteira</span>
             <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
@@ -641,6 +642,7 @@ export default function App() {
         </div>
       </div>
 
+      {tela === 'dashboard' && (user.perfil === 'Gestor' || user.perfil === 'Supervisor') && <Dashboard user={user} />}
       {tela === 'leads' && user.perfil === 'Gestor' && <CrmLeads />}
       {tela === 'carteira' && <PotencialCarteira user={user} />}
       {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}
