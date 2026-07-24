@@ -54,7 +54,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 /* CARTEIRA STATS — visão diagnóstica: um cartão por indicador, cor própria, zero apagado */
 .diag-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
 .diag-stat { background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; padding: 14px 16px; border-top: 3px solid #ccc; min-width: 0; }
-.diag-stat-valor { font-size: 22px; font-weight: 700; color: #1a1a1a; overflow-wrap: anywhere; }
+.diag-stat-valor { font-size: 22px; font-weight: 700; color: #1a1a1a; white-space: nowrap; }
 .diag-stat-label { font-size: 11px; color: #888; margin-top: 3px; }
 .diag-stat-zero { opacity: 0.45; }
 .diag-stat-zero .diag-stat-valor { color: #aaa; }
@@ -69,7 +69,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .diag-stat-voz { border-top-color: #5B2C8D; }
 .diag-stat-voz .diag-stat-valor { color: #5B2C8D; }
 .diag-stat-credito { border-top-color: #1D9E75; background: #F4FBF8; }
-.diag-stat-credito .diag-stat-valor { color: #1D9E75; font-size: 24px; }
+.diag-stat-credito .diag-stat-valor { color: #1D9E75; font-size: clamp(14px, 1.7vw, 20px); }
 @media (max-width: 900px) { .diag-stats { grid-template-columns: repeat(3, 1fr); } }
 
 /* CARTEIRA TABLE STICKY */
