@@ -29,6 +29,7 @@ const ALIASES = {
 
 const CHUNK_IMPORT = 1000
 const CHUNK_PROCESSAR = 1000
+const CHUNK_MARCAR = 150 // update .in() com muitos ids estoura o tamanho da URL/request
 
 export default function UploadMapaParque() {
   const [linhas, setLinhas] = useState([])
@@ -116,12 +117,19 @@ export default function UploadMapaParque() {
       }
 
       const idsProcessados = pendentes.map(p => p.id)
-      const { data: marcados, error: erroMarcar } = await supabase.from('mapa_parque_import')
-        .update({ processado: true }).in('id', idsProcessados).select('id')
-      if (erroMarcar || !marcados || marcados.length === 0) {
+      let totalMarcados = 0
+      let erroMarcarLote = null
+      for (let i = 0; i < idsProcessados.length; i += CHUNK_MARCAR) {
+        const subLote = idsProcessados.slice(i, i + CHUNK_MARCAR)
+        const { data: marcados, error: erroMarcar } = await supabase.from('mapa_parque_import')
+          .update({ processado: true }).in('id', subLote).select('id')
+        if (erroMarcar) { erroMarcarLote = erroMarcar; break }
+        totalMarcados += marcados?.length || 0
+      }
+      if (erroMarcarLote || totalMarcados === 0) {
         setProcessando(false)
         setProgresso('')
-        setResultado({ erro: `Não consegui marcar o lote como processado (RLS/permissão?): ${erroMarcar?.message || 'nenhuma linha atualizada'}. Processadas até aqui: ${totalProcessadas}.` })
+        setResultado({ erro: `Não consegui marcar o lote como processado (RLS/permissão?): ${erroMarcarLote?.message || 'nenhuma linha atualizada'}. Processadas até aqui: ${totalProcessadas}.` })
         return
       }
       totalProcessadas += pendentes.length
