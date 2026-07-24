@@ -51,11 +51,14 @@ export default function KanbanTemperatura({ user }) {
     return true
   })
 
-  const somaMigracao = clientesFiltrados.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
-  const somaBl = clientesFiltrados.reduce((s, c) => s + (c.potencial_bl || 0), 0)
-  const somaTi = clientesFiltrados.reduce((s, c) => s + (c.potencial_ti || 0), 0)
-  const somaVoz = clientesFiltrados.reduce((s, c) => s + (c.potencial_voz || 0), 0)
-  const somaCredito = clientesFiltrados.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
+  // Descartado não entra na soma de potencial — não faz sentido gerar expectativa
+  // em cima de cliente que não vai mais ser trabalhado.
+  const clientesComPotencial = clientesFiltrados.filter(c => c.temperatura !== 'Descartado')
+  const somaMigracao = clientesComPotencial.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
+  const somaBl = clientesComPotencial.reduce((s, c) => s + (c.potencial_bl || 0), 0)
+  const somaTi = clientesComPotencial.reduce((s, c) => s + (c.potencial_ti || 0), 0)
+  const somaVoz = clientesComPotencial.reduce((s, c) => s + (c.potencial_voz || 0), 0)
+  const somaCredito = clientesComPotencial.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
 
   function handleDragStart(c) { draggingCliente.current = c; setDraggingId(c.id); dragMoveu.current = true }
   function handleDragEnd() { draggingCliente.current = null; setDraggingId(null); setDragOver(null); setTimeout(() => { dragMoveu.current = false }, 100) }

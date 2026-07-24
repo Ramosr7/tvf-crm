@@ -55,24 +55,34 @@ export default function NotificacoesSino({ user }) {
         🔔{lembretes.length > 0 && ` ${lembretes.length}`}
       </button>
       {aberto && (
-        <div className="sino-dropdown">
-          <div className="sino-titulo">Retornos pendentes</div>
-          {lembretes.length === 0 && <div className="empty" style={{ padding: '16px 0' }}>Nenhum retorno pendente</div>}
-          {lembretes.map(l => {
-            const pilarInfo = PILARES_LEMBRETE.find(p => p.key === l.pilar)
-            return (
-              <div key={l.id} className="sino-item sino-item-clicavel" onClick={() => abrirCliente(l)}>
-                <div style={{ fontWeight: 700 }}>{l.carteira_cliente?.razao_social || l.carteira_cliente?.cnpj}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>
-                  {formatDataHora(l.data_hora)} · {pilarInfo?.label || l.pilar}
-                  {podeVerConsultor(user) && l.carteira_cliente && ` · ${nomeConsultor(l.carteira_cliente.consultor_id)}`}
-                </div>
-                {pilarInfo && <div className="sino-sondagem">{pilarInfo.sondagem}</div>}
-                {l.nota && <div style={{ fontSize: 12, marginTop: 4 }}>{l.nota}</div>}
-                <button className="btn-action" style={{ marginTop: 6 }} onClick={(e) => concluir(e, l.id)}>✓ Concluir</button>
+        <div className="modal-overlay" onClick={() => setAberto(false)}>
+          <div className="lead-modal" style={{ width: 460 }} onClick={e => e.stopPropagation()}>
+            <div className="lm-header">
+              <div className="lm-header-left">
+                <div style={{ fontSize: 17, fontWeight: 700 }}>Notificações</div>
+                <div className="lm-phone">Retornos pendentes</div>
               </div>
-            )
-          })}
+              <button className="lm-close" onClick={() => setAberto(false)}>✕</button>
+            </div>
+            <div className="lm-body">
+              {lembretes.length === 0 && <div className="empty">Nenhum retorno pendente</div>}
+              {lembretes.map(l => {
+                const pilarInfo = PILARES_LEMBRETE.find(p => p.key === l.pilar)
+                return (
+                  <div key={l.id} className="sino-item sino-item-clicavel" onClick={() => abrirCliente(l)}>
+                    <div style={{ fontWeight: 700 }}>{l.carteira_cliente?.razao_social || l.carteira_cliente?.cnpj}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      {formatDataHora(l.data_hora)} · {pilarInfo?.label || l.pilar}
+                      {podeVerConsultor(user) && l.carteira_cliente && ` · ${nomeConsultor(l.carteira_cliente.consultor_id)}`}
+                    </div>
+                    {pilarInfo && <div className="sino-sondagem">{pilarInfo.sondagem}</div>}
+                    {l.nota && <div style={{ fontSize: 12, marginTop: 4 }}>{l.nota}</div>}
+                    <button className="btn-action" style={{ marginTop: 6 }} onClick={(e) => concluir(e, l.id)}>✓ Concluir</button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
       {clienteAberto && (

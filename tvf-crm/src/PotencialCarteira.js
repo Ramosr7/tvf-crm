@@ -32,12 +32,22 @@ const PRESETS_PERIODO = [
 const isGestor = (user) => user.perfil === 'Gestor'
 const podeAdicionarCliente = (user) => user.perfil === 'Gestor' || user.perfil === 'Supervisor'
 
+function carregarFiltrosSalvos(user) {
+  try {
+    const raw = localStorage.getItem(`tvf_filtros_carteira_${user.id}`)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 export default function PotencialCarteira({ user }) {
+  const filtrosSalvos = carregarFiltrosSalvos(user)
   const [clientes, setClientes] = useState([])
   const [staff, setStaff] = useState([])
-  const [filtroConsultor, setFiltroConsultor] = useState('')
-  const [filtroDataDe, setFiltroDataDe] = useState('')
-  const [filtroDataAte, setFiltroDataAte] = useState('')
+  const [filtroConsultor, setFiltroConsultor] = useState(filtrosSalvos.consultor || '')
+  const [filtroDataDe, setFiltroDataDe] = useState(filtrosSalvos.dataDe || '')
+  const [filtroDataAte, setFiltroDataAte] = useState(filtrosSalvos.dataAte || '')
   const [loading, setLoading] = useState(true)
   const [novoCnpj, setNovoCnpj] = useState('')
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
@@ -49,9 +59,9 @@ export default function PotencialCarteira({ user }) {
   const [modalCliente, setModalCliente] = useState(null)
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
-  const [filtroCnpj, setFiltroCnpj] = useState('')
-  const [filtroOrigem, setFiltroOrigem] = useState('')
-  const [filtroStatus, setFiltroStatus] = useState('')
+  const [filtroCnpj, setFiltroCnpj] = useState(filtrosSalvos.cnpj || '')
+  const [filtroOrigem, setFiltroOrigem] = useState(filtrosSalvos.origem || '')
+  const [filtroStatus, setFiltroStatus] = useState(filtrosSalvos.status || '')
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -106,6 +116,13 @@ export default function PotencialCarteira({ user }) {
   }, [])
 
   useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists])
+
+  useEffect(() => {
+    localStorage.setItem(`tvf_filtros_carteira_${user.id}`, JSON.stringify({
+      consultor: filtroConsultor, dataDe: filtroDataDe, dataAte: filtroDataAte,
+      cnpj: filtroCnpj, origem: filtroOrigem, status: filtroStatus,
+    }))
+  }, [user.id, filtroConsultor, filtroDataDe, filtroDataAte, filtroCnpj, filtroOrigem, filtroStatus])
 
   useEffect(() => {
     if (podeAdicionarCliente(user)) {
@@ -290,7 +307,11 @@ export default function PotencialCarteira({ user }) {
   async function atualizarCliente(id, campos) {
     setClientes(prev => prev.map(c => c.id === id ? { ...c, ...campos } : c))
     const { error } = await supabase.from('carteira_cliente').update(campos).eq('id', id)
-    if (error) { console.error('Erro ao atualizar cliente:', error); fetchClientes() }
+    if (error) {
+      console.error('Erro ao atualizar cliente:', error)
+      alert('Não consegui salvar: ' + error.message)
+      fetchClientes()
+    }
   }
 
   function mudarStatus(c, novoStatus) {
@@ -513,10 +534,23 @@ export default function PotencialCarteira({ user }) {
                     {c.no_kanban ? `🚩 ${c.temperatura}` : '➤ Enviar ao Kanban'}
                   </button>
                 </td>
-                <td>{c.cnpj}</td>
-                <td>{c.razao_social || '—'}</td>
                 <td>
-                  {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}
+                  <input className="lm-input" style={{ width: 130 }} defaultValue={c.cnpj}
+                    onBlur={e => {
+                      const limpo = e.target.value.replace(/\D/g, '')
+                      if (limpo && limpo !== c.cnpj) atualizarCliente(c.id, { cnpj: limpo })
+                      else e.target.value = c.cnpj
+                    }} />
+                </td>
+                <td>
+                  <input className="lm-input" style={{ width: 180 }} defaultValue={c.razao_social || ''}
+                    placeholder="Preencher razão social..."
+                    onBlur={e => { if (e.target.value !== (c.razao_social || '')) atualizarCliente(c.id, { razao_social: e.target.value.trim() || null }) }} />
+                </td>
+                <td>
+                  <input className="lm-input" style={{ width: 180 }} defaultValue={c.contato || ''}
+                    placeholder="Preencher contato..."
+                    onBlur={e => { if (e.target.value !== (c.contato || '')) atualizarCliente(c.id, { contato: e.target.value.trim() || null }) }} />
                 </td>
                 {podeAdicionarCliente(user) && (
                   <td>
