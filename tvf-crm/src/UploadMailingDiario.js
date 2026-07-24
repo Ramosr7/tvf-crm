@@ -113,10 +113,10 @@ export default function UploadMailingDiario() {
         .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
 
       if (existente) {
+        // Cliente já existe na carteira desse consultor: não mexe em status, observações,
+        // razão social nem contato (o que o consultor já registrou fica como está) — só
+        // atualiza o potencial, que é o dado que o Mapa Parque traz de mais novo.
         const { error } = await supabase.from('carteira_cliente').update({
-          razao_social: l.razao_social || undefined,
-          contato: l.contato || undefined,
-          observacoes,
           ...(potencial || {}),
           potencial_migracao: potencialMigracao,
           credito_pre_aprovado: creditoFinal,
