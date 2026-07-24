@@ -236,6 +236,9 @@ export default function Relatorios({ user }) {
   const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0)
   const qtdNovo = vendas.filter(v => v.tipo === 'Novo').length
   const qtdRenovacao = vendas.filter(v => v.tipo === 'Renovação').length
+  // "Receita" no relatório sempre prioriza produto novo vendido — renovação aparece à parte.
+  const receitaNovo = vendas.filter(v => v.tipo === 'Novo').reduce((s, v) => s + Number(v.valor || 0), 0)
+  const receitaRenovacao = vendas.filter(v => v.tipo === 'Renovação').reduce((s, v) => s + Number(v.valor || 0), 0)
 
   // vendas por produto (subproduto) no período filtrado
   const porSubprodutoVendas = {}
@@ -334,13 +337,15 @@ export default function Relatorios({ user }) {
         ))}
       </div>
 
+      <div className="tela-relatorio">
       {loading && <div className="loading">Carregando...</div>}
 
       {!loading && aba === 'vendas' && (
         <>
           <div className="diag-stats">
             <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{vendas.length}</div><div className="diag-stat-label">Itens Vendidos</div></div>
-            <div className="diag-stat diag-stat-credito"><div className="diag-stat-valor">{fmtMoeda(totalVendas)}</div><div className="diag-stat-label">Valor Total</div></div>
+            <div className="diag-stat diag-stat-credito"><div className="diag-stat-valor">{fmtMoeda(receitaNovo)}</div><div className="diag-stat-label">Receita Produto Novo</div></div>
+            <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{fmtMoeda(receitaRenovacao)}</div><div className="diag-stat-label">Receita Renovação</div></div>
             <div className="diag-stat diag-stat-bl"><div className="diag-stat-valor">{qtdNovo}</div><div className="diag-stat-label">Novo</div></div>
             <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{qtdRenovacao}</div><div className="diag-stat-label">Renovação</div></div>
           </div>
@@ -493,6 +498,7 @@ export default function Relatorios({ user }) {
           </div>
         </>
       )}
+      </div>
 
       <div className="print-relatorio">
         <div className="print-cabecalho">
@@ -503,69 +509,135 @@ export default function Relatorios({ user }) {
           </div>
         </div>
 
-        {abasPdf.has('vendas') && abasPdf.size > 1 && <div className="print-secao-titulo">Vendas</div>}
-        {abasPdf.has('vendas') && Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
-          const porSubproduto = {}
-          for (const v of itens) porSubproduto[v.subproduto] = (porSubproduto[v.subproduto] || 0) + (v.quantidade || 1)
-          const total = itens.reduce((s, v) => s + Number(v.valor || 0), 0)
-          return (
-            <div key={consultorId} className="print-bloco">
-              <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
-              {Object.entries(porSubproduto).map(([sub, qtd]) => <div key={sub}>{sub}: {qtd}</div>)}
-              <div>Receita: {fmtMoeda(total)}</div>
+        {abasPdf.has('vendas') && (
+          <>
+            {abasPdf.size > 1 && <div className="print-secao-titulo">Vendas</div>}
+            <div className="print-kpis">
+              <div className="print-kpi"><div className="print-kpi-valor">{vendas.length}</div><div className="print-kpi-label">Itens Vendidos</div></div>
+              <div className="print-kpi print-kpi-destaque"><div className="print-kpi-valor">{fmtMoeda(receitaNovo)}</div><div className="print-kpi-label">Receita Produto Novo</div></div>
+              <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaRenovacao)}</div><div className="print-kpi-label">Receita Renovação</div></div>
             </div>
-          )
-        })}
 
-        {abasPdf.has('rotina') && abasPdf.size > 1 && <div className="print-secao-titulo">Rotina</div>}
-        {abasPdf.has('rotina') && Object.entries(agruparPorConsultor(rotinas, r => r.consultor_id)).map(([consultorId, itens]) => {
-          const soma = itens.reduce((acc, r) => {
-            acc.clientes += r.clientes_recebidos || 0
-            acc.retornos += r.retornos || 0
-            acc.visitas += r.visitas_agendadas || 0
-            acc.altas += r.altas || 0
-            acc.bl += r.bl || 0
-            acc.aparelho += Number(r.aparelho_valor || 0)
-            return acc
-          }, { clientes: 0, retornos: 0, visitas: 0, altas: 0, bl: 0, aparelho: 0 })
-          return (
-            <div key={consultorId} className="print-bloco">
-              <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
-              <div>Clientes: {soma.clientes}</div>
-              <div>Retornos: {soma.retornos}</div>
-              <div>Visitas: {soma.visitas}</div>
-              <div>Altas: {soma.altas}</div>
-              <div>BL: {soma.bl}</div>
-              <div>Aparelho: {fmtMoeda(soma.aparelho)}</div>
-            </div>
-          )
-        })}
-
-        {abasPdf.has('kanban') && abasPdf.size > 1 && <div className="print-secao-titulo">Kanban</div>}
-        {abasPdf.has('kanban') && Object.entries(agruparPorConsultor(kanbanClientes, c => c.consultor_id)).map(([consultorId, itens]) => (
-          <div key={consultorId} className="print-bloco">
-            <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
-            {['Frio', 'Morno', 'Quente', 'Descartado'].map(t => (
-              <div key={t}>{t}: {itens.filter(c => c.temperatura === t).length}</div>
-            ))}
-          </div>
-        ))}
-
-        {abasPdf.has('interacoes') && abasPdf.size > 1 && <div className="print-secao-titulo">Interações</div>}
-        {abasPdf.has('interacoes') && Object.entries(agruparPorConsultor(resumoInteracoes, r => r.consultor_id)).map(([consultorId, itens]) => (
-          <div key={consultorId} className="print-bloco">
-            <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
-            <div>Clientes: {itens.length}</div>
-            <div>Atrasados: {itens.filter(r => r.atrasado).length}</div>
-            <div>Nunca contatados: {itens.filter(r => !r.ultima).length}</div>
-            {itens.map(r => (
-              <div key={r.id} style={{ marginTop: 6 }}>
-                <strong>{r.razao_social || r.cnpj}</strong> — status: {r.status} — {r.qtdInteracoes} interação(ões)
-                {r.resumoTexto && <div style={{ fontSize: 11, color: '#555' }}>{r.resumoTexto}</div>}
+            {vendasPorProduto.length > 0 && (
+              <div className="print-chart">
+                <div className="print-chart-titulo">Vendas por Produto</div>
+                {vendasPorProduto.map(p => {
+                  const max = vendasPorProduto[0].valor || 1
+                  const pct = Math.max(4, Math.round((p.valor / max) * 100))
+                  return (
+                    <div key={p.subproduto} className="print-chart-linha">
+                      <div className="print-chart-label">{p.subproduto}</div>
+                      <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: pct + '%' }} /></div>
+                      <div className="print-chart-valor">{fmtMoeda(p.valor)}</div>
+                    </div>
+                  )
+                })}
               </div>
-            ))}
-          </div>
-        ))}
+            )}
+
+            {isGestor(user) && rankingVendasNovo.length > 0 && (
+              <div className="print-chart">
+                <div className="print-chart-titulo">Ranking — Produto Novo (por consultor)</div>
+                {rankingVendasNovo.map(r => {
+                  const max = rankingVendasNovo[0].valor || 1
+                  const pct = Math.max(4, Math.round((r.valor / max) * 100))
+                  return (
+                    <div key={r.id} className="print-chart-linha">
+                      <div className="print-chart-label">{r.nome}</div>
+                      <div className="print-chart-barra-wrap"><div className="print-chart-barra print-chart-barra-alt" style={{ width: pct + '%' }} /></div>
+                      <div className="print-chart-valor">{fmtMoeda(r.valor)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="print-grid">
+              {Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
+                const porSubproduto = {}
+                for (const v of itens) porSubproduto[v.subproduto] = (porSubproduto[v.subproduto] || 0) + (v.quantidade || 1)
+                const totalNovo = itens.filter(v => v.tipo === 'Novo').reduce((s, v) => s + Number(v.valor || 0), 0)
+                const totalRenovacao = itens.filter(v => v.tipo === 'Renovação').reduce((s, v) => s + Number(v.valor || 0), 0)
+                return (
+                  <div key={consultorId} className="print-bloco">
+                    <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+                    {Object.entries(porSubproduto).map(([sub, qtd]) => <div key={sub}>{sub}: {qtd}</div>)}
+                    <div className="print-bloco-destaque">Receita Produto Novo: {fmtMoeda(totalNovo)}</div>
+                    {totalRenovacao > 0 && <div>Receita Renovação: {fmtMoeda(totalRenovacao)}</div>}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {abasPdf.has('rotina') && (
+          <>
+            {abasPdf.size > 1 && <div className="print-secao-titulo">Rotina</div>}
+            <div className="print-grid">
+              {Object.entries(agruparPorConsultor(rotinas, r => r.consultor_id)).map(([consultorId, itens]) => {
+                const soma = itens.reduce((acc, r) => {
+                  acc.clientes += r.clientes_recebidos || 0
+                  acc.retornos += r.retornos || 0
+                  acc.visitas += r.visitas_agendadas || 0
+                  acc.altas += r.altas || 0
+                  acc.bl += r.bl || 0
+                  acc.aparelho += Number(r.aparelho_valor || 0)
+                  return acc
+                }, { clientes: 0, retornos: 0, visitas: 0, altas: 0, bl: 0, aparelho: 0 })
+                return (
+                  <div key={consultorId} className="print-bloco">
+                    <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+                    <div>Clientes: {soma.clientes}</div>
+                    <div>Retornos: {soma.retornos}</div>
+                    <div>Visitas: {soma.visitas}</div>
+                    <div>Altas: {soma.altas}</div>
+                    <div>BL: {soma.bl}</div>
+                    <div>Aparelho: {fmtMoeda(soma.aparelho)}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {abasPdf.has('kanban') && (
+          <>
+            {abasPdf.size > 1 && <div className="print-secao-titulo">Kanban</div>}
+            <div className="print-grid">
+              {Object.entries(agruparPorConsultor(kanbanClientes, c => c.consultor_id)).map(([consultorId, itens]) => (
+                <div key={consultorId} className="print-bloco">
+                  <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+                  {['Frio', 'Morno', 'Quente', 'Descartado'].map(t => (
+                    <div key={t}>{t}: {itens.filter(c => c.temperatura === t).length}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {abasPdf.has('interacoes') && (
+          <>
+            {abasPdf.size > 1 && <div className="print-secao-titulo">Interações</div>}
+            <div className="print-grid print-grid-1col">
+              {Object.entries(agruparPorConsultor(resumoInteracoes, r => r.consultor_id)).map(([consultorId, itens]) => (
+                <div key={consultorId} className="print-bloco">
+                  <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
+                  <div>Clientes: {itens.length}</div>
+                  <div>Atrasados: {itens.filter(r => r.atrasado).length}</div>
+                  <div>Nunca contatados: {itens.filter(r => !r.ultima).length}</div>
+                  {itens.map(r => (
+                    <div key={r.id} style={{ marginTop: 6 }}>
+                      <strong>{r.razao_social || r.cnpj}</strong> — status: {r.status} — {r.qtdInteracoes} interação(ões)
+                      {r.resumoTexto && <div style={{ fontSize: 11, color: '#555' }}>{r.resumoTexto}</div>}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {dadosAnalise && (
