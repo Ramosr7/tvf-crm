@@ -52,7 +52,7 @@ export default function NotificacoesSino({ user }) {
   return (
     <div style={{ position: 'relative' }}>
       <button className="btn-filter" onClick={() => setAberto(v => !v)}>
-        🔔{lembretes.length > 0 && ` ${lembretes.length}`}
+        Notificações{lembretes.length > 0 && ` (${lembretes.length})`}
       </button>
       {aberto && (
         <div className="modal-overlay" onClick={() => setAberto(false)}>
