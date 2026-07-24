@@ -65,6 +65,7 @@ export default function PotencialCarteira({ user }) {
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
+  const [editandoRazaoSocialId, setEditandoRazaoSocialId] = useState(null)
   const [lixeira, setLixeira] = useState([])
   const [mostrarLixeira, setMostrarLixeira] = useState(false)
   const [consultorDestino, setConsultorDestino] = useState(user.id)
@@ -496,6 +497,7 @@ export default function PotencialCarteira({ user }) {
               <th>Interações</th>
               <th>Kanban</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('cnpj')}>CNPJ{setaOrdenacao('cnpj')}</th>
+              <th>Editar Razão Social</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('razao_social')}>Razão Social{setaOrdenacao('razao_social')}</th>
               <th>Contato</th>
               {podeAdicionarCliente(user) && <th>Consultor</th>}
@@ -512,7 +514,7 @@ export default function PotencialCarteira({ user }) {
           </thead>
           <tbody>
             {clientesOrdenados.length === 0 && (
-              <tr><td colSpan={17} className="empty">Nenhum cliente na carteira</td></tr>
+              <tr><td colSpan={18} className="empty">Nenhum cliente na carteira</td></tr>
             )}
             {clientesOrdenados.map(c => (
               <tr key={c.id} id={`carteira-row-${c.id}`}
@@ -534,23 +536,26 @@ export default function PotencialCarteira({ user }) {
                     {c.no_kanban ? `🚩 ${c.temperatura}` : '➤ Enviar ao Kanban'}
                   </button>
                 </td>
+                <td>{c.cnpj}</td>
                 <td>
-                  <input className="lm-input" style={{ width: 130 }} defaultValue={c.cnpj}
-                    onBlur={e => {
-                      const limpo = e.target.value.replace(/\D/g, '')
-                      if (limpo && limpo !== c.cnpj) atualizarCliente(c.id, { cnpj: limpo })
-                      else e.target.value = c.cnpj
-                    }} />
+                  <button type="button" className="btn-action"
+                    onClick={() => setEditandoRazaoSocialId(prev => prev === c.id ? null : c.id)}>
+                    {editandoRazaoSocialId === c.id ? 'Cancelar' : 'Editar'}
+                  </button>
                 </td>
                 <td>
-                  <input className="lm-input" style={{ width: 180 }} defaultValue={c.razao_social || ''}
-                    placeholder="Preencher razão social..."
-                    onBlur={e => { if (e.target.value !== (c.razao_social || '')) atualizarCliente(c.id, { razao_social: e.target.value.trim() || null }) }} />
+                  {editandoRazaoSocialId === c.id ? (
+                    <input className="lm-input" style={{ width: 220 }} autoFocus defaultValue={c.razao_social || ''}
+                      placeholder="Preencher razão social..."
+                      onBlur={e => {
+                        if (e.target.value !== (c.razao_social || '')) atualizarCliente(c.id, { razao_social: e.target.value.trim() || null })
+                        setEditandoRazaoSocialId(null)
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
+                  ) : (c.razao_social || '—')}
                 </td>
                 <td>
-                  <input className="lm-input" style={{ width: 180 }} defaultValue={c.contato || ''}
-                    placeholder="Preencher contato..."
-                    onBlur={e => { if (e.target.value !== (c.contato || '')) atualizarCliente(c.id, { contato: e.target.value.trim() || null }) }} />
+                  {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}
                 </td>
                 {podeAdicionarCliente(user) && (
                   <td>
