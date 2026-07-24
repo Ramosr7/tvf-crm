@@ -497,7 +497,7 @@ export default function PotencialCarteira({ user }) {
               <th>Interações</th>
               <th>Kanban</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('cnpj')}>CNPJ{setaOrdenacao('cnpj')}</th>
-              <th>Editar Razão Social</th>
+              <th>Editar</th>
               <th className="col-ordenavel" onClick={() => pedirOrdenar('razao_social')}>Razão Social{setaOrdenacao('razao_social')}</th>
               <th>Contato</th>
               {podeAdicionarCliente(user) && <th>Consultor</th>}
