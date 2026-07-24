@@ -552,7 +552,9 @@ export default function PotencialCarteira({ user }) {
                         setEditandoRazaoSocialId(null)
                       }}
                       onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
-                  ) : (c.razao_social || '—')}
+                  ) : (
+                    <span className="razao-social-truncada" title={c.razao_social || ''}>{c.razao_social || '—'}</span>
+                  )}
                 </td>
                 <td>
                   {c.contato ? c.contato.split(' · ').map((linha, i) => <div key={i}>{linha}</div>) : '—'}

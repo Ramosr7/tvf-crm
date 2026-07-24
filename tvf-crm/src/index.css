@@ -38,6 +38,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .carteira-table td { padding: 8px 12px; border-bottom: 1px solid #F0EAF8; white-space: nowrap; }
 .carteira-table td .lm-input { min-width: 110px; padding: 5px 8px; }
 .carteira-table td .filter-select { padding: 5px 8px; }
+.razao-social-truncada { display: inline-block; max-width: 52ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .row-highlight { background: #FFF5EE; transition: background 1.6s ease; }
 .row-pendente { background: #FFF3E0; }
 .row-pendente:hover { background: #FFEAC7; }
