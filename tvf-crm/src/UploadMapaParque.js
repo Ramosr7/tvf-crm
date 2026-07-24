@@ -72,7 +72,7 @@ export default function UploadMapaParque() {
     setNomeArquivo('')
   }
 
-  async function processar() {
+  async function processar(forcarTodos = false) {
     setProcessando(true)
     setResultado(null)
 
@@ -96,8 +96,9 @@ export default function UploadMapaParque() {
     let paginaInicio = 0
     while (true) {
       setProgresso(`Processando lote a partir de ${paginaInicio}...`)
-      const { data: pendentes, error } = await supabase.from('mapa_parque_import')
-        .select('*').eq('processado', false).range(0, CHUNK_PROCESSAR - 1)
+      const query = supabase.from('mapa_parque_import').select('*')
+      if (!forcarTodos) query.eq('processado', false)
+      const { data: pendentes, error } = await query.range(forcarTodos ? paginaInicio : 0, (forcarTodos ? paginaInicio : 0) + CHUNK_PROCESSAR - 1)
       if (error || !pendentes || pendentes.length === 0) break
 
       for (const row of pendentes) {
@@ -178,8 +179,11 @@ export default function UploadMapaParque() {
       )}
 
       <div className="lm-section-title" style={{ marginTop: 24 }}>Processar carga pendente</div>
-      <button className="btn-action" style={{ marginTop: 8 }} onClick={processar} disabled={processando}>
+      <button className="btn-action" style={{ marginTop: 8 }} onClick={() => processar(false)} disabled={processando}>
         {processando ? 'Processando...' : 'Processar Mapa Parque'}
+      </button>
+      <button className="btn-action" style={{ marginTop: 8, marginLeft: 8 }} onClick={() => processar(true)} disabled={processando}>
+        {processando ? 'Processando...' : 'Reprocessar tudo (recalcula potencial)'}
       </button>
 
       {progresso && <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>{progresso}</div>}

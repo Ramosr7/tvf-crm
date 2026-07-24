@@ -7,6 +7,16 @@ function contemPalavra(texto, palavras) {
   return palavras.some(p => t.includes(p))
 }
 
+// Texto livre tipo "...oportunidade para aquisição de aparelhos com capacidade
+// de pagamento de R$32987" ou "R$30.000" — extrai o valor numérico.
+function extrairValorAparelho(texto) {
+  const m = String(texto || '').match(/capacidade de pagamento de r\$\s*([\d.,]+)/i)
+  if (!m) return 0
+  let numStr = m[1]
+  numStr = numStr.includes(',') ? numStr.replace(/\./g, '').replace(',', '.') : numStr.replace(/\./g, '')
+  return parseFloat(numStr) || 0
+}
+
 export function calcularPotencial(row) {
   const recMovel = String(row.rec_movel || '')
   const movel = String(row.movel || '')
@@ -27,7 +37,7 @@ export function calcularPotencial(row) {
   const potencial_ti = (row.vivo_tech || contemPalavra(ofertas, ['vivo tech', 'oferta digital', 'digital'])) ? 1 : 0
   const potencial_voz = (row.avancados || row.vvn || contemPalavra(ofertas, ['avancado', 'avançado', 'vvn'])) ? 1 : 0
 
-  const credito_pre_aprovado = (parseFloat(row.vl_car_movel) || 0) + (parseFloat(row.vl_car_fixa) || 0)
+  const credito_pre_aprovado = (parseFloat(row.vl_car_movel) || 0) + (parseFloat(row.vl_car_fixa) || 0) + extrairValorAparelho(row.aparelhos)
 
   return { potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado }
 }
