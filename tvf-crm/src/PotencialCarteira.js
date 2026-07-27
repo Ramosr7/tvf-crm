@@ -384,12 +384,16 @@ export default function PotencialCarteira({ user }) {
     setErroCnpj(cnpjs.length > 1 ? `${criados} adicionado(s), ${jaExistiam} já existia(m).` : '')
   }
 
-  const totalClientes = clientesFiltrados.length
-  const somaMigracao = clientesFiltrados.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
-  const somaBl = clientesFiltrados.reduce((s, c) => s + (c.potencial_bl || 0), 0)
-  const somaTi = clientesFiltrados.reduce((s, c) => s + (c.potencial_ti || 0), 0)
-  const somaVoz = clientesFiltrados.reduce((s, c) => s + (c.potencial_voz || 0), 0)
-  const somaCredito = clientesFiltrados.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
+  // Cliente em renovação antecipada (M16) ainda não é "trabalhado" de fato — só conta nos
+  // totais/potencial quando o próprio filtro de renovação antecipada tá ligado (aí é isso que
+  // você quer ver). Some da conta assim que virar de fato (flag desligado manualmente).
+  const clientesParaStats = filtroRenovacaoAntecipada ? clientesFiltrados : clientesFiltrados.filter(c => !c.alerta_renovacao)
+  const totalClientes = clientesParaStats.length
+  const somaMigracao = clientesParaStats.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
+  const somaBl = clientesParaStats.reduce((s, c) => s + (c.potencial_bl || 0), 0)
+  const somaTi = clientesParaStats.reduce((s, c) => s + (c.potencial_ti || 0), 0)
+  const somaVoz = clientesParaStats.reduce((s, c) => s + (c.potencial_voz || 0), 0)
+  const somaCredito = clientesParaStats.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
 
   if (loading) return <div className="loading">Carregando carteira...</div>
 

@@ -126,7 +126,7 @@ export default function Dashboard({ user }) {
     setLoading(true)
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
     let qClientes = supabase.from('carteira_cliente')
-      .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado')
+      .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao')
       .is('excluido_em', null)
     let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
     if (isConsultor) {
@@ -193,10 +193,13 @@ export default function Dashboard({ user }) {
   const vendasMes = noPeriodo(inicioMesAtual, hoje)
   const vendasMesAnterior = noPeriodo(inicioMesAnterior, fimMesAnterior)
 
-  const totalCarteira = clientes.length
+  // Cliente em renovação antecipada (M16) ainda não conta na carteira "de verdade" —
+  // só entra nos totais quando virar (flag desligado manualmente).
+  const clientesAtivos = clientes.filter(c => !c.alerta_renovacao)
+  const totalCarteira = clientesAtivos.length
   const conversao = totalCarteira > 0 ? Math.round((vendidos.length / totalCarteira) * 100) : 0
 
-  const potencialCarteira = clientes.reduce((acc, c) => {
+  const potencialCarteira = clientesAtivos.reduce((acc, c) => {
     acc.migracao += c.potencial_migracao || 0
     acc.bl += c.potencial_bl || 0
     acc.ti += c.potencial_ti || 0

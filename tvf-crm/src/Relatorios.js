@@ -127,7 +127,8 @@ export default function Relatorios({ user }) {
 
   const carregarInteracoes = useCallback(async () => {
     setLoading(true)
-    const { data: clientes } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id').is('excluido_em', null)
+    const { data: clientes } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id')
+      .is('excluido_em', null).eq('alerta_renovacao', false)
     let linhasClientes = clientes || []
     if (isGestor(user) && filtroConsultor) linhasClientes = linhasClientes.filter(c => c.consultor_id === filtroConsultor)
     if (!isGestor(user)) linhasClientes = linhasClientes.filter(c => c.consultor_id === user.id)
