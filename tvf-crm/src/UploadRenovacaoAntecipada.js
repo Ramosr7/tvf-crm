@@ -7,6 +7,7 @@ const ALIASES = {
   cnpj: ['cnpj'],
   cliente: ['cliente'],
   qt_planta: ['qtplanta'],
+  qt_elegiveis: ['qtelegiveis'],
   cidade: ['dsmunicipio'],
   uf: ['uf'],
   plano: ['plano'],
@@ -53,6 +54,7 @@ export default function UploadRenovacaoAntecipada() {
         cnpj,
         razao_social: m.cliente || null,
         qt_planta: parseInt(String(m.qt_planta).replace(/\D/g, ''), 10) || 0,
+        qt_elegiveis: parseInt(String(m.qt_elegiveis).replace(/\D/g, ''), 10) || 0,
         cidade: m.cidade || '',
         uf: m.uf || '',
         plano: m.plano || '',
@@ -76,15 +78,20 @@ export default function UploadRenovacaoAntecipada() {
       for (const row of (data || [])) existentesSet.add(row.cnpj)
     }
 
+    // QT_ELEGIVEIS do próprio arquivo é mais confiável que o rec_movel/movel do Mapa Parque
+    // oficial pra esses clientes (que costumam vir vazios) — mesma lógica do Mailing Diário
+    // priorizando o dado do arquivo sobre o Mapa Parque.
+    const qtElegiveisPorCnpj = new Map(linhas.map(l => [l.cnpj, l.qt_elegiveis]))
+
     let existentesMarcados = 0
     const existentesCnpjs = todosCnpjs.filter(c => existentesSet.has(c))
-    for (let i = 0; i < existentesCnpjs.length; i += CHUNK_CONSULTA) {
-      const lote = existentesCnpjs.slice(i, i + CHUNK_CONSULTA)
-      setProgresso(`Marcando existentes (${Math.min(i + CHUNK_CONSULTA, existentesCnpjs.length)} de ${existentesCnpjs.length})...`)
-      const { data } = await supabase.from('carteira_cliente')
-        .update({ alerta_renovacao: true, atualizado_em: new Date().toISOString() })
-        .in('cnpj', lote).is('excluido_em', null).select('cnpj')
-      existentesMarcados += data?.length || 0
+    for (let i = 0; i < existentesCnpjs.length; i++) {
+      const cnpj = existentesCnpjs[i]
+      setProgresso(`Marcando existentes (${i + 1} de ${existentesCnpjs.length})...`)
+      const { error } = await supabase.from('carteira_cliente')
+        .update({ alerta_renovacao: true, potencial_migracao: qtElegiveisPorCnpj.get(cnpj) || 0, atualizado_em: new Date().toISOString() })
+        .eq('cnpj', cnpj).is('excluido_em', null)
+      if (!error) existentesMarcados++
     }
 
     // 2) Quem ainda não existe entra novo, distribuído pelos participantes escolhidos —
@@ -122,7 +129,7 @@ export default function UploadRenovacaoAntecipada() {
         cnpj: l.cnpj, razao_social: l.razao_social, consultor_id: menorId,
         status: 'Aguardando Atendimento', origem: 'Renovação Antecipada (M16)',
         alerta_renovacao: true, observacoes: observacoes || null,
-        potencial_migracao: potencial?.potencial_migracao || 0,
+        potencial_migracao: l.qt_elegiveis || 0,
         potencial_bl: potencial?.potencial_bl || 0,
         potencial_ti: potencial?.potencial_ti || 0,
         potencial_voz: potencial?.potencial_voz || 0,
@@ -160,7 +167,9 @@ export default function UploadRenovacaoAntecipada() {
         Sobe o export do Parque Móvel filtrado em M16. Cliente que já existe na carteira só ganha o flag de
         renovação antecipada (mantém o consultor atual). Cliente novo é distribuído entre os consultores marcados
         abaixo, do maior pro menor QT_PLANTA (linhas), sempre pro que tiver menos linhas acumuladas até agora —
-        fica balanceado por volume, não só por quantidade de clientes.
+        fica balanceado por volume, não só por quantidade de clientes. Potencial de migração vem do QT_ELEGIVEIS
+        do próprio arquivo (mais confiável que o Mapa Parque oficial pra esses clientes); BL/TI/Voz/Crédito
+        continuam cruzando com o Mapa Parque por CNPJ.
       </p>
 
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
