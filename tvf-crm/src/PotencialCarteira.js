@@ -518,7 +518,7 @@ export default function PotencialCarteira({ user }) {
             )}
             {clientesOrdenados.map(c => (
               <tr key={c.id} id={`carteira-row-${c.id}`}
-                className={`${highlightId === c.id ? 'row-highlight' : ''} ${pendente(c) ? 'row-pendente' : ''}`}>
+                className={`${highlightId === c.id ? 'row-highlight' : ''} ${pendente(c) ? 'row-pendente' : ''} ${c.alerta_renovacao ? 'row-renovacao-antecipada' : ''}`}>
                 {podeAdicionarCliente(user) && (
                   <td className="col-sticky"><input type="checkbox" checked={selecionados.has(c.id)} onChange={() => alternarSelecao(c.id)} /></td>
                 )}
@@ -553,7 +553,10 @@ export default function PotencialCarteira({ user }) {
                       }}
                       onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
                   ) : (
-                    <span className="razao-social-truncada" title={c.razao_social || ''}>{c.razao_social || '—'}</span>
+                    <>
+                      <span className="razao-social-truncada" title={c.razao_social || ''}>{c.razao_social || '—'}</span>
+                      {c.alerta_renovacao && <span className="badge-renovacao-antecipada" title="Renovação antecipada — M16 → M17">M16→M17</span>}
+                    </>
                   )}
                 </td>
                 <td>

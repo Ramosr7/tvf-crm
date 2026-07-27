@@ -42,6 +42,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .row-highlight { background: #FFF5EE; transition: background 1.6s ease; }
 .row-pendente { background: #FFF3E0; }
 .row-pendente:hover { background: #FFEAC7; }
+.row-renovacao-antecipada { box-shadow: inset 3px 0 0 #1CA89A; }
+.badge-renovacao-antecipada { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: rgba(28,168,154,0.12); color: #1CA89A; font-size: 10px; font-weight: 700; white-space: nowrap; }
 
 /* META (rotina diária) */
 .meta-abaixo { background: rgba(224,52,52,0.10); }

@@ -139,7 +139,9 @@ export default function KanbanTemperatura({ user }) {
                 return (
                   <div key={c.id}
                     className={`card draggable${draggingId === c.id ? ' dragging' : ''}`}
-                    style={estourado ? { borderColor: '#E03434', boxShadow: '0 0 0 1px rgba(224,52,52,0.3)' } : {}}
+                    style={estourado
+                      ? { borderColor: '#E03434', boxShadow: '0 0 0 1px rgba(224,52,52,0.3)' }
+                      : c.alerta_renovacao ? { borderColor: '#1CA89A', boxShadow: '0 0 0 1px rgba(28,168,154,0.3)' } : {}}
                     draggable
                     onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleDragStart(c) }}
                     onDragEnd={handleDragEnd}
@@ -147,6 +149,7 @@ export default function KanbanTemperatura({ user }) {
                     <div className="card-top">
                       <div className="card-name">{c.razao_social || c.cnpj}</div>
                       {estourado && <span className="score-badge score-low" style={{ background: 'rgba(224,52,52,0.12)', color: '#E03434' }}>⏰ {dias}d</span>}
+                      {!estourado && c.alerta_renovacao && <span className="score-badge" style={{ background: 'rgba(28,168,154,0.12)', color: '#1CA89A' }}>M16 → Renovação</span>}
                     </div>
                     <div className="card-phone">{c.cnpj}</div>
                     <div className="card-tags">
