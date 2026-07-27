@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { parseArquivo, mapearCampos, extrairCnpj } from './xlsxParse'
+import { calcularPotencial } from './potencialLogic'
 
 const ALIASES = {
   cnpj: ['cnpj'],
@@ -89,7 +90,22 @@ export default function UploadRenovacaoAntecipada() {
     // 2) Quem ainda não existe entra novo, distribuído pelos participantes escolhidos —
     // maior QT_PLANTA primeiro, sempre pro consultor com menos linhas acumuladas até agora (LPT).
     const novos = linhas.filter(l => !existentesSet.has(l.cnpj)).sort((a, b) => b.qt_planta - a.qt_planta)
+
+    // Cruza com o Mapa Parque em lote (não um por um) pra pegar o potencial de cada CNPJ novo.
+    const potencialPorCnpj = new Map()
+    const novosCnpjs = novos.map(l => l.cnpj)
+    for (let i = 0; i < novosCnpjs.length; i += CHUNK_CONSULTA) {
+      const lote = novosCnpjs.slice(i, i + CHUNK_CONSULTA)
+      setProgresso(`Cruzando com o Mapa Parque (${Math.min(i + CHUNK_CONSULTA, novosCnpjs.length)} de ${novosCnpjs.length})...`)
+      const { data } = await supabase.from('mapa_parque_import').select('*').in('nr_cnpj', lote)
+      for (const row of (data || [])) {
+        const atual = potencialPorCnpj.get(row.nr_cnpj)
+        if (!atual || row.importado_em > atual.importado_em) potencialPorCnpj.set(row.nr_cnpj, row)
+      }
+    }
+
     const somaPorConsultor = new Map(Array.from(participantes).map(id => [id, 0]))
+    let comPotencial = 0
     const registrosNovos = novos.map(l => {
       let menorId = null, menorSoma = Infinity
       for (const [id, soma] of somaPorConsultor) if (soma < menorSoma) { menorSoma = soma; menorId = id }
@@ -99,10 +115,18 @@ export default function UploadRenovacaoAntecipada() {
         `QT_PLANTA (linhas): ${l.qt_planta}`,
         (l.cidade || l.uf) && `Cidade: ${[l.cidade, l.uf].filter(Boolean).join(' - ')}`,
       ].filter(Boolean).join(' | ')
+      const parque = potencialPorCnpj.get(l.cnpj)
+      const potencial = parque ? calcularPotencial(parque) : null
+      if (potencial) comPotencial++
       return {
         cnpj: l.cnpj, razao_social: l.razao_social, consultor_id: menorId,
         status: 'Aguardando Atendimento', origem: 'Renovação Antecipada (M16)',
         alerta_renovacao: true, observacoes: observacoes || null,
+        potencial_migracao: potencial?.potencial_migracao || 0,
+        potencial_bl: potencial?.potencial_bl || 0,
+        potencial_ti: potencial?.potencial_ti || 0,
+        potencial_voz: potencial?.potencial_voz || 0,
+        credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
       }
     })
 
@@ -124,7 +148,7 @@ export default function UploadRenovacaoAntecipada() {
 
     setProcessando(false)
     setProgresso('')
-    setResultado({ existentesMarcados, novosCriados, falhas, errosAmostra, porConsultor })
+    setResultado({ existentesMarcados, novosCriados, comPotencial, semPotencial: registrosNovos.length - comPotencial, falhas, errosAmostra, porConsultor })
     setLinhas([])
     setArquivo(null)
   }
@@ -166,6 +190,7 @@ export default function UploadRenovacaoAntecipada() {
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>
           {resultado.existentesMarcados} cliente(s) já existente(s) marcado(s) com o flag. {resultado.novosCriados} cliente(s) novo(s) criado(s) e distribuído(s).
+          {' '}{resultado.comPotencial} tiveram potencial encontrado no Mapa Parque, {resultado.semPotencial} entraram com potencial zerado (CNPJ ainda não está no Mapa Parque).
           <div style={{ marginTop: 8 }}>
             {resultado.porConsultor.map(p => (
               <div key={p.nome}>{p.nome}: {p.qtd} cliente(s) novo(s) — {p.somaLinhas} linhas acumuladas</div>

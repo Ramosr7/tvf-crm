@@ -62,6 +62,7 @@ export default function PotencialCarteira({ user }) {
   const [filtroCnpj, setFiltroCnpj] = useState(filtrosSalvos.cnpj || '')
   const [filtroOrigem, setFiltroOrigem] = useState(filtrosSalvos.origem || '')
   const [filtroStatus, setFiltroStatus] = useState(filtrosSalvos.status || '')
+  const [filtroRenovacaoAntecipada, setFiltroRenovacaoAntecipada] = useState(filtrosSalvos.renovacaoAntecipada || false)
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -121,9 +122,9 @@ export default function PotencialCarteira({ user }) {
   useEffect(() => {
     localStorage.setItem(`tvf_filtros_carteira_${user.id}`, JSON.stringify({
       consultor: filtroConsultor, dataDe: filtroDataDe, dataAte: filtroDataAte,
-      cnpj: filtroCnpj, origem: filtroOrigem, status: filtroStatus,
+      cnpj: filtroCnpj, origem: filtroOrigem, status: filtroStatus, renovacaoAntecipada: filtroRenovacaoAntecipada,
     }))
-  }, [user.id, filtroConsultor, filtroDataDe, filtroDataAte, filtroCnpj, filtroOrigem, filtroStatus])
+  }, [user.id, filtroConsultor, filtroDataDe, filtroDataAte, filtroCnpj, filtroOrigem, filtroStatus, filtroRenovacaoAntecipada])
 
   useEffect(() => {
     if (podeAdicionarCliente(user)) {
@@ -173,6 +174,7 @@ export default function PotencialCarteira({ user }) {
     if (filtroCnpj && !c.cnpj.includes(filtroCnpj.replace(/\D/g, ''))) return false
     if (filtroOrigem && c.origem !== filtroOrigem) return false
     if (filtroStatus && c.status !== filtroStatus) return false
+    if (filtroRenovacaoAntecipada && !c.alerta_renovacao) return false
     return true
   })
 
@@ -440,8 +442,12 @@ export default function PotencialCarteira({ user }) {
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem || filtroStatus) && (
-          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem(''); setFiltroStatus('') }}>✕ Limpar filtros</button>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#1CA89A', fontWeight: 600 }}>
+          <input type="checkbox" checked={filtroRenovacaoAntecipada} onChange={e => setFiltroRenovacaoAntecipada(e.target.checked)} />
+          Só renovação antecipada (M16)
+        </label>
+        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem || filtroStatus || filtroRenovacaoAntecipada) && (
+          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem(''); setFiltroStatus(''); setFiltroRenovacaoAntecipada(false) }}>✕ Limpar filtros</button>
         )}
       </div>
 
