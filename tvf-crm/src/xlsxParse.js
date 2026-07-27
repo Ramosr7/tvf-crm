@@ -6,18 +6,33 @@ function normalizarCel(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
 
+// Linha de dado real costuma ter várias células numéricas/data (valores, quantidades,
+// datas); uma linha de cabeçalho é quase só texto. Usado pra não confundir, por exemplo,
+// uma linha cuja coluna "TIPO_DOCUMENTO" vale literalmente "CNPJ" com o cabeçalho de verdade.
+function ehCelulaNumerica(v) {
+  const s = String(v ?? '').trim()
+  return s !== '' && /\d/.test(s) && /^-?[\d.,/: -]+$/.test(s)
+}
+function pareceLinhaDeDados(linha) {
+  const preenchidas = linha.filter(c => String(c ?? '').trim() !== '')
+  if (preenchidas.length === 0) return false
+  return preenchidas.filter(ehCelulaNumerica).length / preenchidas.length > 0.3
+}
+
 // Acha a linha real de cabeçalho: alguns exports (ex. print-to-xlsx, ou planilhas com
 // cards/resumo no topo) jogam lixo nas primeiras linhas e o cabeçalho de verdade só
-// aparece depois. Procura nas primeiras 20 linhas. Primeiro tenta igualdade exata
-// (evita, ex., confundir a célula "CNPJ Baixado" de uma lista de status com o
-// cabeçalho "CNPJ"); só cai pra substring se nada bater exato.
+// aparece depois. Procura nas primeiras 200 linhas, pulando linhas que parecem dado.
+// Primeiro tenta igualdade exata (evita, ex., confundir a célula "CNPJ Baixado" de uma
+// lista de status com o cabeçalho "CNPJ"); só cai pra substring se nada bater exato.
 function acharLinhaCabecalho(linhasBrutas) {
   const limite = Math.min(200, linhasBrutas.length)
   for (let i = 0; i < limite; i++) {
+    if (pareceLinhaDeDados(linhasBrutas[i])) continue
     const normalizadas = linhasBrutas[i].map(normalizarCel)
     if (normalizadas.some(c => MARCADORES_CABECALHO.includes(c))) return i
   }
   for (let i = 0; i < limite; i++) {
+    if (pareceLinhaDeDados(linhasBrutas[i])) continue
     const normalizadas = linhasBrutas[i].map(normalizarCel)
     if (normalizadas.some(c => MARCADORES_CABECALHO.some(m => c.includes(m)))) return i
   }
