@@ -53,6 +53,7 @@ export default function PotencialCarteira({ user }) {
   const [filtroOrigem, setFiltroOrigem] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [abaCarteira, setAbaCarteira] = useState('carteira')
+  const [menuTemperaturaId, setMenuTemperaturaId] = useState(null)
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -283,11 +284,13 @@ export default function PotencialCarteira({ user }) {
     fetchClientes()
   }
 
-  async function alternarKanban(c) {
-    const campos = c.no_kanban
-      ? { no_kanban: false, temperatura: null, temperatura_atualizada_em: null }
-      : { no_kanban: true, temperatura: 'Morno', temperatura_atualizada_em: new Date().toISOString() }
-    atualizarCliente(c.id, campos)
+  function removerDoKanban(c) {
+    atualizarCliente(c.id, { no_kanban: false, temperatura: null, temperatura_atualizada_em: null })
+  }
+
+  function enviarAoKanban(c, temperatura) {
+    atualizarCliente(c.id, { no_kanban: true, temperatura, temperatura_atualizada_em: new Date().toISOString() })
+    setMenuTemperaturaId(null)
   }
 
   async function atualizarCliente(id, campos) {
@@ -526,10 +529,23 @@ export default function PotencialCarteira({ user }) {
                 <td>
                   <button className="btn-action" onClick={() => setModalInteracaoCliente(c)}>{resumoInteracao(c.id)}</button>
                 </td>
-                <td>
-                  <button className={`btn-action ${c.no_kanban ? 'flag-ativo' : ''}`} onClick={() => alternarKanban(c)}>
-                    {c.no_kanban ? `🚩 ${c.temperatura}` : '➤ Enviar ao Kanban'}
-                  </button>
+                <td style={{ position: 'relative' }}>
+                  {c.no_kanban ? (
+                    <button className="btn-action flag-ativo" onClick={() => removerDoKanban(c)}>🚩 {c.temperatura}</button>
+                  ) : (
+                    <>
+                      <button className="btn-action" onClick={() => setMenuTemperaturaId(prev => prev === c.id ? null : c.id)}>
+                        ➤ Enviar ao Kanban
+                      </button>
+                      {menuTemperaturaId === c.id && (
+                        <div className="menu-temperatura">
+                          {['Frio', 'Morno', 'Quente'].map(t => (
+                            <div key={t} className={`menu-temperatura-item menu-temperatura-${t.toLowerCase()}`} onClick={() => enviarAoKanban(c, t)}>{t}</div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </td>
                 <td>{c.cnpj}</td>
                 <td>

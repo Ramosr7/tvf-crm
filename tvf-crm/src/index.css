@@ -93,6 +93,17 @@ body {
 .col-ordenavel:hover { color: #660099; }
 .flag-ativo { background: #FFF3E0; border-color: #FFB347; color: #C0651A; font-weight: 600; }
 
+.menu-temperatura {
+  position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; background: #fff;
+  border: 1px solid #E0D8EC; border-radius: 8px; box-shadow: 0 4px 16px rgba(38,25,47,0.14);
+  overflow: hidden; min-width: 100px;
+}
+.menu-temperatura-item { padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.menu-temperatura-item:hover { background: #F7F4FC; }
+.menu-temperatura-frio { color: #378ADD; }
+.menu-temperatura-morno { color: #EF9F27; }
+.menu-temperatura-quente { color: #E05C2A; }
+
 /* SINO DE NOTIFICAÇÕES */
 .sino-item { padding: 10px 0; border-bottom: 1px solid #F0EAF8; font-size: 13px; }
 .sino-item-clicavel { cursor: pointer; }
