@@ -104,6 +104,13 @@ body {
 .menu-temperatura-morno { color: #EF9F27; }
 .menu-temperatura-quente { color: #E05C2A; }
 
+.menu-config-analise {
+  position: absolute; top: 100%; right: 0; z-index: 30; margin-top: 4px; background: #fff;
+  border: 1px solid #E0D8EC; border-radius: 10px; box-shadow: 0 6px 20px rgba(38,25,47,0.16);
+  padding: 14px 16px; width: 240px;
+}
+.menu-config-analise-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #999; font-weight: 700; }
+
 /* SINO DE NOTIFICAÇÕES */
 .sino-item { padding: 10px 0; border-bottom: 1px solid #F0EAF8; font-size: 13px; }
 .sino-item-clicavel { cursor: pointer; }

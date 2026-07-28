@@ -29,6 +29,19 @@ const ABAS = [
 
 const DIAS_ATRASO = 5
 
+const ESCOPO_ANALISE_OPCOES = [
+  { key: 'vendas', label: 'Vendas' },
+  { key: 'rotina', label: 'Rotina diária' },
+  { key: 'interacoes', label: 'Interações c/ clientes' },
+]
+
+const FOCOS_ANALISE = [
+  { key: 'geral', label: 'Geral (equilibrado)', instrucao: 'Faça uma análise equilibrada, cobrindo todos os dados enviados com o mesmo peso.' },
+  { key: 'vendas', label: 'Performance de vendas', instrucao: 'Foque em performance de vendas: conversão, ticket médio, proporção produto novo vs renovação. Só comente rotina/interações se explicarem uma queda ou alta de vendas.' },
+  { key: 'atendimento', label: 'Produtividade de atendimento', instrucao: 'Foque em produtividade de atendimento e rotina diária: volume de atendimentos, retornos, ag. aceite enviados, e o quanto isso conversou (ou não) em venda. Seja breve sobre o resto.' },
+  { key: 'risco', label: 'Clientes em risco', instrucao: 'Foque em clientes parados, sem interação recente ou nunca contatados — priorize quem precisa de ação urgente. Ignore o que não for risco de perda de cliente.' },
+]
+
 // Subproduto com "TA" no código é aparelho (Troca/Terminal de Aparelho) — não é receita de
 // produto novo/renovação de plano, entra numa conta separada.
 const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
@@ -62,6 +75,9 @@ export default function Relatorios({ user }) {
   const [gerandoPdf, setGerandoPdf] = useState(false)
   const [dadosAnalise, setDadosAnalise] = useState(null)
   const [gerandoAnalise, setGerandoAnalise] = useState(false)
+  const [mostrarConfigAnalise, setMostrarConfigAnalise] = useState(false)
+  const [escopoAnalise, setEscopoAnalise] = useState(new Set(['vendas', 'rotina', 'interacoes']))
+  const [focoAnalise, setFocoAnalise] = useState('geral')
 
   useEffect(() => {
     if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
@@ -189,10 +205,25 @@ export default function Relatorios({ user }) {
     setTimeout(() => window.print(), 50)
   }
 
+  function alternarEscopoAnalise(key) {
+    setEscopoAnalise(prev => {
+      const novo = new Set(prev)
+      if (novo.has(key)) { if (novo.size > 1) novo.delete(key) } else novo.add(key)
+      return novo
+    })
+  }
+
   async function analisarComIA() {
     setGerandoAnalise(true)
+    const usaVendas = escopoAnalise.has('vendas')
+    const usaRotina = escopoAnalise.has('rotina')
+    const usaInteracoes = escopoAnalise.has('interacoes')
+
+    // Só busca (e só manda pra IA) o que foi marcado — menos dado enviado, menos token gasto.
     const [linhasVendas, linhasRotina, linhasInteracoes] = await Promise.all([
-      carregarVendas(), carregarRotina(), carregarInteracoes(),
+      usaVendas ? carregarVendas() : Promise.resolve([]),
+      usaRotina ? carregarRotina() : Promise.resolve([]),
+      usaInteracoes ? carregarInteracoes() : Promise.resolve([]),
     ])
     const porConsultorVendas = agruparPorConsultor(linhasVendas, v => v.carteira_cliente?.consultor_id)
     const porConsultorRotina = agruparPorConsultor(linhasRotina, r => r.consultor_id)
@@ -205,39 +236,47 @@ export default function Relatorios({ user }) {
       const vendasC = porConsultorVendas[id] || []
       const rotinaC = porConsultorRotina[id] || []
       const interacoesC = porConsultorInteracoes[id] || []
-      const somaRotina = rotinaC.reduce((acc, r) => {
-        acc.atendimentos += r.clientes_recebidos || 0
-        acc.retornos += r.retornos || 0
-        acc.visitas += r.visitas_agendadas || 0
-        acc.agAceite += r.ag_aceite || 0
-        acc.altas += r.altas || 0
-        acc.bl += r.bl || 0
-        acc.renovacaoMovel += r.renovacao_movel || 0
-        acc.aparelho += Number(r.aparelho_valor || 0)
-        return acc
-      }, { atendimentos: 0, retornos: 0, visitas: 0, agAceite: 0, altas: 0, bl: 0, renovacaoMovel: 0, aparelho: 0 })
-      return {
+      const registro = {
         nome: isGestor(user) ? nomeConsultor(id) : user.nome,
         periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`,
-        vendas: {
+      }
+      if (usaVendas) {
+        registro.vendas = {
           qtd: vendasC.length,
           valor: vendasC.reduce((s, v) => s + Number(v.valor || 0), 0),
           novo: vendasC.filter(v => v.tipo === 'Novo').length,
           renovacao: vendasC.filter(v => v.tipo === 'Renovação').length,
-        },
-        rotina: somaRotina,
-        interacoes: {
+        }
+      }
+      if (usaRotina) {
+        registro.rotina = rotinaC.reduce((acc, r) => {
+          acc.atendimentos += r.clientes_recebidos || 0
+          acc.retornos += r.retornos || 0
+          acc.visitas += r.visitas_agendadas || 0
+          acc.agAceite += r.ag_aceite || 0
+          acc.altas += r.altas || 0
+          acc.bl += r.bl || 0
+          acc.renovacaoMovel += r.renovacao_movel || 0
+          acc.aparelho += Number(r.aparelho_valor || 0)
+          return acc
+        }, { atendimentos: 0, retornos: 0, visitas: 0, agAceite: 0, altas: 0, bl: 0, renovacaoMovel: 0, aparelho: 0 })
+      }
+      if (usaInteracoes) {
+        registro.interacoes = {
           clientes: interacoesC.length,
           atrasados: interacoesC.filter(r => r.atrasado).length,
           nuncaContatados: interacoesC.filter(r => !r.ultima).length,
           amostra: interacoesC.filter(r => r.resumoTexto).slice(0, 10)
             .map(r => ({ cliente: r.razao_social || r.cnpj, status: r.status, resumo: r.resumoTexto })),
-        },
+        }
       }
+      return registro
     })
 
+    const foco = FOCOS_ANALISE.find(f => f.key === focoAnalise)
     setGerandoAnalise(false)
-    setDadosAnalise({ periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`, consultores })
+    setMostrarConfigAnalise(false)
+    setDadosAnalise({ periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`, foco: foco.instrucao, consultores })
   }
 
   const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0)
@@ -324,11 +363,29 @@ export default function Relatorios({ user }) {
             <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, position: 'relative' }}>
           {isGestor(user) && (
-            <button className="btn-filter-light" onClick={analisarComIA} disabled={gerandoAnalise}>
+            <button className="btn-filter-light" onClick={() => setMostrarConfigAnalise(v => !v)} disabled={gerandoAnalise}>
               {gerandoAnalise ? 'Analisando...' : 'Analisar com IA'}
             </button>
+          )}
+          {mostrarConfigAnalise && (
+            <div className="menu-config-analise">
+              <div className="menu-config-analise-titulo">O que a IA deve olhar?</div>
+              {ESCOPO_ANALISE_OPCOES.map(o => (
+                <label key={o.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '4px 0' }}>
+                  <input type="checkbox" checked={escopoAnalise.has(o.key)} onChange={() => alternarEscopoAnalise(o.key)} />
+                  {o.label}
+                </label>
+              ))}
+              <div className="menu-config-analise-titulo" style={{ marginTop: 10 }}>Foco da análise</div>
+              <select className="filter-select" style={{ width: '100%', marginTop: 4 }} value={focoAnalise} onChange={e => setFocoAnalise(e.target.value)}>
+                {FOCOS_ANALISE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+              <button className="btn-save-obs" style={{ float: 'none', margin: '12px 0 0', width: '100%' }} onClick={analisarComIA} disabled={gerandoAnalise}>
+                {gerandoAnalise ? 'Analisando...' : 'Gerar Análise'}
+              </button>
+            </div>
           )}
           <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>
             {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}

@@ -41,10 +41,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const sistema = dados.foco ? `${SYSTEM_PROMPT}\n\nFoco pedido pelo gestor: ${dados.foco}` : SYSTEM_PROMPT
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: sistema },
         { role: 'user', content: `Analise os dados abaixo:\n\n${JSON.stringify(dados, null, 2)}` },
       ],
     })
