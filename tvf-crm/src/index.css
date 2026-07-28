@@ -1,5 +1,16 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F4F2F8; color: #1a1a1a; font-size: 14px; min-height: 100vh; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; font-size: 14px; min-height: 100vh;
+  background-color: #F4F2F8;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(139,63,209,0.30) 1.5px, transparent 0),
+    linear-gradient(rgba(139,63,209,0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(139,63,209,0.11) 1px, transparent 1px),
+    linear-gradient(rgba(239,159,39,0.13) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239,159,39,0.13) 1px, transparent 1px);
+  background-size: 84px 84px, 42px 42px, 42px 42px, 168px 168px, 168px 168px;
+  background-attachment: fixed;
+}
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* TOPBAR */
