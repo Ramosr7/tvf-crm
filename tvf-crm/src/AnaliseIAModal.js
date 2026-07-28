@@ -36,7 +36,7 @@ export default function AnaliseIAModal({ dados, onClose }) {
       <div className="lead-modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
         <div className="lm-header">
           <div className="lm-header-left">
-            <div style={{ fontSize: 17, fontWeight: 700 }}>🤖 Análise de Desempenho (IA)</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>Análise de Desempenho (IA)</div>
           </div>
           <button className="lm-close" onClick={onClose}>✕</button>
         </div>

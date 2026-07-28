@@ -19,6 +19,8 @@ body {
 .topbar-logo { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
 .topbar-logo span { color: #FF6B00; }
 .topbar-logo-wrap { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 8px; padding: 4px 10px; }
+.topbar-logo-clicavel { cursor: pointer; transition: opacity 0.15s ease; }
+.topbar-logo-clicavel:hover { opacity: 0.8; }
 .topbar-logo-img { height: 30px; display: block; }
 .topbar-logo-texto { font-size: 13px; font-weight: 700; color: #660099; letter-spacing: 0.02em; }
 .topbar-badge { font-size: 11px; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 2px 10px; color: rgba(255,255,255,0.85); }
@@ -155,6 +157,8 @@ body {
 
 .dash-funil { display: flex; flex-direction: column; gap: 12px; }
 .dash-funil-row { display: flex; align-items: center; gap: 12px; }
+.dash-funil-row-clicavel { cursor: pointer; border-radius: 8px; padding: 4px 6px; margin: -4px -6px; transition: background 0.15s ease; }
+.dash-funil-row-clicavel:hover { background: rgba(139,63,209,0.06); }
 .dash-funil-label { width: 110px; flex-shrink: 0; font-size: 12px; font-weight: 600; color: #555; }
 .dash-funil-track { flex: 1; background: #F0EAF8; border-radius: 8px; height: 26px; overflow: hidden; }
 .dash-funil-bar { height: 100%; border-radius: 8px; transition: width 0.3s ease; }

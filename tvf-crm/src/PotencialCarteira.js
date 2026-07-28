@@ -32,22 +32,12 @@ const PRESETS_PERIODO = [
 const isGestor = (user) => user.perfil === 'Gestor'
 const podeAdicionarCliente = (user) => user.perfil === 'Gestor' || user.perfil === 'Supervisor'
 
-function carregarFiltrosSalvos(user) {
-  try {
-    const raw = localStorage.getItem(`tvf_filtros_carteira_${user.id}`)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
 export default function PotencialCarteira({ user }) {
-  const filtrosSalvos = carregarFiltrosSalvos(user)
   const [clientes, setClientes] = useState([])
   const [staff, setStaff] = useState([])
-  const [filtroConsultor, setFiltroConsultor] = useState(filtrosSalvos.consultor || '')
-  const [filtroDataDe, setFiltroDataDe] = useState(filtrosSalvos.dataDe || '')
-  const [filtroDataAte, setFiltroDataAte] = useState(filtrosSalvos.dataAte || '')
+  const [filtroConsultor, setFiltroConsultor] = useState('')
+  const [filtroDataDe, setFiltroDataDe] = useState('')
+  const [filtroDataAte, setFiltroDataAte] = useState('')
   const [loading, setLoading] = useState(true)
   const [novoCnpj, setNovoCnpj] = useState('')
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
@@ -59,10 +49,10 @@ export default function PotencialCarteira({ user }) {
   const [modalCliente, setModalCliente] = useState(null)
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
-  const [filtroCnpj, setFiltroCnpj] = useState(filtrosSalvos.cnpj || '')
-  const [filtroOrigem, setFiltroOrigem] = useState(filtrosSalvos.origem || '')
-  const [filtroStatus, setFiltroStatus] = useState(filtrosSalvos.status || '')
-  const [filtroRenovacaoAntecipada, setFiltroRenovacaoAntecipada] = useState(filtrosSalvos.renovacaoAntecipada || false)
+  const [filtroCnpj, setFiltroCnpj] = useState('')
+  const [filtroOrigem, setFiltroOrigem] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const [abaCarteira, setAbaCarteira] = useState('carteira')
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' })
@@ -120,13 +110,6 @@ export default function PotencialCarteira({ user }) {
   useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists])
 
   useEffect(() => {
-    localStorage.setItem(`tvf_filtros_carteira_${user.id}`, JSON.stringify({
-      consultor: filtroConsultor, dataDe: filtroDataDe, dataAte: filtroDataAte,
-      cnpj: filtroCnpj, origem: filtroOrigem, status: filtroStatus, renovacaoAntecipada: filtroRenovacaoAntecipada,
-    }))
-  }, [user.id, filtroConsultor, filtroDataDe, filtroDataAte, filtroCnpj, filtroOrigem, filtroStatus, filtroRenovacaoAntecipada])
-
-  useEffect(() => {
     if (podeAdicionarCliente(user)) {
       supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
       fetchLixeira()
@@ -174,7 +157,7 @@ export default function PotencialCarteira({ user }) {
     if (filtroCnpj && !c.cnpj.includes(filtroCnpj.replace(/\D/g, ''))) return false
     if (filtroOrigem && c.origem !== filtroOrigem) return false
     if (filtroStatus && c.status !== filtroStatus) return false
-    if (filtroRenovacaoAntecipada && !c.alerta_renovacao) return false
+    if (abaCarteira === 'm16' ? !c.alerta_renovacao : c.alerta_renovacao) return false
     return true
   })
 
@@ -387,18 +370,24 @@ export default function PotencialCarteira({ user }) {
   // Cliente em renovação antecipada (M16) ainda não é "trabalhado" de fato — só conta nos
   // totais/potencial quando o próprio filtro de renovação antecipada tá ligado (aí é isso que
   // você quer ver). Some da conta assim que virar de fato (flag desligado manualmente).
-  const clientesParaStats = filtroRenovacaoAntecipada ? clientesFiltrados : clientesFiltrados.filter(c => !c.alerta_renovacao)
-  const totalClientes = clientesParaStats.length
-  const somaMigracao = clientesParaStats.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
-  const somaBl = clientesParaStats.reduce((s, c) => s + (c.potencial_bl || 0), 0)
-  const somaTi = clientesParaStats.reduce((s, c) => s + (c.potencial_ti || 0), 0)
-  const somaVoz = clientesParaStats.reduce((s, c) => s + (c.potencial_voz || 0), 0)
-  const somaCredito = clientesParaStats.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
+  const totalClientes = clientesFiltrados.length
+  const somaMigracao = clientesFiltrados.reduce((s, c) => s + (c.potencial_migracao || 0), 0)
+  const somaBl = clientesFiltrados.reduce((s, c) => s + (c.potencial_bl || 0), 0)
+  const somaTi = clientesFiltrados.reduce((s, c) => s + (c.potencial_ti || 0), 0)
+  const somaVoz = clientesFiltrados.reduce((s, c) => s + (c.potencial_voz || 0), 0)
+  const somaCredito = clientesFiltrados.reduce((s, c) => s + Number(c.credito_pre_aprovado || 0), 0)
 
   if (loading) return <div className="loading">Carregando carteira...</div>
 
+  const totalM16 = clientes.filter(c => c.alerta_renovacao).length
+
   return (
     <div className="main">
+      <div className="tabs">
+        <div className={`tab ${abaCarteira === 'carteira' ? 'active' : ''}`} onClick={() => setAbaCarteira('carteira')}>Carteira</div>
+        <div className={`tab ${abaCarteira === 'm16' ? 'active' : ''}`} onClick={() => setAbaCarteira('m16')}>Clientes M16{totalM16 > 0 ? ` (${totalM16})` : ''}</div>
+      </div>
+
       <div className="diag-stats">
         <div className="diag-stat diag-stat-neutro">
           <div className="diag-stat-valor">{totalClientes}</div>
@@ -446,12 +435,8 @@ export default function PotencialCarteira({ user }) {
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: '#1CA89A', fontWeight: 600 }}>
-          <input type="checkbox" checked={filtroRenovacaoAntecipada} onChange={e => setFiltroRenovacaoAntecipada(e.target.checked)} />
-          Só renovação antecipada (M16)
-        </label>
-        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem || filtroStatus || filtroRenovacaoAntecipada) && (
-          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem(''); setFiltroStatus(''); setFiltroRenovacaoAntecipada(false) }}>✕ Limpar filtros</button>
+        {(filtroConsultor || filtroDataDe || filtroDataAte || filtroOrigem || filtroStatus) && (
+          <button className="btn-filter-light" onClick={() => { setFiltroConsultor(''); setFiltroDataDe(''); setFiltroDataAte(''); setFiltroOrigem(''); setFiltroStatus('') }}>✕ Limpar filtros</button>
         )}
       </div>
 

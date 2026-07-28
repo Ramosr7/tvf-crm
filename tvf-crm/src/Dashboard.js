@@ -87,12 +87,12 @@ function BarChartHorizontal({ dados }) {
 }
 
 // funil de 3 baldes (Novos / Em Andamento / Fechados) — barras afunilando, % do total da carteira
-function FunilChart({ dados, total }) {
+function FunilChart({ dados, total, onClickRow }) {
   const max = Math.max(1, ...dados.map(d => d.valor))
   return (
     <div className="dash-funil">
       {dados.map((d, i) => (
-        <div key={i} className="dash-funil-row">
+        <div key={i} className={`dash-funil-row ${onClickRow ? 'dash-funil-row-clicavel' : ''}`} onClick={() => onClickRow && onClickRow(i)}>
           <div className="dash-funil-label">{d.label}</div>
           <div className="dash-funil-track">
             <div className={`dash-funil-bar dash-funil-bar-${i}`} style={{ width: `${(d.valor / max) * 100}%` }} />
@@ -105,12 +105,12 @@ function FunilChart({ dados, total }) {
 }
 
 // mini gráfico de barras horizontais coloridas — usado no resumo do Kanban de Temperatura
-function BarChartColorido({ dados }) {
+function BarChartColorido({ dados, onClickRow }) {
   const max = Math.max(1, ...dados.map(d => d.valor))
   return (
     <div className="dash-chart-h">
       {dados.map((d, i) => (
-        <div key={i} className="dash-chart-h-row">
+        <div key={i} className={`dash-chart-h-row ${onClickRow ? 'dash-funil-row-clicavel' : ''}`} onClick={() => onClickRow && onClickRow(d)}>
           <div className="dash-chart-h-label">{d.label}</div>
           <div className="dash-chart-h-track">
             <div className="dash-chart-h-bar" style={{ width: `${(d.valor / max) * 100}%`, background: d.cor }} />
@@ -225,6 +225,16 @@ export default function Dashboard({ user }) {
   function paraItensClientes(lista) {
     return lista.map(c => ({ ...c, consultorNome: nomeConsultor(c.consultor_id), valor: valorCliente(c.id) }))
   }
+  // pra modal de Receita por Tipo — venda item não tem dado do cliente junto, busca na lista carregada
+  function paraItensVenda(itens) {
+    return itens.map((it, i) => {
+      const cliente = clientes.find(c => c.id === it.carteira_cliente_id)
+      return {
+        id: i, razao_social: cliente?.razao_social, cnpj: cliente?.cnpj,
+        consultorNome: nomeConsultor(cliente?.consultor_id), status: it.subproduto, valor: Number(it.valor || 0),
+      }
+    })
+  }
 
   const vendasHoje = vendidos.filter(c => c.data_venda === hojeISO)
   const vendasOntem = vendidos.filter(c => c.data_venda === ontemISO)
@@ -287,6 +297,12 @@ export default function Dashboard({ user }) {
   }
   const rankingNovoMes = rankingPorTipo('Novo')
   const rankingRenovacaoMes = rankingPorTipo('Renovação')
+
+  // itens de venda do mês por tipo — 'aparelho' pega os marcados como aparelho, resto filtra por tipo excluindo aparelho
+  function itensPorTipoMes(tipoOuAparelho) {
+    return itensPorCliente.filter(it => idsClienteMes.has(it.carteira_cliente_id) &&
+      (tipoOuAparelho === 'aparelho' ? ehAparelho(it) : (it.tipo === tipoOuAparelho && !ehAparelho(it))))
+  }
 
   // vendas por produto (subproduto) no mês atual
   const porSubprodutoMes = {}
@@ -404,7 +420,7 @@ export default function Dashboard({ user }) {
         <CardComparativo titulo="Vendas no Mês" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
           anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
           onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', itens: paraItensClientes(vendasMes) })} />
-        <div className="dash-card">
+        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos (Conversão da Carteira)', tipo: 'clientes', itens: paraItensClientes(vendidos) })}>
           <div className="dash-card-titulo">Conversão da Carteira</div>
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
@@ -413,7 +429,10 @@ export default function Dashboard({ user }) {
 
       <div className="dash-section-title">Funil da Carteira</div>
       <div className="dash-card">
-        <FunilChart dados={funil} total={totalCarteira} />
+        <FunilChart dados={funil} total={totalCarteira} onClickRow={(i) => {
+          const listas = [novosClientes, emAndamento, vendidos]
+          setModal({ titulo: `Funil — ${funil[i].label}`, tipo: 'clientes', itens: paraItensClientes(listas[i]) })
+        }} />
       </div>
 
       <div className="dash-section-title">Potencial de Carteira</div>
@@ -428,9 +447,12 @@ export default function Dashboard({ user }) {
 
       <div className="dash-section-title">Receita por Tipo (mês atual)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Produto Novo" cor="roxo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`} />
-        <CardSimples titulo="Renovação" cor="laranja" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`} />
-        <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoMes.qtd} sub={`${fmtMoeda(aparelhoMes.valor)} em receita`} />
+        <CardSimples titulo="Produto Novo" cor="roxo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Produto Novo (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('Novo')) })} />
+        <CardSimples titulo="Renovação" cor="laranja" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Renovação (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('Renovação')) })} />
+        <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoMes.qtd} sub={`${fmtMoeda(aparelhoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Aparelho (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('aparelho')) })} />
       </div>
 
       {!isConsultor && melhorDoDia && (
@@ -484,7 +506,12 @@ export default function Dashboard({ user }) {
 
       <div className="dash-section-title">Kanban de Temperatura (resumo)</div>
       <div className="dash-card">
-        {kanbanAtivos.length === 0 ? <div className="empty">Nenhum cliente no Kanban</div> : <BarChartColorido dados={porTemperatura} />}
+        {kanbanAtivos.length === 0 ? <div className="empty">Nenhum cliente no Kanban</div> : (
+          <BarChartColorido dados={porTemperatura} onClickRow={(d) => setModal({
+            titulo: `Kanban — ${d.label}`, tipo: 'clientes',
+            itens: paraItensClientes(kanbanAtivos.filter(c => c.temperatura === d.label)),
+          })} />
+        )}
       </div>
 
       <div className="dash-section-title">Vendas por Produto (mês atual)</div>

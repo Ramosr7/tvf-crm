@@ -327,7 +327,7 @@ export default function Relatorios({ user }) {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {isGestor(user) && (
             <button className="btn-filter-light" onClick={analisarComIA} disabled={gerandoAnalise}>
-              {gerandoAnalise ? 'Analisando...' : '🤖 Analisar com IA'}
+              {gerandoAnalise ? 'Analisando...' : 'Analisar com IA'}
             </button>
           )}
           <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>

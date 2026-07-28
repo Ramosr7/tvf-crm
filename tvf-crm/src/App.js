@@ -616,7 +616,7 @@ export default function App() {
     <div className="app">
       <div className="topbar">
         <div className="topbar-left">
-          <div className="topbar-logo-wrap">
+          <div className="topbar-logo-wrap topbar-logo-clicavel" onClick={() => setTela('dashboard')} title="Ir para o Início">
             <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="topbar-logo-img" />
             <span className="topbar-logo-texto">CRM</span>
           </div>
@@ -640,13 +640,18 @@ export default function App() {
         </div>
       </div>
 
-      {tela === 'dashboard' && <Dashboard user={user} />}
-      {tela === 'leads' && user.perfil === 'Gestor' && <CrmLeads />}
-      {tela === 'carteira' && <PotencialCarteira user={user} />}
-      {tela === 'kanban_temp' && <KanbanTemperatura user={user} />}
-      {tela === 'rotina' && <RotinaDiaria user={user} />}
-      {tela === 'importar' && (user.perfil === 'Gestor' || user.perfil === 'Supervisor') && <Importar user={user} />}
-      {tela === 'relatorios' && user.perfil !== 'Consultor' && <Relatorios user={user} />}
+      {/* Cada tela fica sempre montada (só escondida) pra manter filtro/estado ao trocar de
+          aba sem reload — só um F5 de verdade (recarrega o app) reseta pro padrão. */}
+      <div style={{ display: tela === 'dashboard' ? 'block' : 'none' }}><Dashboard user={user} /></div>
+      <div style={{ display: tela === 'carteira' ? 'block' : 'none' }}><PotencialCarteira user={user} /></div>
+      <div style={{ display: tela === 'kanban_temp' ? 'block' : 'none' }}><KanbanTemperatura user={user} /></div>
+      <div style={{ display: tela === 'rotina' ? 'block' : 'none' }}><RotinaDiaria user={user} /></div>
+      {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
+        <div style={{ display: tela === 'importar' ? 'block' : 'none' }}><Importar user={user} /></div>
+      )}
+      {user.perfil !== 'Consultor' && (
+        <div style={{ display: tela === 'relatorios' ? 'block' : 'none' }}><Relatorios user={user} /></div>
+      )}
     </div>
   )
 }
