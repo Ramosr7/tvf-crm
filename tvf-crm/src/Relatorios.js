@@ -29,6 +29,11 @@ const ABAS = [
 
 const DIAS_ATRASO = 5
 
+// Subproduto com "TA" no código é aparelho (Troca/Terminal de Aparelho) — não é receita de
+// produto novo/renovação de plano, entra numa conta separada.
+const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
+const ehAparelho = (v) => SUBPRODUTOS_APARELHO.includes(v.subproduto)
+
 const isGestor = (user) => user.perfil === 'Gestor'
 
 function agruparPorConsultor(lista, pegarConsultorId) {
@@ -238,8 +243,10 @@ export default function Relatorios({ user }) {
   const qtdNovo = vendas.filter(v => v.tipo === 'Novo').length
   const qtdRenovacao = vendas.filter(v => v.tipo === 'Renovação').length
   // "Receita" no relatório sempre prioriza produto novo vendido — renovação aparece à parte.
-  const receitaNovo = vendas.filter(v => v.tipo === 'Novo').reduce((s, v) => s + Number(v.valor || 0), 0)
-  const receitaRenovacao = vendas.filter(v => v.tipo === 'Renovação').reduce((s, v) => s + Number(v.valor || 0), 0)
+  // Aparelho (subproduto com "TA") não conta como produto novo nem renovação — é receita à parte.
+  const receitaNovo = vendas.filter(v => v.tipo === 'Novo' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
+  const receitaRenovacao = vendas.filter(v => v.tipo === 'Renovação' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
+  const receitaAparelho = vendas.filter(ehAparelho).reduce((s, v) => s + Number(v.valor || 0), 0)
 
   // vendas por produto (subproduto) no período filtrado
   const porSubprodutoVendas = {}
@@ -257,7 +264,7 @@ export default function Relatorios({ user }) {
   // esconde quem vende mais de cada um
   function rankingVendasPorTipo(tipo) {
     const porConsultor = {}
-    vendas.filter(v => v.tipo === tipo).forEach(v => {
+    vendas.filter(v => v.tipo === tipo && !ehAparelho(v)).forEach(v => {
       const id = v.carteira_cliente?.consultor_id
       if (!id) return
       if (!porConsultor[id]) porConsultor[id] = { qtd: 0, valor: 0 }
@@ -347,6 +354,7 @@ export default function Relatorios({ user }) {
             <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{vendas.length}</div><div className="diag-stat-label">Itens Vendidos</div></div>
             <div className="diag-stat diag-stat-credito"><div className="diag-stat-valor">{fmtMoeda(receitaNovo)}</div><div className="diag-stat-label">Receita Produto Novo</div></div>
             <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{fmtMoeda(receitaRenovacao)}</div><div className="diag-stat-label">Receita Renovação</div></div>
+            <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{fmtMoeda(receitaAparelho)}</div><div className="diag-stat-label">Receita Aparelho</div></div>
             <div className="diag-stat diag-stat-bl"><div className="diag-stat-valor">{qtdNovo}</div><div className="diag-stat-label">Novo</div></div>
             <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{qtdRenovacao}</div><div className="diag-stat-label">Renovação</div></div>
           </div>
@@ -517,6 +525,7 @@ export default function Relatorios({ user }) {
               <div className="print-kpi"><div className="print-kpi-valor">{vendas.length}</div><div className="print-kpi-label">Itens Vendidos</div></div>
               <div className="print-kpi print-kpi-destaque"><div className="print-kpi-valor">{fmtMoeda(receitaNovo)}</div><div className="print-kpi-label">Receita Produto Novo</div></div>
               <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaRenovacao)}</div><div className="print-kpi-label">Receita Renovação</div></div>
+              <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaAparelho)}</div><div className="print-kpi-label">Receita Aparelho</div></div>
             </div>
 
             {vendasPorProduto.length > 0 && (
@@ -557,14 +566,16 @@ export default function Relatorios({ user }) {
               {Object.entries(agruparPorConsultor(vendas, v => v.carteira_cliente?.consultor_id)).map(([consultorId, itens]) => {
                 const porSubproduto = {}
                 for (const v of itens) porSubproduto[v.subproduto] = (porSubproduto[v.subproduto] || 0) + (v.quantidade || 1)
-                const totalNovo = itens.filter(v => v.tipo === 'Novo').reduce((s, v) => s + Number(v.valor || 0), 0)
-                const totalRenovacao = itens.filter(v => v.tipo === 'Renovação').reduce((s, v) => s + Number(v.valor || 0), 0)
+                const totalNovo = itens.filter(v => v.tipo === 'Novo' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
+                const totalRenovacao = itens.filter(v => v.tipo === 'Renovação' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
+                const totalAparelho = itens.filter(ehAparelho).reduce((s, v) => s + Number(v.valor || 0), 0)
                 return (
                   <div key={consultorId} className="print-bloco">
                     <div className="print-consultor">{isGestor(user) ? nomeConsultor(consultorId) : user.nome}</div>
                     {Object.entries(porSubproduto).map(([sub, qtd]) => <div key={sub}>{sub}: {qtd}</div>)}
                     <div className="print-bloco-destaque">Receita Produto Novo: {fmtMoeda(totalNovo)}</div>
                     {totalRenovacao > 0 && <div>Receita Renovação: {fmtMoeda(totalRenovacao)}</div>}
+                    {totalAparelho > 0 && <div>Receita Aparelho: {fmtMoeda(totalAparelho)}</div>}
                   </div>
                 )
               })}

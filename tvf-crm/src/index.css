@@ -325,7 +325,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   .print-chart-barra { background: #660099; height: 100%; border-radius: 4px; }
   .print-chart-barra-alt { background: #1D9E75; }
   .print-chart-valor { font-size: 11px; font-weight: 700; color: #1a1a1a; text-align: right; white-space: nowrap; }
-  .print-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .print-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
   .print-kpi { border: 1px solid #E0D8EC; border-radius: 8px; padding: 8px 10px; break-inside: avoid; page-break-inside: avoid; }
   .print-kpi-valor { font-size: 16px; font-weight: 700; color: #1a1a1a; white-space: nowrap; }
   .print-kpi-label { font-size: 10px; color: #888; margin-top: 2px; }
