@@ -3,6 +3,11 @@ import { supabase } from './supabaseClient'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 
+// Subproduto com "TA" no código é aparelho (Troca/Terminal de Aparelho) — não conta como
+// produto novo/renovação de plano, mesma regra do relatório de Vendas.
+const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
+const ehAparelho = (it) => SUBPRODUTOS_APARELHO.includes(it.subproduto)
+
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -208,15 +213,19 @@ export default function Dashboard({ user }) {
     return acc
   }, { migracao: 0, bl: 0, ti: 0, voz: 0, credito: 0 })
 
-  // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período
+  // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período.
+  // Subproduto com "TA" no código é aparelho — não conta como produto novo/renovação de plano.
   function receitaPorTipo(lista, tipo) {
     const idsNoPeriodo = new Set(lista.map(c => c.id))
     return itensPorCliente
-      .filter(it => idsNoPeriodo.has(it.carteira_cliente_id) && it.tipo === tipo)
+      .filter(it => idsNoPeriodo.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
       .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
   }
   const novoMes = receitaPorTipo(vendasMes, 'Novo')
   const renovacaoMes = receitaPorTipo(vendasMes, 'Renovação')
+  const aparelhoMes = itensPorCliente
+    .filter(it => new Set(vendasMes.map(c => c.id)).has(it.carteira_cliente_id) && ehAparelho(it))
+    .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
 
   // ranking por consultor no mês corrente, separado por tipo (Novo/Renovação) —
   // somar os dois junto escondia quem vendia mais de cada um
@@ -227,7 +236,7 @@ export default function Dashboard({ user }) {
   function rankingPorTipo(tipo) {
     const porConsultor = {}
     itensPorCliente
-      .filter(it => idsClienteMes.has(it.carteira_cliente_id) && it.tipo === tipo)
+      .filter(it => idsClienteMes.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
       .forEach(it => {
         const consultorId = consultorPorCliente[it.carteira_cliente_id]
         if (!consultorId) return
@@ -347,6 +356,7 @@ export default function Dashboard({ user }) {
       <div className="dash-grid">
         <CardSimples titulo="Produto Novo" cor="roxo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`} />
         <CardSimples titulo="Renovação" cor="laranja" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`} />
+        <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoMes.qtd} sub={`${fmtMoeda(aparelhoMes.valor)} em receita`} />
       </div>
 
       {!isConsultor && melhorDoDia && (

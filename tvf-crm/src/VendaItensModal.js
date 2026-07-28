@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
+// RM+TA e PC-TA (combo com aparelho) foram removidos de propósito: misturam receita de
+// plano com receita de aparelho numa linha só, impossível separar depois no relatório.
+// Pra negociação com aparelho junto, marca as duas linhas separadas (ex: RM + TA).
 const SUBPRODUTOS = [
   'HA', 'PN', 'HP', 'BL', 'MT - BL', 'CPF FIBRA', 'CPF MÓVEL', 'MP - CPF MÓVEL',
-  'RBL', 'RLF', 'RM', 'RM+TA', 'PP', 'DA', 'IN',
+  'RBL', 'RLF', 'RM', 'PP', 'DA', 'IN',
   'SVA', 'TEL', 'RTV', 'M2M', 'SIP', '0800', 'VVN', 'LINK', 'VIVO TECH', 'TV',
-  'RA', 'TA', 'PC-TA', 'DIG', 'TT MÓVEL',
+  'RA', 'TA', 'DIG', 'TT MÓVEL',
   'PC', 'TT / PF ou PJ x PJ / SOHO', 'SOS', 'TT AVANÇADO', 'TB', 'PN FIXA',
   'MT - TEL', 'SVA FIXO', 'MT - VVN', 'CPF FIXA', 'MT - CPF FIXA', 'CPF TV',
   'GUD', 'TER', 'SME',
@@ -84,6 +87,9 @@ export default function VendaItensModal({ cliente, onClose, onSaved }) {
         {loading ? <div className="empty">Carregando...</div> : (
           <div className="lm-body">
             <input className="search-input" style={{ width: '100%' }} placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <div style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+              Venda com aparelho junto (ex: RM + TA)? Marca as duas linhas separadas, cada uma com seu próprio valor.
+            </div>
 
             <div className="lm-tipo-grid" style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {subprodutosFiltrados.map(sub => {
