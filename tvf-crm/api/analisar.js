@@ -1,4 +1,4 @@
-const Anthropic = require('@anthropic-ai/sdk')
+const OpenAI = require('openai')
 const { createClient } = require('@supabase/supabase-js')
 
 const SYSTEM_PROMPT = `Você é um analista comercial da TVF Telecom, parceiro Vivo Empresas.
@@ -28,8 +28,8 @@ module.exports = async function handler(req, res) {
     return
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada no servidor.' })
+  if (!process.env.OPENAI_API_KEY) {
+    res.status(500).json({ error: 'OPENAI_API_KEY não configurada no servidor.' })
     return
   }
 
@@ -40,18 +40,15 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const client = new Anthropic()
-    const message = await client.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 4096,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'medium' },
-      system: SYSTEM_PROMPT,
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o',
       messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `Analise os dados abaixo:\n\n${JSON.stringify(dados, null, 2)}` },
       ],
     })
-    const texto = message.content.find(b => b.type === 'text')?.text || ''
+    const texto = completion.choices[0]?.message?.content || ''
     res.status(200).json({ analise: texto })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao chamar a IA' })
