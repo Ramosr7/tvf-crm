@@ -448,12 +448,14 @@ export default function Dashboard({ user }) {
       <div className="dash-card">
         <BarChartVertical dados={meses6} altura={130} />
       </div>
-      <table className="carteira-table" style={{ marginTop: -4, marginBottom: 14 }}>
-        <thead><tr><th>Mês</th><th>Vendas</th><th>Receita</th></tr></thead>
-        <tbody>
-          {meses6.map((m, i) => <tr key={i}><td>{m.label}</td><td>{m.valor}</td><td>{fmtMoeda(m.valorReceita)}</td></tr>)}
-        </tbody>
-      </table>
+      <div className="dash-card" style={{ marginTop: 14, marginBottom: 14, overflow: 'auto' }}>
+        <table className="carteira-table">
+          <thead><tr><th>Mês</th><th>Vendas</th><th>Receita</th></tr></thead>
+          <tbody>
+            {meses6.map((m, i) => <tr key={i}><td>{m.label}</td><td>{m.valor}</td><td>{fmtMoeda(m.valorReceita)}</td></tr>)}
+          </tbody>
+        </table>
+      </div>
 
       <div className="dash-section-title">Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
@@ -492,16 +494,18 @@ export default function Dashboard({ user }) {
           <div className="dash-card" style={{ marginBottom: 14 }}>
             <BarChartHorizontal dados={dadosPorProduto} />
           </div>
-          <table className="carteira-table">
-            <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
-            <tbody>
-              {vendasPorProdutoMes.map(p => (
-                <tr key={p.subproduto}>
-                  <td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="dash-card" style={{ overflow: 'auto' }}>
+            <table className="carteira-table">
+              <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+              <tbody>
+                {vendasPorProdutoMes.map(p => (
+                  <tr key={p.subproduto}>
+                    <td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
@@ -514,21 +518,23 @@ export default function Dashboard({ user }) {
               <div className="dash-card" style={{ marginBottom: 14 }}>
                 <BarChartHorizontal dados={dadosRankingNovo} />
               </div>
-              <table className="carteira-table">
-                <thead>
-                  <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
-                </thead>
-                <tbody>
-                  {rankingNovoMes.map((r, i) => (
-                    <tr key={r.id}>
-                      <td>{i + 1}</td>
-                      <td>{r.nome}</td>
-                      <td>{r.qtd}</td>
-                      <td>{fmtMoeda(r.valor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="dash-card" style={{ overflow: 'auto' }}>
+                <table className="carteira-table">
+                  <thead>
+                    <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
+                  </thead>
+                  <tbody>
+                    {rankingNovoMes.map((r, i) => (
+                      <tr key={r.id}>
+                        <td>{i + 1}</td>
+                        <td>{r.nome}</td>
+                        <td>{r.qtd}</td>
+                        <td>{fmtMoeda(r.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -539,21 +545,23 @@ export default function Dashboard({ user }) {
               <div className="dash-card" style={{ marginBottom: 14 }}>
                 <BarChartHorizontal dados={dadosRankingRenovacao} />
               </div>
-              <table className="carteira-table">
-                <thead>
-                  <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
-                </thead>
-                <tbody>
-                  {rankingRenovacaoMes.map((r, i) => (
-                    <tr key={r.id}>
-                      <td>{i + 1}</td>
-                      <td>{r.nome}</td>
-                      <td>{r.qtd}</td>
-                      <td>{fmtMoeda(r.valor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="dash-card" style={{ overflow: 'auto' }}>
+                <table className="carteira-table">
+                  <thead>
+                    <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
+                  </thead>
+                  <tbody>
+                    {rankingRenovacaoMes.map((r, i) => (
+                      <tr key={r.id}>
+                        <td>{i + 1}</td>
+                        <td>{r.nome}</td>
+                        <td>{r.qtd}</td>
+                        <td>{fmtMoeda(r.valor)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </>
