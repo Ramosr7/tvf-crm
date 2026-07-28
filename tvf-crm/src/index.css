@@ -14,7 +14,11 @@ body {
 .app { min-height: 100vh; display: flex; flex-direction: column; }
 
 /* TOPBAR */
-.topbar { background: #660099; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.topbar {
+  background: linear-gradient(90deg, #4A0072 0%, #660099 45%, #8B3FD1 100%);
+  padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
 .topbar-left { display: flex; align-items: center; gap: 12px; }
 .topbar-logo { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
 .topbar-logo span { color: #FF6B00; }
