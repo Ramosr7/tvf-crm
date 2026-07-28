@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 
@@ -86,6 +86,42 @@ function BarChartHorizontal({ dados }) {
   )
 }
 
+// funil de 3 baldes (Novos / Em Andamento / Fechados) — barras afunilando, % do total da carteira
+function FunilChart({ dados, total }) {
+  const max = Math.max(1, ...dados.map(d => d.valor))
+  return (
+    <div className="dash-funil">
+      {dados.map((d, i) => (
+        <div key={i} className="dash-funil-row">
+          <div className="dash-funil-label">{d.label}</div>
+          <div className="dash-funil-track">
+            <div className={`dash-funil-bar dash-funil-bar-${i}`} style={{ width: `${(d.valor / max) * 100}%` }} />
+          </div>
+          <div className="dash-funil-valor">{d.valor} <span>({total > 0 ? Math.round((d.valor / total) * 100) : 0}%)</span></div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// mini gráfico de barras horizontais coloridas — usado no resumo do Kanban de Temperatura
+function BarChartColorido({ dados }) {
+  const max = Math.max(1, ...dados.map(d => d.valor))
+  return (
+    <div className="dash-chart-h">
+      {dados.map((d, i) => (
+        <div key={i} className="dash-chart-h-row">
+          <div className="dash-chart-h-label">{d.label}</div>
+          <div className="dash-chart-h-track">
+            <div className="dash-chart-h-bar" style={{ width: `${(d.valor / max) * 100}%`, background: d.cor }} />
+          </div>
+          <div className="dash-chart-h-valor">{d.valor}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ModalDetalhe({ titulo, tipo, itens, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -130,16 +166,17 @@ export default function Dashboard({ user }) {
   const carregar = useCallback(async () => {
     setLoading(true)
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
-    let qClientes = supabase.from('carteira_cliente')
-      .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao')
-      .is('excluido_em', null)
     let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
-    if (isConsultor) {
-      qClientes = qClientes.eq('consultor_id', user.id)
-      qRotina = qRotina.eq('consultor_id', user.id)
-    }
+    if (isConsultor) qRotina = qRotina.eq('consultor_id', user.id)
+
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
-      qClientes,
+      fetchPaginado((de, ate) => {
+        let q = supabase.from('carteira_cliente')
+          .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
+          .is('excluido_em', null).range(de, ate)
+        if (isConsultor) q = q.eq('consultor_id', user.id)
+        return q
+      }),
       supabase.from('carteira_venda_item').select('carteira_cliente_id, valor, tipo, subproduto'),
       supabase.from('consultores_staff').select('id, nome'),
       qRotina,
@@ -321,6 +358,38 @@ export default function Dashboard({ user }) {
   const dadosRankingRenovacao = rankingRenovacaoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
   const dadosPorProduto = vendasPorProdutoMes.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: fmtMoeda(p.valor) }))
 
+  // funil: onde a carteira ativa está hoje — não é fluxo sequencial no tempo, é retrato do
+  // momento atual em 3 baldes (recém-chegado / sendo trabalhado / fechado).
+  const novosClientes = clientes.filter(c => (c.status || 'Aguardando Atendimento') === 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
+  const emAndamento = clientes.filter(c => c.status !== 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
+  const funil = [
+    { label: 'Novos', valor: novosClientes.length },
+    { label: 'Em Andamento', valor: emAndamento.length },
+    { label: 'Fechados', valor: vendidos.length },
+  ]
+
+  // resumo do Kanban de Temperatura — só clientes enviados pro kanban (no_kanban=true)
+  const kanbanAtivos = clientes.filter(c => c.no_kanban)
+  const CORES_TEMPERATURA = { Frio: '#378ADD', Morno: '#EF9F27', Quente: '#E05C2A', Descartado: '#888' }
+  const porTemperatura = Object.keys(CORES_TEMPERATURA).map(t => ({
+    label: t, valor: kanbanAtivos.filter(c => c.temperatura === t).length, cor: CORES_TEMPERATURA[t],
+  }))
+
+  // comparativo mensal — últimos 6 meses (incluindo o atual), qtd + receita de vendas fechadas
+  const meses6 = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+    const doMes = vendidos.filter(c => {
+      const dv = new Date(c.data_venda + 'T00:00:00')
+      return dv.getFullYear() === d.getFullYear() && dv.getMonth() === d.getMonth()
+    })
+    meses6.push({
+      label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
+      valor: doMes.length,
+      valorReceita: somaValor(doMes),
+    })
+  }
+
   return (
     <div className="main">
       <div className="dash-section-title">Visão Geral</div>
@@ -340,6 +409,11 @@ export default function Dashboard({ user }) {
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
         </div>
+      </div>
+
+      <div className="dash-section-title">Funil da Carteira</div>
+      <div className="dash-card">
+        <FunilChart dados={funil} total={totalCarteira} />
       </div>
 
       <div className="dash-section-title">Potencial de Carteira</div>
@@ -370,6 +444,17 @@ export default function Dashboard({ user }) {
         <BarChartVertical dados={dias7} />
       </div>
 
+      <div className="dash-section-title">Comparativo Mensal (últimos 6 meses)</div>
+      <div className="dash-card">
+        <BarChartVertical dados={meses6} altura={130} />
+      </div>
+      <table className="carteira-table" style={{ marginTop: -4, marginBottom: 14 }}>
+        <thead><tr><th>Mês</th><th>Vendas</th><th>Receita</th></tr></thead>
+        <tbody>
+          {meses6.map((m, i) => <tr key={i}><td>{m.label}</td><td>{m.valor}</td><td>{fmtMoeda(m.valorReceita)}</td></tr>)}
+        </tbody>
+      </table>
+
       <div className="dash-section-title">Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
         <CardSimples titulo="Atendimentos" cor="azul" valor={atendimentosHoje} sub="clientes recebidos hoje"
@@ -393,6 +478,11 @@ export default function Dashboard({ user }) {
           <div className="dash-card-titulo">Ag. Aceite — últimos 7 dias</div>
           <BarChartVertical dados={trendRotina('ag_aceite')} altura={110} />
         </div>
+      </div>
+
+      <div className="dash-section-title">Kanban de Temperatura (resumo)</div>
+      <div className="dash-card">
+        {kanbanAtivos.length === 0 ? <div className="empty">Nenhum cliente no Kanban</div> : <BarChartColorido dados={porTemperatura} />}
       </div>
 
       <div className="dash-section-title">Vendas por Produto (mês atual)</div>

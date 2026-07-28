@@ -69,7 +69,10 @@ export default function VendaItensModal({ cliente, onClose, onSaved }) {
   const qtdNovo = selecionados.filter(([, v]) => v.tipo === 'Novo').length
   const qtdRenovacao = selecionados.filter(([, v]) => v.tipo === 'Renovação').length
 
-  const subprodutosFiltrados = SUBPRODUTOS.filter(s => s.toLowerCase().includes(busca.toLowerCase()))
+  // Une com chaves já salvas fora da lista atual (ex: RM+TA/PC-TA lançados antes de serem
+  // removidos) — senão a linha antiga fica órfã, contando no total sem dar pra editar/apagar.
+  const listaCompleta = Array.from(new Set([...SUBPRODUTOS, ...Object.keys(itens)]))
+  const subprodutosFiltrados = listaCompleta.filter(s => s.toLowerCase().includes(busca.toLowerCase()))
 
   return (
     <div className="modal-overlay" onClick={onClose}>
