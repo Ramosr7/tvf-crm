@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import * as XLSX from 'xlsx'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
 import InteracaoCarteiraModal from './InteracaoCarteiraModal'
 import { calcularPotencial } from './potencialLogic'
@@ -75,15 +75,15 @@ export default function PotencialCarteira({ user }) {
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from('carteira_cliente').select('*')
-      .is('excluido_em', null).order('razao_social', { ascending: true })
+    const { data, error } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('*')
+      .is('excluido_em', null).order('razao_social', { ascending: true }).range(de, ate))
     if (!error && data) setClientes(data)
     setLoading(false)
   }, [])
 
   const fetchLixeira = useCallback(async () => {
-    const { data } = await supabase.from('carteira_cliente').select('*')
-      .not('excluido_em', 'is', null).order('excluido_em', { ascending: false })
+    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('*')
+      .not('excluido_em', 'is', null).order('excluido_em', { ascending: false }).range(de, ate))
     setLixeira(data || [])
   }, [])
 

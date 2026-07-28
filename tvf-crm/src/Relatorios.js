@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 import AnaliseIAModal from './AnaliseIAModal'
 
 function fmtMoeda(v) {
@@ -109,7 +109,8 @@ export default function Relatorios({ user }) {
 
   const carregarKanban = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).is('excluido_em', null).order('temperatura')
+    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('*')
+      .eq('no_kanban', true).is('excluido_em', null).order('temperatura').range(de, ate))
     let linhas = data || []
     if (isGestor(user) && filtroConsultor) linhas = linhas.filter(c => c.consultor_id === filtroConsultor)
     setKanbanClientes(linhas)
@@ -132,8 +133,8 @@ export default function Relatorios({ user }) {
 
   const carregarInteracoes = useCallback(async () => {
     setLoading(true)
-    const { data: clientes } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id')
-      .is('excluido_em', null).eq('alerta_renovacao', false)
+    const { data: clientes } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('id, razao_social, cnpj, status, consultor_id')
+      .is('excluido_em', null).eq('alerta_renovacao', false).range(de, ate))
     let linhasClientes = clientes || []
     if (isGestor(user) && filtroConsultor) linhasClientes = linhasClientes.filter(c => c.consultor_id === filtroConsultor)
     if (!isGestor(user)) linhasClientes = linhasClientes.filter(c => c.consultor_id === user.id)

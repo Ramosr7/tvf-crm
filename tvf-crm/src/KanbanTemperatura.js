@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 import KanbanClienteModal from './KanbanClienteModal'
 
 const COLUNAS = [
@@ -33,7 +33,8 @@ export default function KanbanTemperatura({ user }) {
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('carteira_cliente').select('*').eq('no_kanban', true).is('excluido_em', null).order('razao_social')
+    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('*')
+      .eq('no_kanban', true).is('excluido_em', null).order('razao_social').range(de, ate))
     setClientes(data || [])
     setLoading(false)
   }, [])

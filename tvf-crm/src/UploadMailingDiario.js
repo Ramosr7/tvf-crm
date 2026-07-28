@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 import { parseArquivo, mapearCampos, extrairCnpj, extrairEmail, extrairTelefone } from './xlsxParse'
 import { calcularPotencial } from './potencialLogic'
 
@@ -36,7 +36,7 @@ export default function UploadMailingDiario() {
   }, [])
 
   async function carregarDonos() {
-    const { data } = await supabase.from('carteira_cliente').select('cnpj, consultor_id')
+    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('cnpj, consultor_id').range(de, ate))
     const mapa = {}
     for (const row of (data || [])) mapa[row.cnpj] = row.consultor_id
     setDonoPorCnpj(mapa)
