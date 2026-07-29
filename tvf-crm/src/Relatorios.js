@@ -611,7 +611,7 @@ export default function Relatorios({ user }) {
                     <div key={p.subproduto} className="print-chart-linha">
                       <div className="print-chart-label">{p.subproduto}</div>
                       <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: pct + '%' }} /></div>
-                      <div className="print-chart-valor">{fmtMoeda(p.valor)}</div>
+                      <div className="print-chart-valor">{p.qtd} un. · {fmtMoeda(p.valor)}</div>
                     </div>
                   )
                 })}
@@ -628,7 +628,7 @@ export default function Relatorios({ user }) {
                     <div key={r.id} className="print-chart-linha">
                       <div className="print-chart-label">{r.nome}</div>
                       <div className="print-chart-barra-wrap"><div className="print-chart-barra print-chart-barra-alt" style={{ width: pct + '%' }} /></div>
-                      <div className="print-chart-valor">{fmtMoeda(r.valor)}</div>
+                      <div className="print-chart-valor">{r.qtd} un. · {fmtMoeda(r.valor)}</div>
                     </div>
                   )
                 })}

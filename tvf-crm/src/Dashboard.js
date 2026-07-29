@@ -370,9 +370,9 @@ export default function Dashboard({ user }) {
     return trend
   }
 
-  const dadosRankingNovo = rankingNovoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
-  const dadosRankingRenovacao = rankingRenovacaoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: fmtMoeda(r.valor) }))
-  const dadosPorProduto = vendasPorProdutoMes.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: fmtMoeda(p.valor) }))
+  const dadosRankingNovo = rankingNovoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
+  const dadosRankingRenovacao = rankingRenovacaoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
+  const dadosPorProduto = vendasPorProdutoMes.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: `${p.qtd} un. · ${fmtMoeda(p.valor)}` }))
 
   // funil: onde a carteira ativa está hoje — não é fluxo sequencial no tempo, é retrato do
   // momento atual em 3 baldes (recém-chegado / sendo trabalhado / fechado).

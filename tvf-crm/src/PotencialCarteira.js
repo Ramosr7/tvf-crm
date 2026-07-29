@@ -32,12 +32,25 @@ const PRESETS_PERIODO = [
 const isGestor = (user) => user.perfil === 'Gestor'
 const podeAdicionarCliente = (user) => user.perfil === 'Gestor' || user.perfil === 'Supervisor'
 
+// sessionStorage (não localStorage): sobrevive trocar de aba do Chrome e o navegador
+// descartar a aba em segundo plano (que recarrega a página do zero, igual um F5) — só
+// reseta se a aba/janela for fechada de vez.
+function carregarFiltrosSalvos(user) {
+  try {
+    const raw = sessionStorage.getItem(`tvf_filtros_carteira_${user.id}`)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 export default function PotencialCarteira({ user }) {
+  const filtrosSalvos = carregarFiltrosSalvos(user)
   const [clientes, setClientes] = useState([])
   const [staff, setStaff] = useState([])
-  const [filtroConsultor, setFiltroConsultor] = useState('')
-  const [filtroDataDe, setFiltroDataDe] = useState('')
-  const [filtroDataAte, setFiltroDataAte] = useState('')
+  const [filtroConsultor, setFiltroConsultor] = useState(filtrosSalvos.consultor || '')
+  const [filtroDataDe, setFiltroDataDe] = useState(filtrosSalvos.dataDe || '')
+  const [filtroDataAte, setFiltroDataAte] = useState(filtrosSalvos.dataAte || '')
   const [loading, setLoading] = useState(true)
   const [novoCnpj, setNovoCnpj] = useState('')
   const [buscandoCnpj, setBuscandoCnpj] = useState(false)
@@ -49,10 +62,10 @@ export default function PotencialCarteira({ user }) {
   const [modalCliente, setModalCliente] = useState(null)
   const [modalInteracaoCliente, setModalInteracaoCliente] = useState(null)
   const [modalChecklistCliente, setModalChecklistCliente] = useState(null)
-  const [filtroCnpj, setFiltroCnpj] = useState('')
-  const [filtroOrigem, setFiltroOrigem] = useState('')
-  const [filtroStatus, setFiltroStatus] = useState('')
-  const [abaCarteira, setAbaCarteira] = useState('carteira')
+  const [filtroCnpj, setFiltroCnpj] = useState(filtrosSalvos.cnpj || '')
+  const [filtroOrigem, setFiltroOrigem] = useState(filtrosSalvos.origem || '')
+  const [filtroStatus, setFiltroStatus] = useState(filtrosSalvos.status || '')
+  const [abaCarteira, setAbaCarteira] = useState(filtrosSalvos.aba || 'carteira')
   const [menuTemperaturaId, setMenuTemperaturaId] = useState(null)
   const [selecionados, setSelecionados] = useState(new Set())
   const [removendo, setRemovendo] = useState(false)
@@ -109,6 +122,13 @@ export default function PotencialCarteira({ user }) {
   }, [])
 
   useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists])
+
+  useEffect(() => {
+    sessionStorage.setItem(`tvf_filtros_carteira_${user.id}`, JSON.stringify({
+      consultor: filtroConsultor, dataDe: filtroDataDe, dataAte: filtroDataAte,
+      cnpj: filtroCnpj, origem: filtroOrigem, status: filtroStatus, aba: abaCarteira,
+    }))
+  }, [user.id, filtroConsultor, filtroDataDe, filtroDataAte, filtroCnpj, filtroOrigem, filtroStatus, abaCarteira])
 
   useEffect(() => {
     if (podeAdicionarCliente(user)) {
