@@ -363,35 +363,50 @@ export default function Relatorios({ user }) {
             <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, position: 'relative' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {isGestor(user) && (
-            <button className="btn-filter-light" onClick={() => setMostrarConfigAnalise(v => !v)} disabled={gerandoAnalise}>
+            <button className="btn-filter-light" onClick={() => setMostrarConfigAnalise(true)} disabled={gerandoAnalise}>
               {gerandoAnalise ? 'Analisando...' : 'Analisar com IA'}
             </button>
-          )}
-          {mostrarConfigAnalise && (
-            <div className="menu-config-analise">
-              <div className="menu-config-analise-titulo">O que a IA deve olhar?</div>
-              {ESCOPO_ANALISE_OPCOES.map(o => (
-                <label key={o.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '4px 0' }}>
-                  <input type="checkbox" checked={escopoAnalise.has(o.key)} onChange={() => alternarEscopoAnalise(o.key)} />
-                  {o.label}
-                </label>
-              ))}
-              <div className="menu-config-analise-titulo" style={{ marginTop: 10 }}>Foco da análise</div>
-              <select className="filter-select" style={{ width: '100%', marginTop: 4 }} value={focoAnalise} onChange={e => setFocoAnalise(e.target.value)}>
-                {FOCOS_ANALISE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-              </select>
-              <button className="btn-save-obs" style={{ float: 'none', margin: '12px 0 0', width: '100%' }} onClick={analisarComIA} disabled={gerandoAnalise}>
-                {gerandoAnalise ? 'Analisando...' : 'Gerar Análise'}
-              </button>
-            </div>
           )}
           <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>
             {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
           </button>
         </div>
       </div>
+
+      {mostrarConfigAnalise && (
+        <div className="modal-overlay" onClick={() => setMostrarConfigAnalise(false)}>
+          <div className="lead-modal" style={{ width: 440 }} onClick={e => e.stopPropagation()}>
+            <div className="lm-header">
+              <div className="lm-header-left">
+                <div style={{ fontSize: 17, fontWeight: 700 }}>Analisar com IA</div>
+                <div className="lm-phone">O que a IA deve olhar?</div>
+              </div>
+              <button className="lm-close" onClick={() => setMostrarConfigAnalise(false)}>✕</button>
+            </div>
+            <div className="lm-body">
+              <div className="lm-section-title">Dados</div>
+              {ESCOPO_ANALISE_OPCOES.map(o => (
+                <label key={o.key} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 0' }}>
+                  <input type="checkbox" checked={escopoAnalise.has(o.key)} onChange={() => alternarEscopoAnalise(o.key)} />
+                  {o.label}
+                </label>
+              ))}
+              <div className="lm-section-title" style={{ marginTop: 12 }}>Foco da análise</div>
+              <select className="filter-select" style={{ width: '100%' }} value={focoAnalise} onChange={e => setFocoAnalise(e.target.value)}>
+                {FOCOS_ANALISE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </select>
+            </div>
+            <div className="lm-actions">
+              <button className="btn-save-obs" style={{ flex: 1, float: 'none', margin: 0 }}
+                onClick={() => { setMostrarConfigAnalise(false); analisarComIA() }} disabled={gerandoAnalise}>
+                {gerandoAnalise ? 'Analisando...' : 'Gerar Análise'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
         <span style={{ fontSize: 11, color: '#888' }}>Incluir no PDF:</span>
