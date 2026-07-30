@@ -7,6 +7,7 @@ import RotinaDiaria from './RotinaDiaria'
 import KanbanTemperatura from './KanbanTemperatura'
 import Importar from './Importar'
 import Relatorios from './Relatorios'
+import PlanoComercial from './PlanoComercial'
 import NotificacoesSino from './NotificacoesSino'
 import Dashboard from './Dashboard'
 import './index.css'
@@ -631,6 +632,9 @@ export default function App() {
             {user.perfil !== 'Consultor' && (
               <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
             )}
+            {user.perfil === 'Gestor' && (
+              <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => setTela('plano_comercial')}>Plano Comercial</span>
+            )}
           </div>
         </div>
         <div className="topbar-right">
@@ -651,6 +655,9 @@ export default function App() {
       )}
       {user.perfil !== 'Consultor' && (
         <div style={{ display: tela === 'relatorios' ? 'block' : 'none' }}><Relatorios user={user} /></div>
+      )}
+      {user.perfil === 'Gestor' && (
+        <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial /></div>
       )}
     </div>
   )
