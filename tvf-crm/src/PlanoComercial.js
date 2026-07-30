@@ -68,10 +68,36 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   return { realizado, mediaDiaria, metaDiaria, projecao, pctAtingimento, pctConcluido }
 }
 
+// gráfico de barras simples (Meta / Esteira / Projeção), igual ao padrão já usado no Dashboard
+function GraficoVertical({ titulo, meta, esteira, projecao, formato }) {
+  const max = Math.max(1, meta, esteira, projecao)
+  const barras = [
+    { label: 'Meta', valor: meta, cor: '#26192F' },
+    { label: 'Esteira', valor: esteira, cor: '#378ADD' },
+    { label: 'Projeção', valor: projecao, cor: corSemaforo(meta > 0 ? projecao / meta : 0) },
+  ]
+  return (
+    <div className="dash-card">
+      <div className="dash-card-titulo">{titulo}</div>
+      <div className="dash-chart-v" style={{ height: 110 }}>
+        {barras.map((b, i) => (
+          <div key={i} className="dash-chart-v-col">
+            <div className="dash-chart-v-num">{fmtValor(b.valor, formato)}</div>
+            <div className="dash-chart-v-bar" style={{ height: `${(b.valor / max) * 100}%`, background: b.cor }} />
+            <div className="dash-chart-v-label">{b.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function PlanoComercial() {
   const [mesReferencia, setMesReferencia] = useState(mesAtualISO())
   const [planos, setPlanos] = useState([])
+  const [staff, setStaff] = useState([])
   const [config, setConfig] = useState({})
+  const [metaGlobal, setMetaGlobal] = useState({})
   const [loading, setLoading] = useState(true)
   const [editandoId, setEditandoId] = useState(null)
   const [mostrarConfig, setMostrarConfig] = useState(false)
@@ -79,14 +105,20 @@ export default function PlanoComercial() {
   const fetchDados = useCallback(async () => {
     setLoading(true)
     const mesData = `${mesReferencia}-01`
-    const [{ data: planosData }, { data: configData }] = await Promise.all([
-      supabase.from('plano_comercial').select('*, consultores_staff(nome)').eq('mes_referencia', mesData),
+    const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }] = await Promise.all([
+      supabase.from('plano_comercial').select('*').eq('mes_referencia', mesData),
+      supabase.from('consultores_staff').select('id, nome').order('nome'),
       supabase.from('plano_comercial_config').select('*'),
+      supabase.from('plano_comercial_meta_global').select('*').eq('mes_referencia', mesData),
     ])
     setPlanos(planosData || [])
+    setStaff(staffData || [])
     const mapaConfig = {}
     for (const c of (configData || [])) mapaConfig[c.vertical] = c.fator_conversao
     setConfig(mapaConfig)
+    const mapaGlobal = {}
+    for (const g of (metaGlobalData || [])) mapaGlobal[g.vertical] = g.meta
+    setMetaGlobal(mapaGlobal)
     setLoading(false)
   }, [mesReferencia])
 
@@ -108,21 +140,25 @@ export default function PlanoComercial() {
   if (loading) return <div className="loading">Carregando Plano Comercial...</div>
 
   const { duTotais, duRestantes } = calcularDU(mesReferencia)
+  const staffPorId = {}
+  for (const s of staff) staffPorId[s.id] = s
 
   const porConsultor = {}
   for (const p of planos) {
-    const nome = p.consultores_staff?.nome || '—'
+    const nome = staffPorId[p.consultor_id]?.nome || '—'
     if (!porConsultor[nome]) porConsultor[nome] = []
     porConsultor[nome].push(p)
   }
 
   const consolidado = ORDEM_VERTICAIS.map(v => {
     const linhas = planos.filter(p => p.vertical === v)
-    const meta = linhas.reduce((s, p) => s + Number(p.meta || 0), 0)
-    const backlog = linhas.reduce((s, p) => s + Number(p.backlog || 0), 0)
-    const esteira = linhas.reduce((s, p) => s + Number(p.esteira || 0), 0)
-    const concluido = linhas.reduce((s, p) => s + Number(p.concluido || 0), 0)
-    return { vertical: v, meta, backlog, esteira, concluido }
+    return {
+      vertical: v,
+      meta: linhas.reduce((s, p) => s + Number(p.meta || 0), 0),
+      backlog: linhas.reduce((s, p) => s + Number(p.backlog || 0), 0),
+      esteira: linhas.reduce((s, p) => s + Number(p.esteira || 0), 0),
+      concluido: linhas.reduce((s, p) => s + Number(p.concluido || 0), 0),
+    }
   }).filter(c => c.meta > 0 || c.backlog > 0 || c.esteira > 0)
 
   function renderLinha(row, key) {
@@ -135,7 +171,6 @@ export default function PlanoComercial() {
         <td>{fmtValor(row.meta, info.formato)}</td>
         <td>{fmtValor(row.backlog, info.formato)}</td>
         <td>{fmtValor(row.esteira, info.formato)}</td>
-        <td>{fmtValor(calc.realizado, info.formato)}</td>
         <td>{fmtValor(calc.metaDiaria, info.formato)}</td>
         <td>{fmtValor(calc.mediaDiaria, info.formato)}</td>
         <td>{fmtValor(calc.projecao, info.formato)}</td>
@@ -153,6 +188,13 @@ export default function PlanoComercial() {
       </tr>
     )
   }
+
+  const cabecalho = (
+    <tr>
+      <th>Vertical</th><th>Meta</th><th>Backlog</th><th>Esteira Mês</th>
+      <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th><th>Concluído</th><th>%</th>
+    </tr>
+  )
 
   return (
     <div className="main">
@@ -183,17 +225,36 @@ export default function PlanoComercial() {
 
       {planos.length === 0 && <div className="empty">Nenhum plano importado pra esse mês ainda. Sobe o arquivo em Importar → Plano Comercial.</div>}
 
+      {Object.keys(metaGlobal).length > 0 && (
+        <>
+          <div className="lm-section-title">Meta Global do Escritório (antes da quebra por time)</div>
+          <div className="dash-grid" style={{ marginBottom: 24 }}>
+            {ORDEM_VERTICAIS.filter(v => metaGlobal[v] !== undefined).map(v => (
+              <div key={v} className="dash-card">
+                <div className="dash-card-titulo">{VERTICAL_INFO[v].label}</div>
+                <div className="dash-card-numero">{fmtValor(metaGlobal[v], VERTICAL_INFO[v].formato)}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {consolidado.length > 0 && (
         <>
           <div className="lm-section-title">Plano Comercial (consolidado)</div>
+          <div className="dash-grid" style={{ marginBottom: 16 }}>
+            {consolidado.map(c => {
+              const fator = config[c.vertical] ?? 0.8
+              const calc = calcularLinha(c, fator, duTotais, duRestantes)
+              const info = VERTICAL_INFO[c.vertical] || { label: c.vertical, formato: 'inteiro' }
+              return (
+                <GraficoVertical key={c.vertical} titulo={info.label} meta={c.meta} esteira={c.esteira} projecao={calc.projecao} formato={info.formato} />
+              )
+            })}
+          </div>
           <div className="carteira-table-wrap" style={{ marginBottom: 24 }}>
             <table className="carteira-table">
-              <thead>
-                <tr>
-                  <th>Vertical</th><th>Meta</th><th>Backlog</th><th>Esteira</th><th>Realizado</th>
-                  <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th><th>Concluído</th><th>% Concl.</th>
-                </tr>
-              </thead>
+              <thead>{cabecalho}</thead>
               <tbody>
                 {consolidado.map(c => renderLinha({ ...c, id: null }, c.vertical))}
               </tbody>
@@ -207,12 +268,7 @@ export default function PlanoComercial() {
           <div className="lm-section-title">{nome}</div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
-              <thead>
-                <tr>
-                  <th>Vertical</th><th>Meta</th><th>Backlog</th><th>Esteira</th><th>Realizado</th>
-                  <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th><th>Concluído</th><th>% Concl.</th>
-                </tr>
-              </thead>
+              <thead>{cabecalho}</thead>
               <tbody>
                 {ORDEM_VERTICAIS.filter(v => linhasConsultor.some(l => l.vertical === v))
                   .map(v => renderLinha(linhasConsultor.find(l => l.vertical === v), v))}
