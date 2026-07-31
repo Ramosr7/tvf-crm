@@ -218,7 +218,7 @@ export default function PlanoComercial() {
               onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
           ) : editavel ? (
             <span className="plano-concluido-editavel" onClick={() => setEditandoConcluidoChave(key)}>{fmtValor(row.concluido, info.formato)}</span>
-          ) : fmtValor(row.concluido, info.formato)}
+          ) : fmtValor(row.concluido, info.formato))}
         </td>
         <td>{fmtPct(calc.pctConcluido)}</td>
       </tr>
