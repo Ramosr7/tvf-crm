@@ -32,7 +32,9 @@ function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-export default function UploadRadarPdf() {
+// modo 'backlog': sobe uma vez no início do mês, define o Backlog (baseline).
+// modo 'esteira': sobe todo dia, atualiza a Esteira Mês (acumulado até a data do PDF).
+export default function UploadRadarPdf({ modo }) {
   const [staff, setStaff] = useState([])
   const [mesReferencia, setMesReferencia] = useState(hoje())
   const [arquivo, setArquivo] = useState(null)
@@ -41,7 +43,6 @@ export default function UploadRadarPdf() {
   const [processando, setProcessando] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [erro, setErro] = useState('')
-  const [ehBacklogDia1, setEhBacklogDia1] = useState(false)
 
   useEffect(() => {
     supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
@@ -99,9 +100,7 @@ export default function UploadRadarPdf() {
         const { data: existente } = await supabase.from('plano_comercial').select('id')
           .eq('mes_referencia', mesData).eq('consultor_id', consultor.id).eq('vertical', vertical).maybeSingle()
 
-        // Upload do dia 1 do mês define o Backlog (baseline); os demais dias atualizam a
-        // Esteira (acumulado do mês até a data do PDF).
-        const campos = ehBacklogDia1
+        const campos = modo === 'backlog'
           ? { backlog: valor, atualizado_em: new Date().toISOString() }
           : { esteira: valor, atualizado_em: new Date().toISOString() }
 
@@ -124,22 +123,23 @@ export default function UploadRadarPdf() {
 
   return (
     <div className="main">
-      <div className="lm-section-title">Upload Radar Diário (PDF)</div>
+      <div className="lm-section-title">{modo === 'backlog' ? 'Upload Backlog (Radar PDF, dia 1)' : 'Upload Radar Diário (PDF)'}</div>
       <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — usa só a tabela "VENDAS COM ACEITE",
-        ignora "Aguardando Aceite" e a linha TOTAL. No dia 1 do mês, marca a caixinha abaixo —
-        esse upload define o Backlog (baseline) do mês. Nos demais dias, sobe sem marcar —
-        atualiza a Esteira Mês (acumulado até a data do PDF, substitui o valor anterior, não
-        soma em cima). Meta continua vindo só do Excel de referência.
+        {modo === 'backlog' ? (
+          'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" do dia 1 do mês — usa só a tabela ' +
+          '"VENDAS COM ACEITE", ignora "Aguardando Aceite" e a linha TOTAL. Define o Backlog ' +
+          '(baseline) do mês pra cada time. Roda uma vez por mês, no início.'
+        ) : (
+          'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — usa só a tabela "VENDAS COM ACEITE", ' +
+          'ignora "Aguardando Aceite" e a linha TOTAL. Atualiza a Esteira Mês (acumulado até a ' +
+          'data do PDF, substitui o valor anterior, não soma em cima). Roda todo dia. Backlog e ' +
+          'Meta vêm de outras abas de importação.'
+        )}
       </p>
 
       <div className="kanban-toolbar">
         <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
-        </label>
-        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#660099', fontWeight: 600 }}>
-          <input type="checkbox" checked={ehBacklogDia1} onChange={e => setEhBacklogDia1(e.target.checked)} />
-          Esse PDF é do dia 1 (define o Backlog do mês)
         </label>
         <input type="file" accept=".pdf" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo PDF com IA...</span>}
