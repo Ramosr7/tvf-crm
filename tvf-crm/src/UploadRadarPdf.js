@@ -18,6 +18,12 @@ function calcularVerticais(s) {
 function normalizar(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
+// Nome no cadastro costuma ser curto ("Isabele Cruz") e o do PDF vem completo ("Isabele
+// Rodrigues da Cruz") — casar por substring grudada falha nesse caso. Casa por palavra: toda
+// palavra do nome cadastrado precisa aparecer entre as palavras do nome do PDF.
+function palavras(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(Boolean)
+}
 function hoje() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -35,14 +41,18 @@ export default function UploadRadarPdf() {
   const [processando, setProcessando] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [erro, setErro] = useState('')
+  const [ehBacklogDia1, setEhBacklogDia1] = useState(false)
 
   useEffect(() => {
     supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
   }, [])
 
   function acharConsultor(nome) {
-    const alvo = normalizar(nome)
-    return staff.find(s => normalizar(s.nome) === alvo) || staff.find(s => normalizar(s.nome).includes(alvo) || alvo.includes(normalizar(s.nome)))
+    const alvoNorm = normalizar(nome)
+    const exato = staff.find(s => normalizar(s.nome) === alvoNorm)
+    if (exato) return exato
+    const alvoPalavras = palavras(nome)
+    return staff.find(s => palavras(s.nome).every(p => alvoPalavras.includes(p)))
   }
 
   async function handleArquivo(e) {
@@ -85,17 +95,22 @@ export default function UploadRadarPdf() {
       if (!consultor) { semMatch.add(s.nome); continue }
       const verticais = calcularVerticais(s)
 
-      for (const [vertical, esteira] of Object.entries(verticais)) {
+      for (const [vertical, valor] of Object.entries(verticais)) {
         const { data: existente } = await supabase.from('plano_comercial').select('id')
           .eq('mes_referencia', mesData).eq('consultor_id', consultor.id).eq('vertical', vertical).maybeSingle()
 
+        // Upload do dia 1 do mês define o Backlog (baseline); os demais dias atualizam a
+        // Esteira (acumulado do mês até a data do PDF).
+        const campos = ehBacklogDia1
+          ? { backlog: valor, atualizado_em: new Date().toISOString() }
+          : { esteira: valor, atualizado_em: new Date().toISOString() }
+
         if (existente) {
-          const { error } = await supabase.from('plano_comercial')
-            .update({ esteira, atualizado_em: new Date().toISOString() }).eq('id', existente.id)
+          const { error } = await supabase.from('plano_comercial').update(campos).eq('id', existente.id)
           if (error) falhas++; else atualizadas++
         } else {
           const { error } = await supabase.from('plano_comercial')
-            .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: 0, backlog: 0, esteira })
+            .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: 0, backlog: 0, esteira: 0, ...campos })
           if (error) falhas++; else criadas++
         }
       }
@@ -111,16 +126,20 @@ export default function UploadRadarPdf() {
     <div className="main">
       <div className="lm-section-title">Upload Radar Diário (PDF)</div>
       <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — atualiza a Esteira Mês do Plano
-        Comercial (só a esteira; Meta e Backlog continuam vindo do Excel de referência). Usa
-        só a tabela "VENDAS COM ACEITE", ignora "Aguardando Aceite" e a linha TOTAL. Sobe todo
-        dia — o valor de cada vertical é substituído pelo total do mês até a data do PDF (não
-        soma em cima do que já tinha).
+        Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — usa só a tabela "VENDAS COM ACEITE",
+        ignora "Aguardando Aceite" e a linha TOTAL. No dia 1 do mês, marca a caixinha abaixo —
+        esse upload define o Backlog (baseline) do mês. Nos demais dias, sobe sem marcar —
+        atualiza a Esteira Mês (acumulado até a data do PDF, substitui o valor anterior, não
+        soma em cima). Meta continua vindo só do Excel de referência.
       </p>
 
       <div className="kanban-toolbar">
         <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
+        </label>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: '#660099', fontWeight: 600 }}>
+          <input type="checkbox" checked={ehBacklogDia1} onChange={e => setEhBacklogDia1(e.target.checked)} />
+          Esse PDF é do dia 1 (define o Backlog do mês)
         </label>
         <input type="file" accept=".pdf" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo PDF com IA...</span>}

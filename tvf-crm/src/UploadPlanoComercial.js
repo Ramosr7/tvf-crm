@@ -25,6 +25,9 @@ const MARCADOR_CABECALHO = ['timesinsidesales', 'times insidesales']
 function normalizar(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
+function palavras(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(Boolean)
+}
 
 // null = célula vazia (não veio nada nessa subida, mantém o que já tava salvo).
 // Backlog normalmente só é subido uma vez no início do mês; Esteira é atualizada com
@@ -119,8 +122,11 @@ export default function UploadPlanoComercial() {
   }
 
   function acharConsultor(nomeVendedor) {
-    const alvo = normalizar(nomeVendedor)
-    return staff.find(s => normalizar(s.nome) === alvo) || staff.find(s => normalizar(s.nome).includes(alvo) || alvo.includes(normalizar(s.nome)))
+    const alvoNorm = normalizar(nomeVendedor)
+    const exato = staff.find(s => normalizar(s.nome) === alvoNorm)
+    if (exato) return exato
+    const alvoPalavras = palavras(nomeVendedor)
+    return staff.find(s => palavras(s.nome).every(p => alvoPalavras.includes(p)))
   }
 
   async function processar() {
