@@ -72,9 +72,9 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
 function GraficoVertical({ titulo, meta, esteira, projecao, formato }) {
   const max = Math.max(1, meta, esteira, projecao)
   const barras = [
-    { label: 'Meta', valor: meta, cor: '#26192F' },
+    { label: 'Meta', valor: meta, cor: '#660099' },
     { label: 'Esteira', valor: esteira, cor: '#378ADD' },
-    { label: 'Projeção', valor: projecao, cor: corSemaforo(meta > 0 ? projecao / meta : 0) },
+    { label: 'Projeção', valor: projecao, cor: '#EF9F27' },
   ]
   return (
     <div className="dash-card">
