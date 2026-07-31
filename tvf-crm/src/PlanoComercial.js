@@ -99,7 +99,8 @@ export default function PlanoComercial() {
   const [config, setConfig] = useState({})
   const [metaGlobal, setMetaGlobal] = useState({})
   const [loading, setLoading] = useState(true)
-  const [editandoId, setEditandoId] = useState(null)
+  const [editandoConcluidoChave, setEditandoConcluidoChave] = useState(null)
+  const [editandoMetaChave, setEditandoMetaChave] = useState(null)
   const [mostrarConfig, setMostrarConfig] = useState(false)
 
   const fetchDados = useCallback(async () => {
@@ -107,7 +108,7 @@ export default function PlanoComercial() {
     const mesData = `${mesReferencia}-01`
     const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }] = await Promise.all([
       supabase.from('plano_comercial').select('*').eq('mes_referencia', mesData),
-      supabase.from('consultores_staff').select('id, nome').order('nome'),
+      supabase.from('consultores_staff').select('id, nome, perfil').order('nome'),
       supabase.from('plano_comercial_config').select('*'),
       supabase.from('plano_comercial_meta_global').select('*').eq('mes_referencia', mesData),
     ])
@@ -130,6 +131,24 @@ export default function PlanoComercial() {
     supabase.from('plano_comercial').update({ concluido: numero, atualizado_em: new Date().toISOString() }).eq('id', row.id)
   }
 
+  // Meta agora é preenchida direto na tela, por time e por vertical — sem regra fixa de quem
+  // tem ou não cada pilar (ex: time consultivo pode não ter meta de Alta, mas o gestor pode
+  // digitar um valor se quiser). Se a linha ainda não existe no banco (time novo, vertical sem
+  // dado de backlog/esteira ainda), cria na hora.
+  async function atualizarMeta(row, valor) {
+    const numero = Number(valor) || 0
+    if (row.id) {
+      setPlanos(prev => prev.map(p => p.id === row.id ? { ...p, meta: numero } : p))
+      await supabase.from('plano_comercial').update({ meta: numero, atualizado_em: new Date().toISOString() }).eq('id', row.id)
+    } else {
+      const mesData = `${mesReferencia}-01`
+      const { data } = await supabase.from('plano_comercial')
+        .insert({ mes_referencia: mesData, consultor_id: row.consultor_id, vertical: row.vertical, meta: numero, backlog: 0, esteira: 0 })
+        .select().single()
+      if (data) setPlanos(prev => [...prev, data])
+    }
+  }
+
   function atualizarFator(vertical, valor) {
     const numero = Number(valor)
     if (isNaN(numero)) return
@@ -143,11 +162,20 @@ export default function PlanoComercial() {
   const staffPorId = {}
   for (const s of staff) staffPorId[s.id] = s
 
+  // Times = todo Supervisor/Gestor cadastrado + qualquer consultor que já tenha linha salva
+  // (cobre o caso de um time cujo "líder" não está marcado com esse perfil ainda).
+  const idsTimes = new Set([
+    ...staff.filter(s => s.perfil === 'Supervisor' || s.perfil === 'Gestor').map(s => s.id),
+    ...planos.map(p => p.consultor_id),
+  ])
+
   const porConsultor = {}
-  for (const p of planos) {
-    const nome = staffPorId[p.consultor_id]?.nome || '—'
-    if (!porConsultor[nome]) porConsultor[nome] = []
-    porConsultor[nome].push(p)
+  for (const consultorId of idsTimes) {
+    const nome = staffPorId[consultorId]?.nome || '—'
+    porConsultor[nome] = ORDEM_VERTICAIS.map(v => {
+      const existente = planos.find(p => p.consultor_id === consultorId && p.vertical === v)
+      return existente || { id: null, consultor_id: consultorId, vertical: v, meta: 0, backlog: 0, esteira: 0, concluido: 0 }
+    })
   }
 
   const consolidado = ORDEM_VERTICAIS.map(v => {
@@ -161,14 +189,22 @@ export default function PlanoComercial() {
     }
   }).filter(c => c.meta > 0 || c.backlog > 0 || c.esteira > 0)
 
-  function renderLinha(row, key) {
+  function renderLinha(row, key, editavel = false) {
     const info = VERTICAL_INFO[row.vertical] || { label: row.vertical, formato: 'inteiro' }
     const fator = config[row.vertical] ?? 0.8
     const calc = calcularLinha(row, fator, duTotais, duRestantes)
     return (
       <tr key={key}>
         <td>{info.label}</td>
-        <td>{fmtValor(row.meta, info.formato)}</td>
+        <td>
+          {editavel ? (editandoMetaChave === key ? (
+            <input className="lm-input" type="number" style={{ width: 100 }} autoFocus defaultValue={row.meta}
+              onBlur={e => { atualizarMeta(row, e.target.value); setEditandoMetaChave(null) }}
+              onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
+          ) : (
+            <span className="plano-concluido-editavel" onClick={() => setEditandoMetaChave(key)}>{fmtValor(row.meta, info.formato)}</span>
+          )) : fmtValor(row.meta, info.formato)}
+        </td>
         <td>{fmtValor(row.backlog, info.formato)}</td>
         <td>{fmtValor(row.esteira, info.formato)}</td>
         <td>{fmtValor(calc.metaDiaria, info.formato)}</td>
@@ -176,13 +212,13 @@ export default function PlanoComercial() {
         <td>{fmtValor(calc.projecao, info.formato)}</td>
         <td><span className="plano-semaforo" style={{ background: corSemaforo(calc.pctAtingimento) }}>{fmtPct(calc.pctAtingimento)}</span></td>
         <td>
-          {row.id && (editandoId === row.id ? (
+          {editavel && row.id && (editandoConcluidoChave === key ? (
             <input className="lm-input" type="number" style={{ width: 100 }} autoFocus defaultValue={row.concluido}
-              onBlur={e => { atualizarConcluido(row, e.target.value); setEditandoId(null) }}
+              onBlur={e => { atualizarConcluido(row, e.target.value); setEditandoConcluidoChave(null) }}
               onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
-          ) : (
-            <span className="plano-concluido-editavel" onClick={() => setEditandoId(row.id)}>{fmtValor(row.concluido, info.formato)}</span>
-          ))}
+          ) : editavel ? (
+            <span className="plano-concluido-editavel" onClick={() => setEditandoConcluidoChave(key)}>{fmtValor(row.concluido, info.formato)}</span>
+          ) : fmtValor(row.concluido, info.formato)}
         </td>
         <td>{fmtPct(calc.pctConcluido)}</td>
       </tr>
@@ -223,7 +259,9 @@ export default function PlanoComercial() {
         </div>
       )}
 
-      {planos.length === 0 && <div className="empty">Nenhum plano importado pra esse mês ainda. Sobe o arquivo em Importar → Plano Comercial.</div>}
+      {Object.keys(porConsultor).length === 0 && (
+        <div className="empty">Nenhum time cadastrado ainda — cadastra um Supervisor ou Gestor em consultores_staff.</div>
+      )}
 
       {Object.keys(metaGlobal).length > 0 && (
         <>
@@ -241,8 +279,8 @@ export default function PlanoComercial() {
 
       {consolidado.length > 0 && (
         <>
-          <div className="lm-section-title">Plano Comercial (consolidado)</div>
-          <div className="dash-grid" style={{ marginBottom: 16 }}>
+          <div className="lm-section-title">Projeção Total — Regional São Paulo Capital</div>
+          <div className="plano-grafico-grid" style={{ marginBottom: 16 }}>
             {consolidado.map(c => {
               const fator = config[c.vertical] ?? 0.8
               const calc = calcularLinha(c, fator, duTotais, duRestantes)
@@ -265,13 +303,12 @@ export default function PlanoComercial() {
 
       {Object.entries(porConsultor).map(([nome, linhasConsultor]) => (
         <div key={nome} style={{ marginBottom: 24 }}>
-          <div className="lm-section-title">{nome}</div>
+          <div className="plano-time-titulo">{nome}</div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
               <thead>{cabecalho}</thead>
               <tbody>
-                {ORDEM_VERTICAIS.filter(v => linhasConsultor.some(l => l.vertical === v))
-                  .map(v => renderLinha(linhasConsultor.find(l => l.vertical === v), v))}
+                {linhasConsultor.map(row => renderLinha(row, `${row.consultor_id}-${row.vertical}`, true))}
               </tbody>
             </table>
           </div>

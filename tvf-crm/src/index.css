@@ -101,6 +101,12 @@ body {
 .plano-concluido-editavel { cursor: pointer; border-bottom: 1px dashed #ccc; }
 .plano-concluido-editavel:hover { border-bottom-color: #660099; color: #660099; }
 .plano-faixa-badge { font-size: 10px; color: #1D9E75; font-weight: 700; margin-top: 2px; }
+.plano-grafico-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 900px) { .plano-grafico-grid { grid-template-columns: repeat(2, 1fr); } }
+.plano-time-titulo {
+  display: inline-block; font-size: 14px; font-weight: 700; color: #fff; background: #660099;
+  padding: 6px 14px; border-radius: 8px; margin-bottom: 10px;
+}
 
 .menu-temperatura {
   position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; background: #fff;

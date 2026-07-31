@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import UploadMapaParque from './UploadMapaParque'
 import UploadMailingDiario from './UploadMailingDiario'
 import UploadRenovacaoAntecipada from './UploadRenovacaoAntecipada'
-import UploadPlanoComercial from './UploadPlanoComercial'
 import UploadRadarPdf from './UploadRadarPdf'
 
 export default function Importar({ user }) {
@@ -10,7 +9,6 @@ export default function Importar({ user }) {
     { key: 'mailing', label: 'Mailing (clientes do dia)', restrito: false },
     { key: 'mapa_parque', label: 'Mapa Parque', restrito: true },
     { key: 'renovacao_antecipada', label: 'Renovação Antecipada (M16)', restrito: true },
-    { key: 'plano_comercial', label: 'Plano Comercial (metas)', restrito: true },
     { key: 'backlog_pc', label: 'Backlog do PC', restrito: true },
     { key: 'radar_pdf', label: 'Radar Diário (PDF)', restrito: true },
   ].filter(o => !o.restrito || user.perfil === 'Gestor')
@@ -27,7 +25,6 @@ export default function Importar({ user }) {
       {aba === 'mailing' && <UploadMailingDiario />}
       {aba === 'mapa_parque' && user.perfil === 'Gestor' && <UploadMapaParque />}
       {aba === 'renovacao_antecipada' && user.perfil === 'Gestor' && <UploadRenovacaoAntecipada />}
-      {aba === 'plano_comercial' && user.perfil === 'Gestor' && <UploadPlanoComercial />}
       {aba === 'backlog_pc' && user.perfil === 'Gestor' && <UploadRadarPdf modo="backlog" />}
       {aba === 'radar_pdf' && user.perfil === 'Gestor' && <UploadRadarPdf modo="esteira" />}
     </div>
