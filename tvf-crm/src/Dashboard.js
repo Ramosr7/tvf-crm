@@ -162,6 +162,8 @@ export default function Dashboard({ user }) {
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [filtroDataDe, setFiltroDataDe] = useState(iso(new Date()))
+  const [filtroDataAte, setFiltroDataAte] = useState(iso(new Date()))
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -244,6 +246,15 @@ export default function Dashboard({ user }) {
 
   const vendasMes = noPeriodo(inicioMesAtual, hoje)
   const vendasMesAnterior = noPeriodo(inicioMesAnterior, fimMesAnterior)
+
+  function aplicarPresetDashboard(dias) {
+    const d = new Date(hoje); d.setDate(d.getDate() - dias)
+    setFiltroDataDe(iso(d))
+    setFiltroDataAte(dias === 1 ? iso(d) : hojeISO)
+  }
+  const vendasPeriodo = filtroDataDe && filtroDataAte
+    ? vendidos.filter(c => c.data_venda >= filtroDataDe && c.data_venda <= filtroDataAte)
+    : []
 
   // Cliente em renovação antecipada (M16) ainda não conta na carteira "de verdade" —
   // só entra nos totais quando virar (flag desligado manualmente).
@@ -424,6 +435,22 @@ export default function Dashboard({ user }) {
           <div className="dash-card-titulo">Conversão da Carteira</div>
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
+        </div>
+      </div>
+
+      <div className="dash-section-title">Período Personalizado</div>
+      <div className="kanban-toolbar" style={{ marginBottom: 14 }}>
+        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard(0)}>Hoje</button>
+        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard(1)}>Ontem</button>
+        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard(7)}>7 dias</button>
+        <label style={{ fontSize: 11, color: '#888' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} /></label>
+        <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} /></label>
+      </div>
+      <div className="dash-grid" style={{ marginBottom: 24 }}>
+        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: `Vendas — ${filtroDataDe} a ${filtroDataAte}`, tipo: 'clientes', itens: paraItensClientes(vendasPeriodo) })}>
+          <div className="dash-card-titulo">Vendas no Período</div>
+          <div className="dash-card-numero">{vendasPeriodo.length}</div>
+          <div className="dash-card-valor">{fmtMoeda(somaValor(vendasPeriodo))}</div>
         </div>
       </div>
 
