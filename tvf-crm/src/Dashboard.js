@@ -14,6 +14,13 @@ function fmtMoeda(v) {
 function iso(d) {
   return d.toISOString().slice(0, 10)
 }
+function inicioSemana(d) {
+  const r = new Date(d)
+  const dia = r.getDay() // 0=domingo
+  const diff = dia === 0 ? 6 : dia - 1 // segunda-feira como início
+  r.setDate(r.getDate() - diff)
+  return r
+}
 function variacao(atual, anterior) {
   if (!anterior) return atual > 0 ? 100 : 0
   return Math.round(((atual - anterior) / anterior) * 100)
@@ -155,21 +162,17 @@ export default function Dashboard({ user }) {
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
-  const [filtroDataDe, setFiltroDataDe] = useState(iso(new Date()))
-  const [filtroDataAte, setFiltroDataAte] = useState(iso(new Date()))
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    // busca rotina desde o início do período filtrado (com folga de 13 dias pra trás, pro
-    // gráfico "últimos 7 dias" continuar funcionando mesmo se o filtro for um dia só)
-    const folga = new Date((filtroDataDe || iso(new Date())) + 'T00:00:00'); folga.setDate(folga.getDate() - 13)
-    let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(folga))
+    const de14 = new Date(); de14.setDate(de14.getDate() - 13)
+    let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
     if (isConsultor) qRotina = qRotina.eq('consultor_id', user.id)
 
     const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       fetchPaginado((de, ate) => {
         let q = supabase.from('carteira_cliente')
-          .select('id, cnpj, razao_social, status, data_venda, data_adicao, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura, temperatura_atualizada_em')
+          .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
           .is('excluido_em', null).range(de, ate)
         if (isConsultor) q = q.eq('consultor_id', user.id)
         return q
@@ -188,7 +191,7 @@ export default function Dashboard({ user }) {
     setStaff(staffData || [])
     setRotinas(rotinaData || [])
     setLoading(false)
-  }, [isConsultor, user.id, filtroDataDe])
+  }, [isConsultor, user.id])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -201,7 +204,21 @@ export default function Dashboard({ user }) {
 
   const hoje = new Date()
   const hojeISO = iso(hoje)
+  const ontem = new Date(hoje); ontem.setDate(ontem.getDate() - 1)
+  const ontemISO = iso(ontem)
 
+  const inicioSemanaAtual = inicioSemana(hoje)
+  const fimSemanaAnterior = new Date(inicioSemanaAtual); fimSemanaAnterior.setDate(fimSemanaAnterior.getDate() - 1)
+  const inicioSemanaAnterior = new Date(inicioSemanaAtual); inicioSemanaAnterior.setDate(inicioSemanaAnterior.getDate() - 7)
+
+  const inicioMesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+  const inicioMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
+  const fimMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0)
+
+  function noPeriodo(de, ate) {
+    const deISO = iso(de), ateISO = iso(ate)
+    return vendidos.filter(c => c.data_venda >= deISO && c.data_venda <= ateISO)
+  }
   function somaValor(lista) {
     return lista.reduce((s, c) => s + valorCliente(c.id), 0)
   }
@@ -219,36 +236,22 @@ export default function Dashboard({ user }) {
     })
   }
 
-  // ---- filtro global de período: tudo abaixo é derivado de filtroDataDe/filtroDataAte ----
-  function aplicarPresetDashboard(tipo) {
-    if (tipo === 'hoje') { setFiltroDataDe(hojeISO); setFiltroDataAte(hojeISO) }
-    else if (tipo === 'ontem') { const d = new Date(hoje); d.setDate(d.getDate() - 1); setFiltroDataDe(iso(d)); setFiltroDataAte(iso(d)) }
-    else if (tipo === '7dias') { const d = new Date(hoje); d.setDate(d.getDate() - 6); setFiltroDataDe(iso(d)); setFiltroDataAte(hojeISO) }
-    else if (tipo === 'mes') { setFiltroDataDe(iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1))); setFiltroDataAte(hojeISO) }
-  }
-  const duracaoDiasPeriodo = Math.round(
-    (new Date(filtroDataAte + 'T00:00:00') - new Date(filtroDataDe + 'T00:00:00')) / 86400000
-  ) + 1
-  const anteriorAteDate = new Date(filtroDataDe + 'T00:00:00'); anteriorAteDate.setDate(anteriorAteDate.getDate() - 1)
-  const anteriorDeDate = new Date(anteriorAteDate); anteriorDeDate.setDate(anteriorDeDate.getDate() - (duracaoDiasPeriodo - 1))
-  const periodoAnteriorDe = iso(anteriorDeDate)
-  const periodoAnteriorAte = iso(anteriorAteDate)
+  const vendasHoje = vendidos.filter(c => c.data_venda === hojeISO)
+  const vendasOntem = vendidos.filter(c => c.data_venda === ontemISO)
 
-  const vendasPeriodo = vendidos.filter(c => c.data_venda >= filtroDataDe && c.data_venda <= filtroDataAte)
-  const vendasPeriodoAnterior = vendidos.filter(c => c.data_venda >= periodoAnteriorDe && c.data_venda <= periodoAnteriorAte)
+  const vendasSemana = noPeriodo(inicioSemanaAtual, hoje)
+  const vendasSemanaAnterior = noPeriodo(inicioSemanaAnterior, fimSemanaAnterior)
 
-  // clientes que entraram na carteira dentro do período (data_adicao) — usado pro Funil e
-  // Potencial de Carteira, que não têm data de venda pra se guiar
-  const clientesPeriodo = clientes.filter(c => c.data_adicao && c.data_adicao >= filtroDataDe && c.data_adicao <= filtroDataAte)
-  const clientesAtivosPeriodo = clientesPeriodo.filter(c => !c.alerta_renovacao)
+  const vendasMes = noPeriodo(inicioMesAtual, hoje)
+  const vendasMesAnterior = noPeriodo(inicioMesAnterior, fimMesAnterior)
 
   // Cliente em renovação antecipada (M16) ainda não conta na carteira "de verdade" —
   // só entra nos totais quando virar (flag desligado manualmente).
   const clientesAtivos = clientes.filter(c => !c.alerta_renovacao)
   const totalCarteira = clientesAtivos.length
-  const conversaoPeriodo = totalCarteira > 0 ? Math.round((vendasPeriodo.length / totalCarteira) * 100) : 0
+  const conversao = totalCarteira > 0 ? Math.round((vendidos.length / totalCarteira) * 100) : 0
 
-  const potencialCarteiraPeriodo = clientesAtivosPeriodo.reduce((acc, c) => {
+  const potencialCarteira = clientesAtivos.reduce((acc, c) => {
     acc.migracao += c.potencial_migracao || 0
     acc.bl += c.potencial_bl || 0
     acc.ti += c.potencial_ti || 0
@@ -257,7 +260,7 @@ export default function Dashboard({ user }) {
     return acc
   }, { migracao: 0, bl: 0, ti: 0, voz: 0, credito: 0 })
 
-  // receita por tipo (Novo/Renovação) no período filtrado, só itens dos clientes vendidos no período.
+  // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período.
   // Subproduto com "TA" no código é aparelho — não conta como produto novo/renovação de plano.
   function receitaPorTipo(lista, tipo) {
     const idsNoPeriodo = new Set(lista.map(c => c.id))
@@ -265,22 +268,22 @@ export default function Dashboard({ user }) {
       .filter(it => idsNoPeriodo.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
       .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
   }
-  const novoPeriodo = receitaPorTipo(vendasPeriodo, 'Novo')
-  const renovacaoPeriodo = receitaPorTipo(vendasPeriodo, 'Renovação')
-  const idsClientePeriodo = new Set(vendasPeriodo.map(c => c.id))
-  const aparelhoPeriodo = itensPorCliente
-    .filter(it => idsClientePeriodo.has(it.carteira_cliente_id) && ehAparelho(it))
+  const novoMes = receitaPorTipo(vendasMes, 'Novo')
+  const renovacaoMes = receitaPorTipo(vendasMes, 'Renovação')
+  const aparelhoMes = itensPorCliente
+    .filter(it => new Set(vendasMes.map(c => c.id)).has(it.carteira_cliente_id) && ehAparelho(it))
     .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
 
-  // ranking por consultor no período filtrado, separado por tipo (Novo/Renovação) —
+  // ranking por consultor no mês corrente, separado por tipo (Novo/Renovação) —
   // somar os dois junto escondia quem vendia mais de cada um
+  const idsClienteMes = new Set(vendasMes.map(c => c.id))
   const consultorPorCliente = {}
   clientes.forEach(c => { consultorPorCliente[c.id] = c.consultor_id })
 
   function rankingPorTipo(tipo) {
     const porConsultor = {}
     itensPorCliente
-      .filter(it => idsClientePeriodo.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
+      .filter(it => idsClienteMes.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
       .forEach(it => {
         const consultorId = consultorPorCliente[it.carteira_cliente_id]
         if (!consultorId) return
@@ -292,103 +295,103 @@ export default function Dashboard({ user }) {
       .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
       .sort((a, b) => b.valor - a.valor)
   }
-  const rankingNovoPeriodo = rankingPorTipo('Novo')
-  const rankingRenovacaoPeriodo = rankingPorTipo('Renovação')
+  const rankingNovoMes = rankingPorTipo('Novo')
+  const rankingRenovacaoMes = rankingPorTipo('Renovação')
 
-  // itens de venda do período por tipo — 'aparelho' pega os marcados como aparelho, resto filtra por tipo excluindo aparelho
-  function itensPorTipoPeriodo(tipoOuAparelho) {
-    return itensPorCliente.filter(it => idsClientePeriodo.has(it.carteira_cliente_id) &&
+  // itens de venda do mês por tipo — 'aparelho' pega os marcados como aparelho, resto filtra por tipo excluindo aparelho
+  function itensPorTipoMes(tipoOuAparelho) {
+    return itensPorCliente.filter(it => idsClienteMes.has(it.carteira_cliente_id) &&
       (tipoOuAparelho === 'aparelho' ? ehAparelho(it) : (it.tipo === tipoOuAparelho && !ehAparelho(it))))
   }
 
-  // vendas por produto (subproduto) no período filtrado
-  const porSubprodutoPeriodo = {}
+  // vendas por produto (subproduto) no mês atual
+  const porSubprodutoMes = {}
   itensPorCliente
-    .filter(it => idsClientePeriodo.has(it.carteira_cliente_id))
+    .filter(it => idsClienteMes.has(it.carteira_cliente_id))
     .forEach(it => {
       const sub = it.subproduto || '—'
-      if (!porSubprodutoPeriodo[sub]) porSubprodutoPeriodo[sub] = { qtd: 0, valor: 0 }
-      porSubprodutoPeriodo[sub].qtd += 1
-      porSubprodutoPeriodo[sub].valor += Number(it.valor || 0)
+      if (!porSubprodutoMes[sub]) porSubprodutoMes[sub] = { qtd: 0, valor: 0 }
+      porSubprodutoMes[sub].qtd += 1
+      porSubprodutoMes[sub].valor += Number(it.valor || 0)
     })
-  const vendasPorProdutoPeriodo = Object.entries(porSubprodutoPeriodo)
+  const vendasPorProdutoMes = Object.entries(porSubprodutoMes)
     .map(([subproduto, v]) => ({ subproduto, ...v }))
     .sort((a, b) => b.valor - a.valor)
 
-  // melhor vendedor do período
-  const porConsultorPeriodo = {}
-  vendasPeriodo.forEach(c => {
+  // melhor vendedor do dia
+  const porConsultorHoje = {}
+  vendasHoje.forEach(c => {
     const id = c.consultor_id
-    if (!porConsultorPeriodo[id]) porConsultorPeriodo[id] = { qtd: 0, valor: 0 }
-    porConsultorPeriodo[id].qtd += 1
-    porConsultorPeriodo[id].valor += valorCliente(c.id)
+    if (!porConsultorHoje[id]) porConsultorHoje[id] = { qtd: 0, valor: 0 }
+    porConsultorHoje[id].qtd += 1
+    porConsultorHoje[id].valor += valorCliente(c.id)
   })
-  const rankingGeralPeriodo = Object.entries(porConsultorPeriodo)
+  const rankingHoje = Object.entries(porConsultorHoje)
     .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
     .sort((a, b) => b.valor - a.valor)
-  const melhorDoPeriodo = rankingGeralPeriodo[0]
+  const melhorDoDia = rankingHoje[0]
 
-  // indicadores de atendimento (rotina diária) do período, somados na equipe toda
-  const rotinasPeriodo = rotinas.filter(r => r.data >= filtroDataDe && r.data <= filtroDataAte)
+  // indicadores de atendimento (rotina diária) de hoje, somados na equipe toda
+  const rotinasHoje = rotinas.filter(r => r.data === hojeISO)
   const somaCampo = (lista, campo) => lista.reduce((s, r) => s + (Number(r[campo]) || 0), 0)
-  const atendimentosPeriodo = somaCampo(rotinasPeriodo, 'clientes_recebidos')
-  const retornosPeriodo = somaCampo(rotinasPeriodo, 'retornos')
-  const aceitesPeriodo = somaCampo(rotinasPeriodo, 'ag_aceite')
+  const atendimentosHoje = somaCampo(rotinasHoje, 'clientes_recebidos')
+  const retornosHoje = somaCampo(rotinasHoje, 'retornos')
+  const aceitesHoje = somaCampo(rotinasHoje, 'ag_aceite')
 
   function breakdownConsultores(campo) {
-    return rotinasPeriodo
+    return rotinasHoje
       .map(r => ({ nome: nomeConsultor(r.consultor_id), valor: Number(r[campo]) || 0 }))
       .filter(r => r.valor > 0)
       .sort((a, b) => b.valor - a.valor)
   }
 
-  // dias do período filtrado, dia a dia — base dos gráficos de tendência
-  const diasPeriodo = []
-  {
-    const cursor = new Date(filtroDataDe + 'T00:00:00')
-    const fimCursor = new Date(filtroDataAte + 'T00:00:00')
-    while (cursor <= fimCursor) {
-      const dISO = iso(cursor)
-      diasPeriodo.push({ dISO, label: dISO.slice(8, 10) + '/' + dISO.slice(5, 7) })
-      cursor.setDate(cursor.getDate() + 1)
-    }
+  // vendas por dia, últimos 7 dias, pra gráfico de tendência
+  const dias7 = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(hoje); d.setDate(d.getDate() - i)
+    const dISO = iso(d)
+    dias7.push({
+      label: dISO.slice(8, 10) + '/' + dISO.slice(5, 7),
+      valor: vendidos.filter(c => c.data_venda === dISO).length,
+    })
   }
-  const dadosVendasPorDia = diasPeriodo.map(d => ({
-    label: d.label, valor: vendidos.filter(c => c.data_venda === d.dISO).length,
-  }))
+
+  // rotina (atendimento) por dia, últimos 7 dias, somada na equipe toda
   function trendRotina(campo) {
-    return diasPeriodo.map(d => ({
-      label: d.label, valor: somaCampo(rotinas.filter(r => r.data === d.dISO), campo),
-    }))
+    const trend = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoje); d.setDate(d.getDate() - i)
+      const dISO = iso(d)
+      trend.push({
+        label: dISO.slice(8, 10) + '/' + dISO.slice(5, 7),
+        valor: somaCampo(rotinas.filter(r => r.data === dISO), campo),
+      })
+    }
+    return trend
   }
 
-  const dadosRankingNovo = rankingNovoPeriodo.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
-  const dadosRankingRenovacao = rankingRenovacaoPeriodo.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
-  const dadosPorProduto = vendasPorProdutoPeriodo.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: `${p.qtd} un. · ${fmtMoeda(p.valor)}` }))
+  const dadosRankingNovo = rankingNovoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
+  const dadosRankingRenovacao = rankingRenovacaoMes.slice(0, 8).map(r => ({ label: r.nome, valor: r.valor, valorLabel: `${r.qtd} un. · ${fmtMoeda(r.valor)}` }))
+  const dadosPorProduto = vendasPorProdutoMes.slice(0, 10).map(p => ({ label: p.subproduto, valor: p.valor, valorLabel: `${p.qtd} un. · ${fmtMoeda(p.valor)}` }))
 
-  // funil: coorte de clientes que entraram na carteira dentro do período (data_adicao),
-  // divididos em 3 baldes pelo status atual (recém-chegado / sendo trabalhado / fechado)
-  const novosClientesPeriodo = clientesPeriodo.filter(c => (c.status || 'Aguardando Atendimento') === 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
-  const emAndamentoPeriodo = clientesPeriodo.filter(c => c.status !== 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
-  const fechadosPeriodo = clientesPeriodo.filter(c => STATUS_VENDA.includes(c.status))
+  // funil: onde a carteira ativa está hoje — não é fluxo sequencial no tempo, é retrato do
+  // momento atual em 3 baldes (recém-chegado / sendo trabalhado / fechado).
+  const novosClientes = clientes.filter(c => (c.status || 'Aguardando Atendimento') === 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
+  const emAndamento = clientes.filter(c => c.status !== 'Aguardando Atendimento' && !STATUS_VENDA.includes(c.status))
   const funil = [
-    { label: 'Novos', valor: novosClientesPeriodo.length },
-    { label: 'Em Andamento', valor: emAndamentoPeriodo.length },
-    { label: 'Fechados', valor: fechadosPeriodo.length },
+    { label: 'Novos', valor: novosClientes.length },
+    { label: 'Em Andamento', valor: emAndamento.length },
+    { label: 'Fechados', valor: vendidos.length },
   ]
 
-  // resumo do Kanban de Temperatura — só clientes enviados pro kanban (no_kanban=true) cuja
-  // temperatura foi atualizada dentro do período filtrado
-  const kanbanAtivosPeriodo = clientes.filter(c => c.no_kanban && c.temperatura_atualizada_em &&
-    c.temperatura_atualizada_em.slice(0, 10) >= filtroDataDe && c.temperatura_atualizada_em.slice(0, 10) <= filtroDataAte)
+  // resumo do Kanban de Temperatura — só clientes enviados pro kanban (no_kanban=true)
+  const kanbanAtivos = clientes.filter(c => c.no_kanban)
   const CORES_TEMPERATURA = { Frio: '#378ADD', Morno: '#EF9F27', Quente: '#E05C2A', Descartado: '#888' }
   const porTemperatura = Object.keys(CORES_TEMPERATURA).map(t => ({
-    label: t, valor: kanbanAtivosPeriodo.filter(c => c.temperatura === t).length, cor: CORES_TEMPERATURA[t],
+    label: t, valor: kanbanAtivos.filter(c => c.temperatura === t).length, cor: CORES_TEMPERATURA[t],
   }))
 
-  // comparativo mensal — últimos 6 meses (incluindo o atual), qtd + receita de vendas fechadas.
-  // Fica de fora do filtro de período: é uma visão de tendência de longo prazo, não cabe
-  // dentro de uma janela de dias como as demais seções.
+  // comparativo mensal — últimos 6 meses (incluindo o atual), qtd + receita de vendas fechadas
   const meses6 = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
@@ -405,69 +408,62 @@ export default function Dashboard({ user }) {
 
   return (
     <div className="main">
-      <div className="dash-section-title">Filtro de Período</div>
-      <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
-        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard('hoje')}>Hoje</button>
-        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard('ontem')}>Ontem</button>
-        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard('7dias')}>7 dias</button>
-        <button className="btn-filter-light" onClick={() => aplicarPresetDashboard('mes')}>Mês atual</button>
-        <label style={{ fontSize: 11, color: '#888' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} /></label>
-        <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} /></label>
-      </div>
-      <p style={{ fontSize: 11, color: '#888', margin: '0 0 20px' }}>
-        Esse período filtra tudo abaixo. "Comparativo Mensal (últimos 6 meses)" fica de fora — é uma
-        tendência de longo prazo, não uma janela de dias.
-      </p>
+      <div className="dash-section-title">Visão Geral</div>
 
-      <div className="dash-section-title">Visão Geral ({filtroDataDe} a {filtroDataAte})</div>
       <div className="dash-grid">
-        <CardComparativo titulo="Vendas no Período" cor="roxo" atualQtd={vendasPeriodo.length} atualValor={somaValor(vendasPeriodo)}
-          anteriorQtd={vendasPeriodoAnterior.length} labelAnterior="período anterior"
-          onClick={() => setModal({ titulo: 'Vendas no Período', tipo: 'clientes', itens: paraItensClientes(vendasPeriodo) })} />
-        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos no Período (Conversão da Carteira)', tipo: 'clientes', itens: paraItensClientes(vendasPeriodo) })}>
-          <div className="dash-card-titulo">Conversão no Período</div>
-          <div className="dash-card-numero">{conversaoPeriodo}%</div>
-          <div className="dash-card-valor">{vendasPeriodo.length} vendas / {totalCarteira} clientes</div>
+        <CardComparativo titulo="Vendas Hoje" cor="roxo" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
+          anteriorQtd={vendasOntem.length} labelAnterior="ontem"
+          onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', itens: paraItensClientes(vendasHoje) })} />
+        <CardComparativo titulo="Vendas na Semana" cor="laranja" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
+          anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada"
+          onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', itens: paraItensClientes(vendasSemana) })} />
+        <CardComparativo titulo="Vendas no Mês" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
+          anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
+          onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', itens: paraItensClientes(vendasMes) })} />
+        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos (Conversão da Carteira)', tipo: 'clientes', itens: paraItensClientes(vendidos) })}>
+          <div className="dash-card-titulo">Conversão da Carteira</div>
+          <div className="dash-card-numero">{conversao}%</div>
+          <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
         </div>
       </div>
 
       <div className="dash-section-title">Funil da Carteira</div>
       <div className="dash-card">
-        <FunilChart dados={funil} total={clientesPeriodo.length} onClickRow={(i) => {
-          const listas = [novosClientesPeriodo, emAndamentoPeriodo, fechadosPeriodo]
+        <FunilChart dados={funil} total={totalCarteira} onClickRow={(i) => {
+          const listas = [novosClientes, emAndamento, vendidos]
           setModal({ titulo: `Funil — ${funil[i].label}`, tipo: 'clientes', itens: paraItensClientes(listas[i]) })
         }} />
       </div>
 
       <div className="dash-section-title">Potencial de Carteira</div>
       <div className="diag-stats">
-        <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{clientesAtivosPeriodo.length}</div><div className="diag-stat-label">Clientes na Carteira</div></div>
-        <div className={`diag-stat diag-stat-migracao ${potencialCarteiraPeriodo.migracao === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteiraPeriodo.migracao}</div><div className="diag-stat-label">Pot. Migração</div></div>
-        <div className={`diag-stat diag-stat-bl ${potencialCarteiraPeriodo.bl === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteiraPeriodo.bl}</div><div className="diag-stat-label">Pot. BL</div></div>
-        <div className={`diag-stat diag-stat-ti ${potencialCarteiraPeriodo.ti === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteiraPeriodo.ti}</div><div className="diag-stat-label">Pot. TI</div></div>
-        <div className={`diag-stat diag-stat-voz ${potencialCarteiraPeriodo.voz === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteiraPeriodo.voz}</div><div className="diag-stat-label">Pot. Voz</div></div>
-        <div className={`diag-stat diag-stat-credito ${potencialCarteiraPeriodo.credito === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{fmtMoeda(potencialCarteiraPeriodo.credito)}</div><div className="diag-stat-label">Crédito Pré-aprovado</div></div>
+        <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{totalCarteira}</div><div className="diag-stat-label">Clientes na Carteira</div></div>
+        <div className={`diag-stat diag-stat-migracao ${potencialCarteira.migracao === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.migracao}</div><div className="diag-stat-label">Pot. Migração</div></div>
+        <div className={`diag-stat diag-stat-bl ${potencialCarteira.bl === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.bl}</div><div className="diag-stat-label">Pot. BL</div></div>
+        <div className={`diag-stat diag-stat-ti ${potencialCarteira.ti === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.ti}</div><div className="diag-stat-label">Pot. TI</div></div>
+        <div className={`diag-stat diag-stat-voz ${potencialCarteira.voz === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{potencialCarteira.voz}</div><div className="diag-stat-label">Pot. Voz</div></div>
+        <div className={`diag-stat diag-stat-credito ${potencialCarteira.credito === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{fmtMoeda(potencialCarteira.credito)}</div><div className="diag-stat-label">Crédito Pré-aprovado</div></div>
       </div>
 
-      <div className="dash-section-title">Receita por Tipo</div>
+      <div className="dash-section-title">Receita por Tipo (mês atual)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Produto Novo" cor="roxo" valor={novoPeriodo.qtd} sub={`${fmtMoeda(novoPeriodo.valor)} em receita`}
-          onClick={() => setModal({ titulo: 'Receita — Produto Novo', tipo: 'clientes', itens: paraItensVenda(itensPorTipoPeriodo('Novo')) })} />
-        <CardSimples titulo="Renovação" cor="laranja" valor={renovacaoPeriodo.qtd} sub={`${fmtMoeda(renovacaoPeriodo.valor)} em receita`}
-          onClick={() => setModal({ titulo: 'Receita — Renovação', tipo: 'clientes', itens: paraItensVenda(itensPorTipoPeriodo('Renovação')) })} />
-        <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoPeriodo.qtd} sub={`${fmtMoeda(aparelhoPeriodo.valor)} em receita`}
-          onClick={() => setModal({ titulo: 'Receita — Aparelho', tipo: 'clientes', itens: paraItensVenda(itensPorTipoPeriodo('aparelho')) })} />
+        <CardSimples titulo="Produto Novo" cor="roxo" valor={novoMes.qtd} sub={`${fmtMoeda(novoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Produto Novo (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('Novo')) })} />
+        <CardSimples titulo="Renovação" cor="laranja" valor={renovacaoMes.qtd} sub={`${fmtMoeda(renovacaoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Renovação (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('Renovação')) })} />
+        <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoMes.qtd} sub={`${fmtMoeda(aparelhoMes.valor)} em receita`}
+          onClick={() => setModal({ titulo: 'Receita — Aparelho (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('aparelho')) })} />
       </div>
 
-      {!isConsultor && melhorDoPeriodo && (
+      {!isConsultor && melhorDoDia && (
         <div className="dash-destaque">
-          Melhor vendedor do período: <strong>{melhorDoPeriodo.nome}</strong> — {melhorDoPeriodo.qtd} venda(s) · {fmtMoeda(melhorDoPeriodo.valor)}
+          Melhor vendedor do dia: <strong>{melhorDoDia.nome}</strong> — {melhorDoDia.qtd} venda(s) · {fmtMoeda(melhorDoDia.valor)}
         </div>
       )}
 
-      <div className="dash-section-title">Tendência de Vendas</div>
+      <div className="dash-section-title">Tendência de Vendas (últimos 7 dias)</div>
       <div className="dash-card">
-        <BarChartVertical dados={dadosVendasPorDia} />
+        <BarChartVertical dados={dias7} />
       </div>
 
       <div className="dash-section-title">Comparativo Mensal (últimos 6 meses)</div>
@@ -483,44 +479,44 @@ export default function Dashboard({ user }) {
         </table>
       </div>
 
-      <div className="dash-section-title">Indicadores de Atendimento</div>
+      <div className="dash-section-title">Indicadores de Atendimento (hoje)</div>
       <div className="dash-grid">
-        <CardSimples titulo="Atendimentos" cor="azul" valor={atendimentosPeriodo} sub="clientes recebidos no período"
-          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Atendimentos no período — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
-        <CardSimples titulo="Retornos" cor="laranja" valor={retornosPeriodo} sub="retornos feitos no período"
-          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Retornos no período — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
-        <CardSimples titulo="Ag. Aceite Enviados" cor="verde" valor={aceitesPeriodo} sub="enviados no período"
-          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Ag. Aceite no período — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
+        <CardSimples titulo="Atendimentos" cor="azul" valor={atendimentosHoje} sub="clientes recebidos hoje"
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Atendimentos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('clientes_recebidos') })} />
+        <CardSimples titulo="Retornos" cor="laranja" valor={retornosHoje} sub="retornos feitos hoje"
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Retornos hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('retornos') })} />
+        <CardSimples titulo="Ag. Aceite Enviados" cor="verde" valor={aceitesHoje} sub="enviados hoje"
+          onClick={isConsultor ? undefined : () => setModal({ titulo: 'Ag. Aceite hoje — por consultor', tipo: 'consultores', itens: breakdownConsultores('ag_aceite') })} />
       </div>
 
       <div className="dash-grid" style={{ marginTop: 14 }}>
         <div className="dash-card">
-          <div className="dash-card-titulo">Atendimentos por dia</div>
+          <div className="dash-card-titulo">Atendimentos — últimos 7 dias</div>
           <BarChartVertical dados={trendRotina('clientes_recebidos')} altura={110} />
         </div>
         <div className="dash-card">
-          <div className="dash-card-titulo">Retornos por dia</div>
+          <div className="dash-card-titulo">Retornos — últimos 7 dias</div>
           <BarChartVertical dados={trendRotina('retornos')} altura={110} />
         </div>
         <div className="dash-card">
-          <div className="dash-card-titulo">Ag. Aceite por dia</div>
+          <div className="dash-card-titulo">Ag. Aceite — últimos 7 dias</div>
           <BarChartVertical dados={trendRotina('ag_aceite')} altura={110} />
         </div>
       </div>
 
       <div className="dash-section-title">Kanban de Temperatura (resumo)</div>
       <div className="dash-card">
-        {kanbanAtivosPeriodo.length === 0 ? <div className="empty">Nenhum cliente com temperatura atualizada no período</div> : (
+        {kanbanAtivos.length === 0 ? <div className="empty">Nenhum cliente no Kanban</div> : (
           <BarChartColorido dados={porTemperatura} onClickRow={(d) => setModal({
             titulo: `Kanban — ${d.label}`, tipo: 'clientes',
-            itens: paraItensClientes(kanbanAtivosPeriodo.filter(c => c.temperatura === d.label)),
+            itens: paraItensClientes(kanbanAtivos.filter(c => c.temperatura === d.label)),
           })} />
         )}
       </div>
 
-      <div className="dash-section-title">Vendas por Produto</div>
-      {vendasPorProdutoPeriodo.length === 0 && <div className="empty">Nenhuma venda registrada no período</div>}
-      {vendasPorProdutoPeriodo.length > 0 && (
+      <div className="dash-section-title">Vendas por Produto (mês atual)</div>
+      {vendasPorProdutoMes.length === 0 && <div className="empty">Nenhuma venda registrada este mês</div>}
+      {vendasPorProdutoMes.length > 0 && (
         <>
           <div className="dash-card" style={{ marginBottom: 14 }}>
             <BarChartHorizontal dados={dadosPorProduto} />
@@ -529,7 +525,7 @@ export default function Dashboard({ user }) {
             <table className="carteira-table">
               <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
               <tbody>
-                {vendasPorProdutoPeriodo.map(p => (
+                {vendasPorProdutoMes.map(p => (
                   <tr key={p.subproduto}>
                     <td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
                   </tr>
@@ -542,9 +538,9 @@ export default function Dashboard({ user }) {
 
       {!isConsultor && (
         <>
-          <div className="dash-section-title">Ranking — Produto Novo</div>
-          {rankingNovoPeriodo.length === 0 && <div className="empty">Nenhuma venda de produto novo no período</div>}
-          {rankingNovoPeriodo.length > 0 && (
+          <div className="dash-section-title">Ranking — Produto Novo (mês atual)</div>
+          {rankingNovoMes.length === 0 && <div className="empty">Nenhuma venda de produto novo este mês</div>}
+          {rankingNovoMes.length > 0 && (
             <>
               <div className="dash-card" style={{ marginBottom: 14 }}>
                 <BarChartHorizontal dados={dadosRankingNovo} />
@@ -555,7 +551,7 @@ export default function Dashboard({ user }) {
                     <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
                   </thead>
                   <tbody>
-                    {rankingNovoPeriodo.map((r, i) => (
+                    {rankingNovoMes.map((r, i) => (
                       <tr key={r.id}>
                         <td>{i + 1}</td>
                         <td>{r.nome}</td>
@@ -569,9 +565,9 @@ export default function Dashboard({ user }) {
             </>
           )}
 
-          <div className="dash-section-title">Ranking — Renovação</div>
-          {rankingRenovacaoPeriodo.length === 0 && <div className="empty">Nenhuma venda de renovação no período</div>}
-          {rankingRenovacaoPeriodo.length > 0 && (
+          <div className="dash-section-title">Ranking — Renovação (mês atual)</div>
+          {rankingRenovacaoMes.length === 0 && <div className="empty">Nenhuma venda de renovação este mês</div>}
+          {rankingRenovacaoMes.length > 0 && (
             <>
               <div className="dash-card" style={{ marginBottom: 14 }}>
                 <BarChartHorizontal dados={dadosRankingRenovacao} />
@@ -582,7 +578,7 @@ export default function Dashboard({ user }) {
                     <tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor Vendido</th></tr>
                   </thead>
                   <tbody>
-                    {rankingRenovacaoPeriodo.map((r, i) => (
+                    {rankingRenovacaoMes.map((r, i) => (
                       <tr key={r.id}>
                         <td>{i + 1}</td>
                         <td>{r.nome}</td>

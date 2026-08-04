@@ -14,6 +14,12 @@ const SUBPRODUTOS = [
   'GUD', 'TER', 'SME',
 ]
 
+// Renovação Móvel e Renovação Fixa — únicos subprodutos que são renovação de plano, nunca
+// venda nova. Todo o resto é sempre "Novo". Tipo deixa de ser escolha manual, vira automático
+// por subproduto.
+const SUBPRODUTOS_RENOVACAO = ['RM', 'RBL', 'RLF']
+const tipoDoSubproduto = (sub) => SUBPRODUTOS_RENOVACAO.includes(sub) ? 'Renovação' : 'Novo'
+
 export default function VendaItensModal({ cliente, onClose, onSaved }) {
   const [itens, setItens] = useState({}) // { [subproduto]: { marcado, tipo, quantidade, valor } }
   const [loading, setLoading] = useState(true)
@@ -39,7 +45,7 @@ export default function VendaItensModal({ cliente, onClose, onSaved }) {
         const { [sub]: _, ...resto } = prev
         return resto
       }
-      return { ...prev, [sub]: { marcado: true, tipo: 'Novo', quantidade: 1, valor: 0 } }
+      return { ...prev, [sub]: { marcado: true, tipo: tipoDoSubproduto(sub), quantidade: 1, valor: 0 } }
     })
   }
 
@@ -105,10 +111,7 @@ export default function VendaItensModal({ cliente, onClose, onSaved }) {
                     </label>
                     {item?.marcado && (
                       <>
-                        <select className="filter-select" style={{ width: 110 }} value={item.tipo} onChange={e => atualizarItem(sub, 'tipo', e.target.value)}>
-                          <option value="Novo">Novo</option>
-                          <option value="Renovação">Renovação</option>
-                        </select>
+                        <span className={`tag ${item.tipo === 'Renovação' ? 'tag-ap' : 'tag-bl'}`} style={{ width: 110, textAlign: 'center' }}>{item.tipo}</span>
                         <input className="lm-input" type="number" min="1" style={{ width: 60 }} value={item.quantidade}
                           onChange={e => atualizarItem(sub, 'quantidade', e.target.value)} title="Quantidade" />
                         <input className="lm-input" type="number" step="0.01" style={{ width: 100 }} value={item.valor}
