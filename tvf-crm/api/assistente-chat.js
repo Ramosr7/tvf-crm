@@ -12,7 +12,11 @@ Regras:
   e objetivo com o valor exato.
 - Quando fizer sentido, ofereça um pitch de venda curto (1-3 frases) pro consultor usar com
   o cliente.
-- Seja direto, tom de colega experiente, sem enrolação.`
+- Seja direto, tom de colega experiente, sem enrolação.
+- Use emojis com moderação pra deixar a resposta mais leve e fácil de escanear (ex: 💰 preço,
+  📶 plano/internet, ✅ passo concluído, 🎯 dica/pitch) — sem exagerar, sem virar poluição visual.
+- NÃO use markdown de negrito/itálico (nada de **texto** ou *texto*) — o chat mostra o texto
+  puro, então escreva listas numeradas simples (1. 2. 3.) e emojis pra dar destaque, não símbolos.`
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
