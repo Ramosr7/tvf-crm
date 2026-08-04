@@ -156,8 +156,9 @@ function ModalDetalhe({ titulo, tipo, itens, onClose }) {
 export default function Dashboard({ user }) {
   const isConsultor = user.perfil === 'Consultor'
   const [clientes, setClientes] = useState([])
-  const [valorPorCliente, setValorPorCliente] = useState({})
-  const [itensPorCliente, setItensPorCliente] = useState([])
+  const [vendas, setVendas] = useState([]) // cada linha = 1 evento de venda (carteira_venda) — cliente pode ter várias
+  const [valorPorVenda, setValorPorVenda] = useState({})
+  const [itensPorVenda, setItensPorVenda] = useState([])
   const [staff, setStaff] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -168,8 +169,10 @@ export default function Dashboard({ user }) {
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
     let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
     if (isConsultor) qRotina = qRotina.eq('consultor_id', user.id)
+    let qVendas = supabase.from('carteira_venda').select('id, carteira_cliente_id, consultor_id, data_venda')
+    if (isConsultor) qVendas = qVendas.eq('consultor_id', user.id)
 
-    const [{ data: clientesData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
+    const [{ data: clientesData }, { data: vendasData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       fetchPaginado((de, ate) => {
         let q = supabase.from('carteira_cliente')
           .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
@@ -177,17 +180,19 @@ export default function Dashboard({ user }) {
         if (isConsultor) q = q.eq('consultor_id', user.id)
         return q
       }),
-      supabase.from('carteira_venda_item').select('carteira_cliente_id, valor, tipo, subproduto'),
+      qVendas,
+      supabase.from('carteira_venda_item').select('carteira_venda_id, valor, tipo, subproduto'),
       supabase.from('consultores_staff').select('id, nome'),
       qRotina,
     ])
     setClientes(clientesData || [])
+    setVendas(vendasData || [])
     const mapa = {}
     ;(vendaItens || []).forEach(v => {
-      mapa[v.carteira_cliente_id] = (mapa[v.carteira_cliente_id] || 0) + Number(v.valor || 0)
+      mapa[v.carteira_venda_id] = (mapa[v.carteira_venda_id] || 0) + Number(v.valor || 0)
     })
-    setValorPorCliente(mapa)
-    setItensPorCliente(vendaItens || [])
+    setValorPorVenda(mapa)
+    setItensPorVenda(vendaItens || [])
     setStaff(staffData || [])
     setRotinas(rotinaData || [])
     setLoading(false)
@@ -198,9 +203,13 @@ export default function Dashboard({ user }) {
   if (loading) return <div className="main"><div className="empty">Carregando...</div></div>
 
   const nomeConsultor = (id) => staff.find(s => s.id === id)?.nome || '—'
-  const valorCliente = (id) => valorPorCliente[id] || 0
+  const clientePorId = {}
+  clientes.forEach(c => { clientePorId[c.id] = c })
+  const valorVenda = (id) => valorPorVenda[id] || 0
 
-  const vendidos = clientes.filter(c => STATUS_VENDA.includes(c.status) && c.data_venda)
+  // vendidos = eventos de venda (carteira_venda), não clientes únicos — o mesmo cliente pode
+  // ter mais de uma venda ao longo do tempo (recontato) e cada uma conta separado aqui.
+  const vendidos = vendas
 
   const hoje = new Date()
   const hojeISO = iso(hoje)
@@ -217,27 +226,35 @@ export default function Dashboard({ user }) {
 
   function noPeriodo(de, ate) {
     const deISO = iso(de), ateISO = iso(ate)
-    return vendidos.filter(c => c.data_venda >= deISO && c.data_venda <= ateISO)
+    return vendidos.filter(v => v.data_venda >= deISO && v.data_venda <= ateISO)
   }
   function somaValor(lista) {
-    return lista.reduce((s, c) => s + valorCliente(c.id), 0)
+    return lista.reduce((s, v) => s + valorVenda(v.id), 0)
   }
+  // lista de eventos de venda -> linhas pro ModalDetalhe (nome do cliente + valor daquela venda)
   function paraItensClientes(lista) {
-    return lista.map(c => ({ ...c, consultorNome: nomeConsultor(c.consultor_id), valor: valorCliente(c.id) }))
+    return lista.map(v => {
+      const cliente = clientePorId[v.carteira_cliente_id]
+      return {
+        id: v.id, razao_social: cliente?.razao_social, cnpj: cliente?.cnpj,
+        consultorNome: nomeConsultor(v.consultor_id), status: cliente?.status, valor: valorVenda(v.id),
+      }
+    })
   }
-  // pra modal de Receita por Tipo — venda item não tem dado do cliente junto, busca na lista carregada
+  // pra modal de Receita por Tipo — venda item não tem dado do cliente junto, busca via a venda
   function paraItensVenda(itens) {
     return itens.map((it, i) => {
-      const cliente = clientes.find(c => c.id === it.carteira_cliente_id)
+      const venda = vendas.find(v => v.id === it.carteira_venda_id)
+      const cliente = clientePorId[venda?.carteira_cliente_id]
       return {
         id: i, razao_social: cliente?.razao_social, cnpj: cliente?.cnpj,
-        consultorNome: nomeConsultor(cliente?.consultor_id), status: it.subproduto, valor: Number(it.valor || 0),
+        consultorNome: nomeConsultor(venda?.consultor_id), status: it.subproduto, valor: Number(it.valor || 0),
       }
     })
   }
 
-  const vendasHoje = vendidos.filter(c => c.data_venda === hojeISO)
-  const vendasOntem = vendidos.filter(c => c.data_venda === ontemISO)
+  const vendasHoje = vendidos.filter(v => v.data_venda === hojeISO)
+  const vendasOntem = vendidos.filter(v => v.data_venda === ontemISO)
 
   const vendasSemana = noPeriodo(inicioSemanaAtual, hoje)
   const vendasSemanaAnterior = noPeriodo(inicioSemanaAnterior, fimSemanaAnterior)
@@ -249,7 +266,10 @@ export default function Dashboard({ user }) {
   // só entra nos totais quando virar (flag desligado manualmente).
   const clientesAtivos = clientes.filter(c => !c.alerta_renovacao)
   const totalCarteira = clientesAtivos.length
-  const conversao = totalCarteira > 0 ? Math.round((vendidos.length / totalCarteira) * 100) : 0
+  // conversão da carteira olha clientes únicos fechados (não eventos de venda — recompra do
+  // mesmo cliente não deveria inflar esse %)
+  const clientesFechadosUnicos = new Set(clientes.filter(c => STATUS_VENDA.includes(c.status)).map(c => c.id)).size
+  const conversao = totalCarteira > 0 ? Math.round((clientesFechadosUnicos / totalCarteira) * 100) : 0
 
   const potencialCarteira = clientesAtivos.reduce((acc, c) => {
     acc.migracao += c.potencial_migracao || 0
@@ -260,32 +280,32 @@ export default function Dashboard({ user }) {
     return acc
   }, { migracao: 0, bl: 0, ti: 0, voz: 0, credito: 0 })
 
-  // receita por tipo (Novo/Renovação) no mês atual, só itens dos clientes vendidos no período.
+  // receita por tipo (Novo/Renovação) no mês atual, só itens das vendas fechadas no período.
   // Subproduto com "TA" no código é aparelho — não conta como produto novo/renovação de plano.
   function receitaPorTipo(lista, tipo) {
-    const idsNoPeriodo = new Set(lista.map(c => c.id))
-    return itensPorCliente
-      .filter(it => idsNoPeriodo.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
+    const idsNoPeriodo = new Set(lista.map(v => v.id))
+    return itensPorVenda
+      .filter(it => idsNoPeriodo.has(it.carteira_venda_id) && it.tipo === tipo && !ehAparelho(it))
       .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
   }
   const novoMes = receitaPorTipo(vendasMes, 'Novo')
   const renovacaoMes = receitaPorTipo(vendasMes, 'Renovação')
-  const aparelhoMes = itensPorCliente
-    .filter(it => new Set(vendasMes.map(c => c.id)).has(it.carteira_cliente_id) && ehAparelho(it))
+  const idsVendaMes = new Set(vendasMes.map(v => v.id))
+  const aparelhoMes = itensPorVenda
+    .filter(it => idsVendaMes.has(it.carteira_venda_id) && ehAparelho(it))
     .reduce((acc, it) => ({ qtd: acc.qtd + 1, valor: acc.valor + Number(it.valor || 0) }), { qtd: 0, valor: 0 })
 
-  // ranking por consultor no mês corrente, separado por tipo (Novo/Renovação) —
-  // somar os dois junto escondia quem vendia mais de cada um
-  const idsClienteMes = new Set(vendasMes.map(c => c.id))
-  const consultorPorCliente = {}
-  clientes.forEach(c => { consultorPorCliente[c.id] = c.consultor_id })
+  // ranking por consultor no mês corrente, separado por tipo (Novo/Renovação) — usa o
+  // consultor daquela venda específica (não o consultor atual do cliente, que pode ter mudado)
+  const consultorPorVenda = {}
+  vendas.forEach(v => { consultorPorVenda[v.id] = v.consultor_id })
 
   function rankingPorTipo(tipo) {
     const porConsultor = {}
-    itensPorCliente
-      .filter(it => idsClienteMes.has(it.carteira_cliente_id) && it.tipo === tipo && !ehAparelho(it))
+    itensPorVenda
+      .filter(it => idsVendaMes.has(it.carteira_venda_id) && it.tipo === tipo && !ehAparelho(it))
       .forEach(it => {
-        const consultorId = consultorPorCliente[it.carteira_cliente_id]
+        const consultorId = consultorPorVenda[it.carteira_venda_id]
         if (!consultorId) return
         if (!porConsultor[consultorId]) porConsultor[consultorId] = { qtd: 0, valor: 0 }
         porConsultor[consultorId].qtd += 1
@@ -300,14 +320,14 @@ export default function Dashboard({ user }) {
 
   // itens de venda do mês por tipo — 'aparelho' pega os marcados como aparelho, resto filtra por tipo excluindo aparelho
   function itensPorTipoMes(tipoOuAparelho) {
-    return itensPorCliente.filter(it => idsClienteMes.has(it.carteira_cliente_id) &&
+    return itensPorVenda.filter(it => idsVendaMes.has(it.carteira_venda_id) &&
       (tipoOuAparelho === 'aparelho' ? ehAparelho(it) : (it.tipo === tipoOuAparelho && !ehAparelho(it))))
   }
 
   // vendas por produto (subproduto) no mês atual
   const porSubprodutoMes = {}
-  itensPorCliente
-    .filter(it => idsClienteMes.has(it.carteira_cliente_id))
+  itensPorVenda
+    .filter(it => idsVendaMes.has(it.carteira_venda_id))
     .forEach(it => {
       const sub = it.subproduto || '—'
       if (!porSubprodutoMes[sub]) porSubprodutoMes[sub] = { qtd: 0, valor: 0 }
@@ -320,11 +340,11 @@ export default function Dashboard({ user }) {
 
   // melhor vendedor do dia
   const porConsultorHoje = {}
-  vendasHoje.forEach(c => {
-    const id = c.consultor_id
+  vendasHoje.forEach(v => {
+    const id = v.consultor_id
     if (!porConsultorHoje[id]) porConsultorHoje[id] = { qtd: 0, valor: 0 }
     porConsultorHoje[id].qtd += 1
-    porConsultorHoje[id].valor += valorCliente(c.id)
+    porConsultorHoje[id].valor += valorVenda(v.id)
   })
   const rankingHoje = Object.entries(porConsultorHoje)
     .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))

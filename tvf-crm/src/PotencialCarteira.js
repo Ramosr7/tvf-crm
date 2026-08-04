@@ -9,10 +9,11 @@ import VendaChecklistModal from './VendaChecklistModal'
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
-  'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
+  'Pedido Finalizado', 'Proposta Enviada', 'Recontato — Nova Venda', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
 ]
-const STATUS_GATILHO_CHECKLIST = ['Venda Realizada', 'Pedido Finalizado']
+const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
+const STATUS_GATILHO_CHECKLIST = STATUS_VENDA
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -323,8 +324,17 @@ export default function PotencialCarteira({ user }) {
     }
   }
 
-  function mudarStatus(c, novoStatus) {
-    atualizarCliente(c.id, { status: novoStatus })
+  async function mudarStatus(c, novoStatus) {
+    const entrouEmVenda = STATUS_VENDA.includes(novoStatus) && !STATUS_VENDA.includes(c.status)
+    if (entrouEmVenda) {
+      // recontato vira venda de novo — gera um novo registro de venda (histórico), não
+      // reaproveita nem apaga a venda anterior desse cliente
+      const dataVenda = new Date().toISOString().slice(0, 10)
+      await supabase.from('carteira_venda').insert({ carteira_cliente_id: c.id, consultor_id: c.consultor_id, data_venda: dataVenda })
+      atualizarCliente(c.id, { status: novoStatus, data_venda: dataVenda })
+    } else {
+      atualizarCliente(c.id, { status: novoStatus })
+    }
     if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) {
       setModalChecklistCliente({ ...c, status: novoStatus })
     }

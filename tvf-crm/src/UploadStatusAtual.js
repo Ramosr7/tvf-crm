@@ -14,9 +14,10 @@ const ALIASES = {
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
-  'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
+  'Pedido Finalizado', 'Proposta Enviada', 'Recontato — Nova Venda', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
 ]
+const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 
 function normalizar(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
@@ -104,15 +105,20 @@ export default function UploadStatusAtual() {
         credito_pre_aprovado: potencialParque.credito_pre_aprovado || 0,
       } : null
 
-      const { data: existente } = await supabase.from('carteira_cliente').select('id, excluido_em')
+      const { data: existente } = await supabase.from('carteira_cliente').select('id, excluido_em, status')
         .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
 
       let clienteId = existente?.id
+      // só conta como "entrou em venda" se o status anterior não já era venda — senão toda
+      // reimportação semanal do mesmo cliente já vendido criaria uma venda duplicada
+      const entrouEmVenda = STATUS_VENDA.includes(status) && !STATUS_VENDA.includes(existente?.status)
+      const dataVenda = new Date().toISOString().slice(0, 10)
 
       if (existente) {
         const { error } = await supabase.from('carteira_cliente').update({
           status, razao_social: l.razao_social || undefined, contato: l.contato || undefined,
           ...(potencial || {}),
+          ...(entrouEmVenda ? { data_venda: dataVenda } : {}),
           excluido_em: null, excluido_por: null,
           atualizado_em: new Date().toISOString(),
         }).eq('id', existente.id)
@@ -121,6 +127,7 @@ export default function UploadStatusAtual() {
         const { data: novo, error } = await supabase.from('carteira_cliente').insert({
           cnpj: l.cnpj, razao_social: l.razao_social, contato: l.contato, consultor_id: consultorId, status,
           origem: 'Status Atual (Migração)',
+          ...(entrouEmVenda ? { data_venda: dataVenda } : {}),
           potencial_migracao: potencial?.potencial_migracao || 0,
           potencial_bl: potencial?.potencial_bl || 0,
           potencial_ti: potencial?.potencial_ti || 0,
@@ -128,6 +135,10 @@ export default function UploadStatusAtual() {
           credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
         }).select().single()
         if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else { criados++; clienteId = novo.id }
+      }
+
+      if (clienteId && entrouEmVenda) {
+        await supabase.from('carteira_venda').insert({ carteira_cliente_id: clienteId, consultor_id: consultorId, data_venda: dataVenda })
       }
 
       if (clienteId && l.observacao) {

@@ -3,12 +3,13 @@ import { supabase } from './supabaseClient'
 import VendaChecklistModal from './VendaChecklistModal'
 import LembreteModal from './LembreteModal'
 
-const STATUS_GATILHO_CHECKLIST = ['Venda Realizada', 'Pedido Finalizado']
+const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
+const STATUS_GATILHO_CHECKLIST = STATUS_VENDA
 
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
   'Débito Interno', 'Já Possui Consultor', 'Não Contatar', 'Não Possui Recomendação',
-  'Pedido Finalizado', 'Proposta Enviada', 'Retornar', 'Sem Contato Efetivo',
+  'Pedido Finalizado', 'Proposta Enviada', 'Recontato — Nova Venda', 'Retornar', 'Sem Contato Efetivo',
   'Sem Interesse', 'Sem Viabilidade', 'Venda Realizada',
 ]
 
@@ -80,7 +81,18 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
   async function mudarStatus(novoStatus) {
     setStatus(novoStatus)
     setSalvandoStatus(true)
-    await supabase.from('carteira_cliente').update({ status: novoStatus }).eq('id', cliente.id)
+    const entrouEmVenda = STATUS_VENDA.includes(novoStatus) && !STATUS_VENDA.includes(cliente.status)
+    const camposCliente = { status: novoStatus }
+    if (entrouEmVenda) {
+      // recontato vira venda de novo — gera um novo registro de venda (histórico), não
+      // reaproveita nem apaga a venda anterior desse cliente
+      const dataVenda = new Date().toISOString().slice(0, 10)
+      const { data: novaVenda } = await supabase.from('carteira_venda')
+        .insert({ carteira_cliente_id: cliente.id, consultor_id: cliente.consultor_id, data_venda: dataVenda })
+        .select('id').single()
+      if (novaVenda) camposCliente.data_venda = dataVenda
+    }
+    await supabase.from('carteira_cliente').update(camposCliente).eq('id', cliente.id)
     setSalvandoStatus(false)
     onSaved()
     if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) setMostrarChecklist(true)
