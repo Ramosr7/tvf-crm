@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchPaginado } from './supabaseClient'
+import VendaItensModal from './VendaItensModal'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 
@@ -122,7 +123,7 @@ function BarChartColorido({ dados, onClickRow }) {
   )
 }
 
-function ModalDetalhe({ titulo, tipo, itens, onClose }) {
+function ModalDetalhe({ titulo, tipo, itens, onClose, onClienteClick }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="lead-modal" style={{ width: 480 }} onClick={e => e.stopPropagation()}>
@@ -135,7 +136,8 @@ function ModalDetalhe({ titulo, tipo, itens, onClose }) {
         <div className="lm-body">
           {itens.length === 0 && <div className="empty">Nenhum registro</div>}
           {tipo === 'clientes' && itens.map(c => (
-            <div key={c.id} className="sino-item">
+            <div key={c.id} className={`sino-item ${onClienteClick ? 'dash-card-clicavel' : ''}`}
+              onClick={() => onClienteClick && onClienteClick(c)}>
               <div style={{ fontWeight: 700 }}>{c.razao_social || c.cnpj}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{c.consultorNome} · {c.status}</div>
               {c.valor > 0 && <div style={{ fontSize: 12, marginTop: 2 }}>{fmtMoeda(c.valor)}</div>}
@@ -163,6 +165,8 @@ export default function Dashboard({ user }) {
   const [rotinas, setRotinas] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [clienteEditando, setClienteEditando] = useState(null)
+  const [nomesPorClienteId, setNomesPorClienteId] = useState({})
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -172,11 +176,18 @@ export default function Dashboard({ user }) {
     let qVendas = supabase.from('carteira_venda').select('id, carteira_cliente_id, consultor_id, data_venda')
     if (isConsultor) qVendas = qVendas.eq('consultor_id', user.id)
 
-    const [{ data: clientesData }, { data: vendasData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
+    const [{ data: clientesData }, { data: nomesData }, { data: vendasData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       fetchPaginado((de, ate) => {
         let q = supabase.from('carteira_cliente')
           .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
           .is('excluido_em', null).range(de, ate)
+        if (isConsultor) q = q.eq('consultor_id', user.id)
+        return q
+      }),
+      // pra exibir nome/cnpj de vendas de clientes já removidos da carteira (foram pra Lixeira
+      // depois de vendidos) — venda continua contando nas métricas, só não teria mais nome sem isso
+      fetchPaginado((de, ate) => {
+        let q = supabase.from('carteira_cliente').select('id, cnpj, razao_social').range(de, ate)
         if (isConsultor) q = q.eq('consultor_id', user.id)
         return q
       }),
@@ -186,6 +197,9 @@ export default function Dashboard({ user }) {
       qRotina,
     ])
     setClientes(clientesData || [])
+    const mapaNomes = {}
+    ;(nomesData || []).forEach(c => { mapaNomes[c.id] = c })
+    setNomesPorClienteId(mapaNomes)
     setVendas(vendasData || [])
     const mapa = {}
     ;(vendaItens || []).forEach(v => {
@@ -231,13 +245,18 @@ export default function Dashboard({ user }) {
   function somaValor(lista) {
     return lista.reduce((s, v) => s + valorVenda(v.id), 0)
   }
-  // lista de eventos de venda -> linhas pro ModalDetalhe (nome do cliente + valor daquela venda)
+  // lista de eventos de venda -> linhas pro ModalDetalhe (nome do cliente + valor daquela venda).
+  // Também aceita lista de clientes "crus" (Funil, Kanban) — nesse caso não tem venda associada.
   function paraItensClientes(lista) {
     return lista.map(v => {
-      const cliente = clientePorId[v.carteira_cliente_id]
+      const ehVenda = Object.prototype.hasOwnProperty.call(v, 'carteira_cliente_id')
+      const clienteId = ehVenda ? v.carteira_cliente_id : v.id
+      const cliente = clientePorId[clienteId] || nomesPorClienteId[clienteId]
       return {
-        id: v.id, razao_social: cliente?.razao_social, cnpj: cliente?.cnpj,
-        consultorNome: nomeConsultor(v.consultor_id), status: cliente?.status, valor: valorVenda(v.id),
+        id: v.id, clienteId, vendaId: ehVenda ? v.id : null, consultorId: v.consultor_id,
+        razao_social: cliente?.razao_social ?? v.razao_social, cnpj: cliente?.cnpj ?? v.cnpj,
+        consultorNome: nomeConsultor(v.consultor_id), status: cliente?.status ?? v.status ?? '(removido da carteira)',
+        valor: ehVenda ? valorVenda(v.id) : 0,
       }
     })
   }
@@ -245,7 +264,7 @@ export default function Dashboard({ user }) {
   function paraItensVenda(itens) {
     return itens.map((it, i) => {
       const venda = vendas.find(v => v.id === it.carteira_venda_id)
-      const cliente = clientePorId[venda?.carteira_cliente_id]
+      const cliente = clientePorId[venda?.carteira_cliente_id] || nomesPorClienteId[venda?.carteira_cliente_id]
       return {
         id: i, razao_social: cliente?.razao_social, cnpj: cliente?.cnpj,
         consultorNome: nomeConsultor(venda?.consultor_id), status: it.subproduto, valor: Number(it.valor || 0),
@@ -433,14 +452,14 @@ export default function Dashboard({ user }) {
       <div className="dash-grid">
         <CardComparativo titulo="Vendas Hoje" cor="roxo" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
           anteriorQtd={vendasOntem.length} labelAnterior="ontem"
-          onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', itens: paraItensClientes(vendasHoje) })} />
+          onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasHoje) })} />
         <CardComparativo titulo="Vendas na Semana" cor="laranja" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
           anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada"
-          onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', itens: paraItensClientes(vendasSemana) })} />
+          onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasSemana) })} />
         <CardComparativo titulo="Vendas no Mês" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
           anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
-          onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', itens: paraItensClientes(vendasMes) })} />
-        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos (Conversão da Carteira)', tipo: 'clientes', itens: paraItensClientes(vendidos) })}>
+          onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasMes) })} />
+        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos (Conversão da Carteira)', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendidos) })}>
           <div className="dash-card-titulo">Conversão da Carteira</div>
           <div className="dash-card-numero">{conversao}%</div>
           <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
@@ -615,7 +634,17 @@ export default function Dashboard({ user }) {
       )}
 
       {modal && (
-        <ModalDetalhe titulo={modal.titulo} tipo={modal.tipo} itens={modal.itens} onClose={() => setModal(null)} />
+        <ModalDetalhe titulo={modal.titulo} tipo={modal.tipo} itens={modal.itens} onClose={() => setModal(null)}
+          onClienteClick={modal.podeEditarVenda ? (item) => item.clienteId && setClienteEditando(item) : undefined} />
+      )}
+
+      {clienteEditando && (
+        <VendaItensModal
+          cliente={{ id: clienteEditando.clienteId, consultor_id: clienteEditando.consultorId, razao_social: clienteEditando.razao_social, cnpj: clienteEditando.cnpj }}
+          vendaId={clienteEditando.vendaId}
+          onClose={() => setClienteEditando(null)}
+          onSaved={carregar}
+        />
       )}
     </div>
   )

@@ -20,27 +20,32 @@ const SUBPRODUTOS = [
 const SUBPRODUTOS_RENOVACAO = ['RM', 'RBL', 'RLF']
 const tipoDoSubproduto = (sub) => SUBPRODUTOS_RENOVACAO.includes(sub) ? 'Renovação' : 'Novo'
 
-export default function VendaItensModal({ cliente, onClose, onSaved }) {
+export default function VendaItensModal({ cliente, vendaId: vendaIdProp, onClose, onSaved }) {
   const [itens, setItens] = useState({}) // { [subproduto]: { marcado, tipo, quantidade, valor } }
   const [vendaId, setVendaId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [busca, setBusca] = useState('')
 
-  // edita sempre a venda mais recente do cliente — se não existir nenhuma ainda (cliente
+  // se vendaId for passado (ex: clicou numa venda específica no Dashboard), edita ela direto.
+  // senão, edita sempre a venda mais recente do cliente — se não existir nenhuma ainda (cliente
   // legado, ou primeira vez marcando produtos antes do status virar venda), cria uma.
   useEffect(() => {
     async function carregar() {
       let venda = null
-      const { data: existente } = await supabase.from('carteira_venda').select('id')
-        .eq('carteira_cliente_id', cliente.id).order('criado_em', { ascending: false }).limit(1).maybeSingle()
-      if (existente) {
-        venda = existente
+      if (vendaIdProp) {
+        venda = { id: vendaIdProp }
       } else {
-        const { data: nova } = await supabase.from('carteira_venda')
-          .insert({ carteira_cliente_id: cliente.id, consultor_id: cliente.consultor_id, data_venda: cliente.data_venda || new Date().toISOString().slice(0, 10) })
-          .select('id').single()
-        venda = nova
+        const { data: existente } = await supabase.from('carteira_venda').select('id')
+          .eq('carteira_cliente_id', cliente.id).order('criado_em', { ascending: false }).limit(1).maybeSingle()
+        if (existente) {
+          venda = existente
+        } else {
+          const { data: nova } = await supabase.from('carteira_venda')
+            .insert({ carteira_cliente_id: cliente.id, consultor_id: cliente.consultor_id, data_venda: cliente.data_venda || new Date().toISOString().slice(0, 10) })
+            .select('id').single()
+          venda = nova
+        }
       }
       setVendaId(venda.id)
       const { data } = await supabase.from('carteira_venda_item').select('*').eq('carteira_venda_id', venda.id)
@@ -52,7 +57,7 @@ export default function VendaItensModal({ cliente, onClose, onSaved }) {
       setLoading(false)
     }
     carregar()
-  }, [cliente.id, cliente.consultor_id, cliente.data_venda])
+  }, [cliente.id, cliente.consultor_id, cliente.data_venda, vendaIdProp])
 
   function toggle(sub) {
     setItens(prev => {
