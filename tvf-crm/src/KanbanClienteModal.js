@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import VendaChecklistModal from './VendaChecklistModal'
+import VendaItensModal from './VendaItensModal'
 import LembreteModal from './LembreteModal'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
@@ -76,6 +77,7 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
   const [status, setStatus] = useState(cliente.status || 'Aguardando Atendimento')
   const [salvandoStatus, setSalvandoStatus] = useState(false)
   const [mostrarChecklist, setMostrarChecklist] = useState(false)
+  const [mostrarVendaItens, setMostrarVendaItens] = useState(false)
   const [mostrarLembrete, setMostrarLembrete] = useState(false)
 
   async function mudarStatus(novoStatus) {
@@ -96,6 +98,9 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
     setSalvandoStatus(false)
     onSaved()
     if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) setMostrarChecklist(true)
+    // força o consultor a preencher os produtos vendidos na hora — senão a venda fica
+    // registrada sem nenhum item, sem receita nenhuma nos relatórios
+    if (entrouEmVenda) setMostrarVendaItens(true)
   }
 
   const dias = diasDesde(cliente.temperatura_atualizada_em)
@@ -173,6 +178,11 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
       {mostrarChecklist && (
         <VendaChecklistModal cliente={{ ...cliente, status }} user={user}
           onClose={() => setMostrarChecklist(false)} onConcluido={() => setMostrarChecklist(false)} />
+      )}
+      {mostrarVendaItens && (
+        <VendaItensModal cliente={{ ...cliente, status }}
+          onClose={() => setMostrarVendaItens(false)}
+          onSaved={() => { carregar(); onSaved() }} />
       )}
       {mostrarLembrete && (
         <LembreteModal cliente={cliente} user={user}

@@ -338,6 +338,11 @@ export default function PotencialCarteira({ user }) {
     if (STATUS_GATILHO_CHECKLIST.includes(novoStatus)) {
       setModalChecklistCliente({ ...c, status: novoStatus })
     }
+    if (entrouEmVenda) {
+      // força o consultor a preencher os produtos vendidos na hora — senão a venda fica
+      // registrada sem nenhum item, sem receita nenhuma nos relatórios
+      setModalCliente({ ...c, status: novoStatus })
+    }
   }
 
   async function adicionarCliente(e) {
