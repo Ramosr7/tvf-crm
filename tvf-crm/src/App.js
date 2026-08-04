@@ -10,6 +10,7 @@ import Relatorios from './Relatorios'
 import PlanoComercial from './PlanoComercial'
 import NotificacoesSino from './NotificacoesSino'
 import Dashboard from './Dashboard'
+import Assistente from './Assistente'
 import './index.css'
 
 
@@ -659,6 +660,8 @@ export default function App() {
       {user.perfil === 'Gestor' && (
         <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial /></div>
       )}
+
+      <Assistente user={user} />
     </div>
   )
 }

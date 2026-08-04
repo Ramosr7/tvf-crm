@@ -3,6 +3,7 @@ import UploadMapaParque from './UploadMapaParque'
 import UploadMailingDiario from './UploadMailingDiario'
 import UploadRenovacaoAntecipada from './UploadRenovacaoAntecipada'
 import UploadRadarPdf from './UploadRadarPdf'
+import AssistenteConteudo from './AssistenteConteudo'
 
 export default function Importar({ user }) {
   const opcoes = [
@@ -11,6 +12,7 @@ export default function Importar({ user }) {
     { key: 'renovacao_antecipada', label: 'Renovação Antecipada (M16)', restrito: true },
     { key: 'backlog_pc', label: 'Backlog do PC', restrito: true },
     { key: 'radar_pdf', label: 'Radar Diário (PDF)', restrito: true },
+    { key: 'assistente', label: 'Joaozinho (Assistente)', restrito: true },
   ].filter(o => !o.restrito || user.perfil === 'Gestor')
 
   const [aba, setAba] = useState(opcoes[0].key)
@@ -27,6 +29,7 @@ export default function Importar({ user }) {
       {aba === 'renovacao_antecipada' && user.perfil === 'Gestor' && <UploadRenovacaoAntecipada />}
       {aba === 'backlog_pc' && user.perfil === 'Gestor' && <UploadRadarPdf modo="backlog" />}
       {aba === 'radar_pdf' && user.perfil === 'Gestor' && <UploadRadarPdf modo="esteira" />}
+      {aba === 'assistente' && user.perfil === 'Gestor' && <AssistenteConteudo user={user} />}
     </div>
   )
 }
