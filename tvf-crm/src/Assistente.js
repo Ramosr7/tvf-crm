@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 
+const FRASES_BALAO = [
+  'Posso te ajudar?', 'Posso te ajudar a vender mais?', 'Dúvida de preço ou plano? Pergunta pra mim!',
+]
+
 export default function Assistente({ user }) {
   const [aberto, setAberto] = useState(false)
+  const [balaoVisivel, setBalaoVisivel] = useState(true)
+  const [fraseBalao] = useState(() => FRASES_BALAO[Math.floor(Math.random() * FRASES_BALAO.length)])
   const [mensagens, setMensagens] = useState([])
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -85,7 +91,14 @@ export default function Assistente({ user }) {
         </div>
       )}
 
-      <button className="assistente-fab" onClick={() => setAberto(a => !a)} title="Falar com o Joaozinho">
+      {!aberto && balaoVisivel && (
+        <div className="assistente-balao">
+          <button className="assistente-balao-fechar" onClick={() => setBalaoVisivel(false)} title="Fechar">✕</button>
+          {fraseBalao}
+        </div>
+      )}
+
+      <button className="assistente-fab" onClick={() => { setAberto(a => !a); setBalaoVisivel(false) }} title="Falar com o Joaozinho">
         <img src="/assets/joaozinho-avatar.png" alt="Joaozinho" />
       </button>
     </>

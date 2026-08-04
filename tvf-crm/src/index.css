@@ -416,12 +416,28 @@ body {
 /* ASSISTENTE VIRTUAL (Joaozinho) — widget flutuante no canto inferior direito */
 .assistente-fab {
   position: fixed; bottom: 24px; right: 24px; z-index: 400;
-  width: 60px; height: 60px; border-radius: 50%; padding: 0; border: 3px solid #660099;
+  width: 71px; height: 71px; border-radius: 50%; padding: 0; border: 3px solid #660099;
   background: #fff; cursor: pointer; box-shadow: 0 8px 24px rgba(102,0,153,0.35);
   overflow: hidden; transition: transform 0.15s;
 }
 .assistente-fab:hover { transform: scale(1.06); }
 .assistente-fab img { width: 100%; height: 100%; object-fit: cover; }
+
+.assistente-balao {
+  position: fixed; bottom: 40px; right: 104px; z-index: 400;
+  max-width: 220px; background: #fff; color: #333; font-size: 13px; font-weight: 600;
+  padding: 10px 28px 10px 14px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  animation: modalIn 0.18s ease;
+}
+.assistente-balao::after {
+  content: ''; position: absolute; right: -7px; bottom: 18px;
+  width: 14px; height: 14px; background: #fff; transform: rotate(45deg);
+  box-shadow: 3px -3px 4px rgba(0,0,0,0.03);
+}
+.assistente-balao-fechar {
+  position: absolute; top: 4px; right: 6px; border: none; background: none; cursor: pointer;
+  color: #aaa; font-size: 11px; padding: 4px;
+}
 
 .assistente-painel {
   position: fixed; bottom: 96px; right: 24px; z-index: 400;
