@@ -28,7 +28,12 @@ module.exports = async function handler(req, res) {
     return
   }
 
-  const { data: staffRow } = await supabase.from('consultores_staff').select('perfil').eq('id', user.id).maybeSingle()
+  // sem repassar o token, RLS enxerga role "anon" e a policy "só vê o próprio cadastro"
+  // (que depende de auth.uid()) não resolve nada — sempre bloquearia o Gestor por engano
+  const supabaseComToken = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  })
+  const { data: staffRow } = await supabaseComToken.from('consultores_staff').select('perfil').eq('id', user.id).maybeSingle()
   if (staffRow?.perfil !== 'Gestor') {
     res.status(403).json({ error: 'Só o Gestor pode alimentar o assistente.' })
     return

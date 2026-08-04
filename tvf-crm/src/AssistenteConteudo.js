@@ -23,6 +23,7 @@ export default function AssistenteConteudo({ user }) {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [editandoId, setEditandoId] = useState(null)
+  const [expandidoId, setExpandidoId] = useState(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -38,6 +39,11 @@ export default function AssistenteConteudo({ user }) {
     setTitulo(item.titulo)
     setConteudo(item.conteudo)
     setErro('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function alternarExpandido(id) {
+    setExpandidoId(prev => prev === id ? null : id)
   }
 
   function novoConteudo() {
@@ -141,16 +147,24 @@ export default function AssistenteConteudo({ user }) {
         )}
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Temas cadastrados ({lista.length})</div>
+      <div className="lm-section-title" style={{ marginTop: 24 }}>Histórico — o que já foi ensinado ({lista.length})</div>
       {loading && <div className="empty">Carregando...</div>}
       {!loading && lista.length === 0 && <div className="empty">Nenhum conteúdo cadastrado ainda.</div>}
       {!loading && lista.map(item => (
-        <div key={item.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-          <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => editar(item)}>
-            <div style={{ fontWeight: 700 }}>{item.titulo}</div>
-            <div style={{ fontSize: 11, color: '#888' }}>Atualizado em {formatDataHora(item.atualizado_em)} · {item.conteudo.length} caracteres</div>
+        <div key={item.id} className="sino-item">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => alternarExpandido(item.id)}>
+              <div style={{ fontWeight: 700 }}>{expandidoId === item.id ? '▼' : '▶'} {item.titulo}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>Atualizado em {formatDataHora(item.atualizado_em)} · {item.conteudo.length} caracteres</div>
+            </div>
+            <span style={{ cursor: 'pointer' }} title="Editar" onClick={() => editar(item)}>✏️</span>
+            <span style={{ cursor: 'pointer' }} title="Excluir" onClick={() => excluir(item)}>🗑</span>
           </div>
-          <span style={{ cursor: 'pointer' }} title="Excluir" onClick={() => excluir(item)}>🗑</span>
+          {expandidoId === item.id && (
+            <div style={{ fontSize: 12, color: '#333', background: '#F7F4FC', borderRadius: 8, padding: 10, marginTop: 8, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+              {item.conteudo}
+            </div>
+          )}
         </div>
       ))}
     </div>

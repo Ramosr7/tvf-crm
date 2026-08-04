@@ -34,6 +34,13 @@ module.exports = async function handler(req, res) {
     return
   }
 
+  // sem repassar o token nas próximas queries, o RLS enxerga role "anon" (não "authenticated")
+  // e a policy de leitura do conteúdo bloqueia tudo silenciosamente — sem esse client, o
+  // Joaozinho nunca via nada do que o gestor cadastrava
+  const supabaseComToken = createClient(process.env.REACT_APP_SUPABASE_URL, process.env.REACT_APP_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  })
+
   if (!process.env.OPENAI_API_KEY) {
     res.status(500).json({ error: 'OPENAI_API_KEY não configurada no servidor.' })
     return
@@ -46,7 +53,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { data: conteudos } = await supabase.from('assistente_conteudo')
+    const { data: conteudos } = await supabaseComToken.from('assistente_conteudo')
       .select('titulo, conteudo').order('titulo', { ascending: true })
 
     const blocoConteudo = (conteudos || []).length > 0
