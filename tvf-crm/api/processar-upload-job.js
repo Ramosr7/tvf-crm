@@ -1,6 +1,6 @@
 const OpenAI = require('openai')
 const { createClient } = require('@supabase/supabase-js')
-const { PDFParse } = require('pdf-parse')
+const pdfParse = require('pdf-parse')
 const { PDFDocument } = require('pdf-lib')
 
 const SYSTEM_PROMPT = `Você transcreve um TRECHO de um documento comercial (book de ofertas,
@@ -84,9 +84,8 @@ module.exports = async function handler(req, res) {
     // caminho rápido: extrai o texto real embutido no PDF direto, sem IA nenhuma — mais
     // rápido, de graça, e sem risco de a IA "inventar" ou trocar um preço na transcrição
     if (job.paginas_processadas === 0 && !job.conteudo_extraido) {
-      const parser = new PDFParse({ data: Buffer.from(bytesOriginais) })
-      const resultado = await parser.getText()
-      const totalPaginas = resultado.pages?.length || resultado.total || 1
+      const resultado = await pdfParse(Buffer.from(bytesOriginais))
+      const totalPaginas = resultado.numpages || 1
       if (resultado.text && resultado.text.length >= totalPaginas * MIN_CHARS_POR_PAGINA) {
         await supabaseComToken.from('assistente_upload_job').update({
           status: 'concluido', conteudo_extraido: resultado.text, total_paginas: totalPaginas,
