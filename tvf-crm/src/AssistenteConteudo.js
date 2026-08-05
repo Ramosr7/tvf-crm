@@ -14,7 +14,7 @@ function xlsxParaTexto(workbook) {
   }).join('\n\n')
 }
 
-async function chamarProcessarJob(jobId) {
+async function chamarUmaFatia(jobId) {
   const { data: sessao } = await supabase.auth.getSession()
   const resp = await fetch('/api/processar-upload-job', {
     method: 'POST',
@@ -25,7 +25,17 @@ async function chamarProcessarJob(jobId) {
   let dados = null
   try { dados = JSON.parse(textoResp) } catch { /* resposta não veio como JSON — provavelmente erro de infraestrutura (tamanho, timeout) */ }
   if (!resp.ok || !dados) throw new Error(dados?.error || `Erro ${resp.status} ao processar o PDF: ${textoResp.slice(0, 300)}`)
-  return dados.conteudo
+  return dados
+}
+
+// documento processa em fatias de poucas páginas — chama repetido até "concluido", indo
+// atualizando o texto acumulado a cada volta (onProgresso), pra tela mostrar o progresso
+async function chamarProcessarJob(jobId, onProgresso) {
+  while (true) {
+    const dados = await chamarUmaFatia(jobId)
+    if (onProgresso) onProgresso(dados)
+    if (dados.status === 'concluido') return dados.conteudo
+  }
 }
 
 export default function AssistenteConteudo({ user }) {
@@ -42,6 +52,7 @@ export default function AssistenteConteudo({ user }) {
   const [jobAtualPath, setJobAtualPath] = useState(null)
   const [jobs, setJobs] = useState([])
   const [retomandoId, setRetomandoId] = useState(null)
+  const [progresso, setProgresso] = useState('')
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -100,7 +111,10 @@ export default function AssistenteConteudo({ user }) {
         if (jobError) throw jobError
         setJobAtualId(job.id)
         setJobAtualPath(job.storage_path)
-        const texto = await chamarProcessarJob(job.id)
+        const texto = await chamarProcessarJob(job.id, (d) => {
+          setConteudo(d.conteudo || '')
+          setProgresso(d.status === 'parcial' ? `Processando... página ${d.progresso}` : '')
+        })
         setConteudo(texto || '')
         carregar()
       } else {
@@ -113,6 +127,7 @@ export default function AssistenteConteudo({ user }) {
       carregar()
     } finally {
       setLendo(false)
+      setProgresso('')
       e.target.value = ''
     }
   }
@@ -120,12 +135,15 @@ export default function AssistenteConteudo({ user }) {
   async function retomarJob(job) {
     setRetomandoId(job.id)
     setErro('')
+    setEditandoId(null)
+    setJobAtualId(job.id)
+    setJobAtualPath(job.storage_path)
+    setTitulo(job.titulo)
     try {
-      const texto = await chamarProcessarJob(job.id)
-      setEditandoId(null)
-      setJobAtualId(job.id)
-      setJobAtualPath(job.storage_path)
-      setTitulo(job.titulo)
+      const texto = await chamarProcessarJob(job.id, (d) => {
+        setConteudo(d.conteudo || '')
+        setProgresso(d.status === 'parcial' ? `Processando... página ${d.progresso}` : '')
+      })
       setConteudo(texto || '')
       carregar()
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -134,6 +152,7 @@ export default function AssistenteConteudo({ user }) {
       carregar()
     } finally {
       setRetomandoId(null)
+      setProgresso('')
     }
   }
 
@@ -194,11 +213,11 @@ export default function AssistenteConteudo({ user }) {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{job.titulo}</div>
                 <div style={{ fontSize: 11, color: job.status === 'erro' ? '#C0451A' : '#888' }}>
-                  {job.status === 'erro' ? `Erro: ${job.erro_msg}` : `Status: ${job.status}`}
+                  {job.status === 'erro' ? `Erro: ${job.erro_msg}` : job.total_paginas ? `Status: ${job.status} — página ${job.paginas_processadas}/${job.total_paginas}` : `Status: ${job.status}`}
                 </div>
               </div>
               <button className="btn-filter-light" onClick={() => retomarJob(job)} disabled={retomandoId === job.id}>
-                {retomandoId === job.id ? 'Processando...' : 'Retomar'}
+                {retomandoId === job.id ? (progresso || 'Processando...') : 'Retomar'}
               </button>
               <span style={{ cursor: 'pointer' }} title="Descartar" onClick={() => excluirJob(job)}>🗑</span>
             </div>
@@ -214,7 +233,7 @@ export default function AssistenteConteudo({ user }) {
 
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
         <input type="file" accept=".pdf,.xlsx,.xls" onChange={handleArquivo} disabled={lendo} />
-        {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo arquivo...</span>}
+        {lendo && <span style={{ fontSize: 12, color: '#660099' }}>{progresso || 'Lendo arquivo...'}</span>}
         {editandoId && <span style={{ fontSize: 12, color: '#888' }}>Editando conteúdo existente — salvar substitui.</span>}
       </div>
 
