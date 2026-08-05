@@ -50,6 +50,7 @@ export default function AssistenteConteudo({ user }) {
   const [expandidoId, setExpandidoId] = useState(null)
   const [jobAtualId, setJobAtualId] = useState(null)
   const [jobAtualPath, setJobAtualPath] = useState(null)
+  const [jobAtualNome, setJobAtualNome] = useState(null)
   const [jobs, setJobs] = useState([])
   const [retomandoId, setRetomandoId] = useState(null)
   const [progresso, setProgresso] = useState('')
@@ -86,6 +87,7 @@ export default function AssistenteConteudo({ user }) {
     setErro('')
     setJobAtualId(null)
     setJobAtualPath(null)
+    setJobAtualNome(null)
   }
 
   async function handleArquivo(e) {
@@ -115,6 +117,7 @@ export default function AssistenteConteudo({ user }) {
         if (jobError) throw jobError
         setJobAtualId(job.id)
         setJobAtualPath(job.storage_path)
+        setJobAtualNome(job.filename)
         const texto = await chamarProcessarJob(job.id, (d) => {
           setConteudo(d.conteudo || '')
           setProgresso(d.status === 'parcial' ? `Processando... página ${d.progresso}` : '')
@@ -142,6 +145,7 @@ export default function AssistenteConteudo({ user }) {
     setEditandoId(null)
     setJobAtualId(job.id)
     setJobAtualPath(job.storage_path)
+    setJobAtualNome(job.filename)
     setTitulo(job.titulo)
     try {
       const texto = await chamarProcessarJob(job.id, (d) => {
@@ -175,24 +179,49 @@ export default function AssistenteConteudo({ user }) {
     }
     setSalvando(true)
     setErro('')
+
+    // se tá sobrescrevendo um tema que já tinha um original diferente, guarda pra apagar
+    // depois (evita acumular arquivo órfão no Storage)
+    const { data: existente } = await supabase.from('assistente_conteudo')
+      .select('arquivo_original_path').eq('titulo', titulo.trim()).maybeSingle()
+
+    const campos = {
+      titulo: titulo.trim(), conteudo: conteudo.trim(), atualizado_por: user.id, atualizado_em: new Date().toISOString(),
+    }
+    // só mexe no original se essa sessão processou um arquivo novo — editar texto na mão não
+    // deve apagar o vínculo com o original que já existia
+    if (jobAtualId && jobAtualPath) {
+      campos.arquivo_original_path = jobAtualPath
+      campos.arquivo_original_nome = jobAtualNome
+    }
+
     // upsert por título — subir de novo o mesmo tema substitui o conteúdo anterior
-    const { error } = await supabase.from('assistente_conteudo')
-      .upsert({ titulo: titulo.trim(), conteudo: conteudo.trim(), atualizado_por: user.id, atualizado_em: new Date().toISOString() }, { onConflict: 'titulo' })
+    const { error } = await supabase.from('assistente_conteudo').upsert(campos, { onConflict: 'titulo' })
     setSalvando(false)
     if (error) { setErro(error.message); return }
-    if (jobAtualId) {
-      if (jobAtualPath) await supabase.storage.from('assistente-uploads').remove([jobAtualPath])
-      await supabase.from('assistente_upload_job').delete().eq('id', jobAtualId)
+
+    if (existente?.arquivo_original_path && existente.arquivo_original_path !== jobAtualPath) {
+      await supabase.storage.from('assistente-uploads').remove([existente.arquivo_original_path])
     }
+    // job vira permanente (é o original do tema agora) — só apaga o registro de job, não o arquivo
+    if (jobAtualId) await supabase.from('assistente_upload_job').delete().eq('id', jobAtualId)
+
     novoConteudo()
     carregar()
   }
 
   async function excluir(item) {
     if (!window.confirm(`Excluir "${item.titulo}"? O assistente para de usar esse conteúdo.`)) return
+    if (item.arquivo_original_path) await supabase.storage.from('assistente-uploads').remove([item.arquivo_original_path])
     await supabase.from('assistente_conteudo').delete().eq('id', item.id)
     if (editandoId === item.id) novoConteudo()
     carregar()
+  }
+
+  async function verOriginal(item) {
+    const { data, error } = await supabase.storage.from('assistente-uploads').createSignedUrl(item.arquivo_original_path, 60 * 10)
+    if (error || !data?.signedUrl) { alert('Não consegui abrir o arquivo original: ' + (error?.message || 'erro desconhecido')); return }
+    window.open(data.signedUrl, '_blank')
   }
 
   return (
@@ -265,6 +294,9 @@ export default function AssistenteConteudo({ user }) {
               <div style={{ fontWeight: 700 }}>{expandidoId === item.id ? '▼' : '▶'} {item.titulo}</div>
               <div style={{ fontSize: 11, color: '#888' }}>Atualizado em {formatDataHora(item.atualizado_em)} · {item.conteudo.length} caracteres</div>
             </div>
+            {item.arquivo_original_path && (
+              <span style={{ cursor: 'pointer', fontSize: 11, color: '#660099', whiteSpace: 'nowrap' }} title={`Ver ${item.arquivo_original_nome || 'documento original'}`} onClick={() => verOriginal(item)}>📄 Original</span>
+            )}
             <span style={{ cursor: 'pointer' }} title="Editar" onClick={() => editar(item)}>✏️</span>
             <span style={{ cursor: 'pointer' }} title="Excluir" onClick={() => excluir(item)}>🗑</span>
           </div>

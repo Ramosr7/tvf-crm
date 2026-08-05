@@ -22,6 +22,27 @@ function pareceRecusa(texto) {
   return texto.length < 300 && /i'?m sorry|i can'?t|desculpe.{0,20}n[aã]o posso|n[aã]o consigo (ler|acessar|processar)/i.test(texto)
 }
 
+// marca cada página com "## Página N" no texto extraído — sem isso, a IA não tem como citar
+// "página tal" quando o Gestor pede evidência do documento original
+function criarRenderPagina() {
+  let contador = 0
+  return function renderPagina(pageData) {
+    contador += 1
+    const numero = contador
+    const opcoes = { normalizeWhitespace: false, disableCombineTextItems: false }
+    return pageData.getTextContent(opcoes).then((textContent) => {
+      let lastY = null
+      let texto = ''
+      for (const item of textContent.items) {
+        if (lastY === item.transform[5] || lastY === null) texto += item.str
+        else texto += '\n' + item.str
+        lastY = item.transform[5]
+      }
+      return `\n\n## Página ${numero}\n${texto}`
+    })
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -84,7 +105,7 @@ module.exports = async function handler(req, res) {
     // caminho rápido: extrai o texto real embutido no PDF direto, sem IA nenhuma — mais
     // rápido, de graça, e sem risco de a IA "inventar" ou trocar um preço na transcrição
     if (job.paginas_processadas === 0 && !job.conteudo_extraido) {
-      const resultado = await pdfParse(Buffer.from(bytesOriginais))
+      const resultado = await pdfParse(Buffer.from(bytesOriginais), { pagerender: criarRenderPagina() })
       const totalPaginas = resultado.numpages || 1
       if (resultado.text && resultado.text.length >= totalPaginas * MIN_CHARS_POR_PAGINA) {
         await supabaseComToken.from('assistente_upload_job').update({

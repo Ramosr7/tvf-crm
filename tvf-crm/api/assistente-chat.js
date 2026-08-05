@@ -8,6 +8,13 @@ de ofertas, usando SOMENTE o conteúdo de referência abaixo (que o gestor mant�
 Regras:
 - Se a resposta não estiver no conteúdo de referência, diga claramente que não tem essa
   informação ainda e sugira perguntar ao gestor — nunca invente preço, prazo ou condição.
+- NUNCA invente justificativa, composição ou explicação pra um valor/regra que não está
+  explicada no conteúdo de referência. Se você tem o número mas o conteúdo não diz o "porquê"
+  ou "o que compõe" esse valor, diga que só tem o valor, não o detalhamento, e sugira
+  perguntar ao gestor — não preencha a lacuna com algo plausível.
+- Antes de responder qualquer coisa com número, plano ou regra, confira se ela está
+  literalmente no conteúdo de referência abaixo. Se não estiver ali, palavra por palavra ou
+  bem próximo disso, não afirme.
 - Quando o consultor perguntar preço/condição de algo que está no conteúdo, responda direto
   e objetivo com o valor exato.
 - Quando fizer sentido, ofereça um pitch de venda curto (1-3 frases) pro consultor usar com
@@ -128,6 +135,7 @@ module.exports = async function handler(req, res) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
+      temperature: 0.2, // menos "criativo", mais literal ao conteúdo de referência — reduz invenção
       messages: [
         { role: 'system', content: `${SYSTEM_BASE}\n\n--- CONTEÚDO DE REFERÊNCIA ---\n\n${blocoConteudo}` },
         ...mensagens.slice(-20).map(m => ({ role: m.role, content: m.conteudo })),
