@@ -63,6 +63,9 @@ export default function AssistenteConteudo({ user }) {
   const [retomandoId, setRetomandoId] = useState(null)
   const [progresso, setProgresso] = useState('')
   const [semResposta, setSemResposta] = useState([])
+  const [gerandoDiagnostico, setGerandoDiagnostico] = useState(false)
+  const [diagnostico, setDiagnostico] = useState('')
+  const [erroDiagnostico, setErroDiagnostico] = useState('')
   const [staff, setStaff] = useState([])
 
   useEffect(() => {
@@ -94,6 +97,31 @@ export default function AssistenteConteudo({ user }) {
   async function marcarResolvida(msg) {
     await supabase.from('assistente_mensagem').update({ resolvida: true }).eq('id', msg.id)
     carregar()
+  }
+
+  async function gerarDiagnostico() {
+    setGerandoDiagnostico(true)
+    setErroDiagnostico('')
+    setDiagnostico('')
+    try {
+      const { data: perguntasData, error: rpcError } = await supabase.rpc('assistente_perguntas_anonimas', { dias_atras: 30 })
+      if (rpcError) throw rpcError
+      const perguntas = (perguntasData || []).map(p => p.conteudo)
+      if (perguntas.length === 0) { setErroDiagnostico('Nenhuma pergunta feita ao Joaozinho nos últimos 30 dias.'); return }
+      const { data: sessao } = await supabase.auth.getSession()
+      const resp = await fetch('/api/diagnostico-duvidas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
+        body: JSON.stringify({ perguntas }),
+      })
+      const dados = await resp.json()
+      if (!resp.ok) throw new Error(dados.error || 'Erro ao gerar diagnóstico')
+      setDiagnostico(dados.diagnostico)
+    } catch (err) {
+      setErroDiagnostico(err.message)
+    } finally {
+      setGerandoDiagnostico(false)
+    }
   }
 
   function editar(item) {
@@ -254,6 +282,23 @@ export default function AssistenteConteudo({ user }) {
 
   return (
     <div className="main">
+      <div style={{ marginBottom: 20 }}>
+        <div className="lm-section-title">Diagnóstico de Dúvidas (últimos 30 dias)</div>
+        <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+          Analisa todas as perguntas feitas ao Joaozinho por toda a equipe (sem identificar quem
+          perguntou) e sugere padrões e plano de ação.
+        </p>
+        <button className="btn-filter-light" onClick={gerarDiagnostico} disabled={gerandoDiagnostico}>
+          {gerandoDiagnostico ? 'Gerando...' : 'Gerar Diagnóstico'}
+        </button>
+        {erroDiagnostico && <div className="login-erro" style={{ marginTop: 8 }}>{erroDiagnostico}</div>}
+        {diagnostico && (
+          <div style={{ fontSize: 12, color: '#333', background: '#F7F4FC', borderRadius: 8, padding: 12, marginTop: 10, whiteSpace: 'pre-wrap' }}>
+            {diagnostico}
+          </div>
+        )}
+      </div>
+
       {semResposta.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <div className="lm-section-title">Perguntas que o Joaozinho não soube responder ({semResposta.length})</div>

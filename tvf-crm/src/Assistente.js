@@ -4,6 +4,27 @@ import { supabase } from './supabaseClient'
 const FRASES_BALAO = [
   'Posso te ajudar?', 'Posso te ajudar a vender mais?', 'Dúvida de preço ou plano? Pergunta pra mim!',
 ]
+const RESUMO_KEY_PREFIX = 'tvf_joaozinho_resumo_'
+
+function iso(d) { return d.toISOString().slice(0, 10) }
+
+// resumo do dia é calculado direto dos dados reais (rotina, kanban quente, lembrete vencido) —
+// não é a IA "chutando", é fato — evita o mesmo risco de invenção que já corrigimos no chat
+async function montarResumoDia(user) {
+  const hoje = iso(new Date())
+  const [{ data: rotina }, { data: kanbanQuente }, { data: lembretes }] = await Promise.all([
+    supabase.from('rotina_diaria').select('clientes_recebidos, retornos, ag_aceite').eq('consultor_id', user.id).eq('data', hoje).maybeSingle(),
+    supabase.from('carteira_cliente').select('id').eq('consultor_id', user.id).eq('no_kanban', true).eq('temperatura', 'Quente').is('excluido_em', null),
+    supabase.from('carteira_lembrete').select('id').eq('autor_id', user.id).eq('concluido', false).lte('data_hora', new Date().toISOString()),
+  ])
+  const partes = []
+  if (!rotina) partes.push('você ainda não preencheu a rotina de hoje')
+  else partes.push(`hoje você já registrou ${rotina.clientes_recebidos || 0} atendimento(s) e ${rotina.retornos || 0} retorno(s)`)
+  if ((kanbanQuente || []).length > 0) partes.push(`${kanbanQuente.length} cliente(s) no seu funil quente esperando retorno`)
+  if ((lembretes || []).length > 0) partes.push(`${lembretes.length} lembrete(s) de retorno vencido(s) ou de hoje`)
+  if (partes.length === 0) return null
+  return `Bom te ver! Resumo rápido: ${partes.join('; ')}. 💪`
+}
 
 export default function Assistente({ user }) {
   const [aberto, setAberto] = useState(false)
@@ -13,6 +34,8 @@ export default function Assistente({ user }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [mostrarProposta, setMostrarProposta] = useState(false)
+  const [propostaForm, setPropostaForm] = useState({ valorAtual: '', temAtual: '', valorNovo: '', temNovo: '' })
   const fimRef = useRef(null)
 
   const carregar = useCallback(async () => {
@@ -25,11 +48,20 @@ export default function Assistente({ user }) {
   useEffect(() => { carregar() }, [carregar])
   useEffect(() => { if (aberto) setTimeout(() => fimRef.current?.scrollIntoView(), 50) }, [mensagens, aberto])
 
-  async function enviar(e) {
-    e.preventDefault()
-    const pergunta = texto.trim()
+  async function abrirChat() {
+    setAberto(a => !a)
+    setBalaoVisivel(false)
+    const hoje = iso(new Date())
+    const chave = `${RESUMO_KEY_PREFIX}${user.id}_${hoje}`
+    if (!localStorage.getItem(chave)) {
+      localStorage.setItem(chave, '1')
+      const resumo = await montarResumoDia(user)
+      if (resumo) setMensagens(prev => [...prev, { role: 'assistant', conteudo: resumo, id: `resumo-${Date.now()}` }])
+    }
+  }
+
+  async function enviarTexto(pergunta) {
     if (!pergunta || enviando) return
-    setTexto('')
     setEnviando(true)
 
     const msgUsuario = { consultor_id: user.id, role: 'user', conteudo: pergunta }
@@ -60,6 +92,27 @@ export default function Assistente({ user }) {
     }
   }
 
+  function enviar(e) {
+    e.preventDefault()
+    const pergunta = texto.trim()
+    setTexto('')
+    enviarTexto(pergunta)
+  }
+
+  function enviarProposta(e) {
+    e.preventDefault()
+    const { valorAtual, temAtual, valorNovo, temNovo } = propostaForm
+    if (!valorNovo.trim() || !temNovo.trim()) return
+    const pergunta = `Monta uma proposta comercial pronta, formatada, que eu possa copiar e mandar pro cliente. `
+      + `Hoje o cliente paga ${valorAtual || 'não informado'} e tem: ${temAtual || 'não informado'}. `
+      + `Proposta nova: ${valorNovo}/mês por: ${temNovo}. `
+      + `Usa os preços do conteúdo de referência pra confirmar os valores dos produtos citados, se estiverem lá. `
+      + `Destaca o ganho/economia se fizer sentido.`
+    setMostrarProposta(false)
+    setPropostaForm({ valorAtual: '', temAtual: '', valorNovo: '', temNovo: '' })
+    enviarTexto(pergunta)
+  }
+
   return (
     <>
       {aberto && (
@@ -87,11 +140,32 @@ export default function Assistente({ user }) {
             {enviando && <div className="assistente-msg assistente-msg-bot">Digitando...</div>}
             <div ref={fimRef} />
           </div>
-          <form className="assistente-form" onSubmit={enviar}>
-            <input className="lm-input" style={{ flex: 1 }} placeholder="Pergunta pro Joaozinho..."
-              value={texto} onChange={e => setTexto(e.target.value)} disabled={enviando} />
-            <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando || !texto.trim()}>Enviar</button>
-          </form>
+
+          {mostrarProposta ? (
+            <form className="assistente-form" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }} onSubmit={enviarProposta}>
+              <input className="lm-input" placeholder="Hoje o cliente paga (ex: R$ 250/mês)"
+                value={propostaForm.valorAtual} onChange={e => setPropostaForm(p => ({ ...p, valorAtual: e.target.value }))} />
+              <input className="lm-input" placeholder="E tem hoje (ex: BL 300MB, 2 linhas móvel)"
+                value={propostaForm.temAtual} onChange={e => setPropostaForm(p => ({ ...p, temAtual: e.target.value }))} />
+              <input className="lm-input" placeholder="Proposta nova: vai pagar (ex: R$ 320/mês)"
+                value={propostaForm.valorNovo} onChange={e => setPropostaForm(p => ({ ...p, valorNovo: e.target.value }))} />
+              <input className="lm-input" placeholder="E vai ter (ex: BL 500MB + Wi-Fi Pro)"
+                value={propostaForm.temNovo} onChange={e => setPropostaForm(p => ({ ...p, temNovo: e.target.value }))} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn-save-obs" style={{ float: 'none', margin: 0, flex: 1 }} type="submit" disabled={enviando}>Gerar Proposta</button>
+                <button className="btn-filter-light" type="button" onClick={() => setMostrarProposta(false)}>Cancelar</button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarProposta(true)}>📝 Montar Proposta</button>
+              <form className="assistente-form" onSubmit={enviar}>
+                <input className="lm-input" style={{ flex: 1 }} placeholder="Pergunta pro Joaozinho..."
+                  value={texto} onChange={e => setTexto(e.target.value)} disabled={enviando} />
+                <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando || !texto.trim()}>Enviar</button>
+              </form>
+            </>
+          )}
         </div>
       )}
 
@@ -102,7 +176,7 @@ export default function Assistente({ user }) {
         </div>
       )}
 
-      <button className="assistente-fab" onClick={() => { setAberto(a => !a); setBalaoVisivel(false) }} title="Falar com o Joaozinho">
+      <button className="assistente-fab" onClick={abrirChat} title="Falar com o Joaozinho">
         <img src="/assets/joaozinho-avatar.png" alt="Joaozinho" />
       </button>
     </>
