@@ -21,40 +21,55 @@ Regras:
   aqui, não a base toda — se não achar a resposta no que veio, diga que não tem certeza e
   sugira perguntar ao gestor, em vez de negar que a informação existe.`
 
-const PARADAS = new Set(['para', 'como', 'que', 'com', 'uma', 'dos', 'das', 'por', 'tem', 'sao', 'seu', 'sua', 'qual', 'quais', 'quero', 'sobre', 'esse', 'essa', 'isso', 'preciso', 'gostaria', 'pode', 'poderia', 'funciona'])
-const LIMITE_CHARS_TOTAL = 16000 // ~4-5k tokens, folga confortável do limite de 30k TPM da conta
-const LIMITE_CHARS_POR_TEMA = 6000 // um tema sozinho (ex: book de ofertas grande) não pode dominar o orçamento
+const PARADAS = new Set(['para', 'como', 'que', 'com', 'uma', 'dos', 'das', 'por', 'tem', 'sao', 'seu', 'sua', 'qual', 'quais', 'quero', 'sobre', 'esse', 'essa', 'isso', 'preciso', 'gostaria', 'pode', 'poderia', 'funciona', 'ele', 'ela'])
+const LIMITE_CHARS_TOTAL = 40000 // ~10k tokens, folga confortável do limite de 30k TPM da conta
+const LIMITE_CHARS_POR_TEMA = 9000 // um tema sozinho (ex: book de ofertas grande) não pode dominar o orçamento
+const SEMPRE_INCLUI_ATE = 1500 // tema curto (fato pontual, tipo uma regra específica) sempre entra, mesmo sem bater palavra — é barato e pode ser exatamente o que falta
+const MENSAGENS_PARA_CONTEXTO = 6 // olha as últimas perguntas também, não só a de agora — segue o fio da conversa
 
 function normalizar(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+// versão sem nenhum espaço/pontuação — pega "400 mb" == "400mb", "trade-off" == "tradeoff" etc,
+// que o match por palavra separada perdia por causa de formatação diferente
+function comprimir(s) {
+  return normalizar(s).replace(/[^a-z0-9]/g, '')
 }
 function palavrasRelevantes(texto) {
   return normalizar(texto).split(/[^a-z0-9]+/).filter(p => p.length >= 3 && !PARADAS.has(p))
 }
 
-// escolhe só os temas mais relevantes pra pergunta (score por palavra em comum), com teto de
-// tamanho — evita mandar a base de conteúdo inteira em toda pergunta e estourar rate limit
-function selecionarConteudoRelevante(conteudos, pergunta) {
-  const termos = palavrasRelevantes(pergunta)
+// escolhe os temas relevantes pro que tá sendo discutido (pega as últimas mensagens da
+// conversa, não só a pergunta mais recente — uma pergunta de acompanhamento tipo "e pra CPF?"
+// não repete a palavra-chave do assunto). Tema curto sempre entra (barato, pode ser a resposta
+// certa); tema grande só entra se bater palavra, com teto de tamanho pra não estourar sozinho.
+function selecionarConteudoRelevante(conteudos, mensagensRecentes) {
+  const textoContexto = mensagensRecentes.join(' ')
+  const termos = palavrasRelevantes(textoContexto)
+
   const pontuados = conteudos.map(c => {
     const tituloNorm = normalizar(c.titulo)
     const conteudoNorm = normalizar(c.conteudo)
+    const conteudoComprimido = comprimir(c.conteudo)
     let score = 0
     for (const t of termos) {
       if (tituloNorm.includes(t)) score += 3
       if (conteudoNorm.includes(t)) score += 1
+      if (comprimir(t).length >= 3 && conteudoComprimido.includes(comprimir(t))) score += 1
     }
+    // tema curto vira "sempre relevante" (pontuação simbólica) — barato, não trunca a base toda
+    if (c.conteudo.length <= SEMPRE_INCLUI_ATE) score += 0.5
     return { ...c, score }
   }).sort((a, b) => b.score - a.score)
 
   const selecionados = []
   let charsUsados = 0
   for (const item of pontuados) {
-    if (termos.length > 0 && item.score === 0 && selecionados.length > 0) break
+    if (item.score <= 0 && selecionados.length > 0 && charsUsados > LIMITE_CHARS_TOTAL / 2) break
     const corpo = item.conteudo.length > LIMITE_CHARS_POR_TEMA
       ? item.conteudo.slice(0, LIMITE_CHARS_POR_TEMA) + '\n[...conteúdo cortado por tamanho...]'
       : item.conteudo
-    if (charsUsados + corpo.length > LIMITE_CHARS_TOTAL && selecionados.length > 0) break
+    if (charsUsados + corpo.length > LIMITE_CHARS_TOTAL && selecionados.length > 0) continue
     selecionados.push({ titulo: item.titulo, conteudo: corpo })
     charsUsados += corpo.length
     if (charsUsados >= LIMITE_CHARS_TOTAL) break
@@ -104,8 +119,8 @@ module.exports = async function handler(req, res) {
     const { data: conteudos } = await supabaseComToken.from('assistente_conteudo')
       .select('titulo, conteudo').order('titulo', { ascending: true })
 
-    const ultimaPergunta = mensagens[mensagens.length - 1]?.conteudo || ''
-    const relevantes = selecionarConteudoRelevante(conteudos || [], ultimaPergunta)
+    const mensagensRecentes = mensagens.slice(-MENSAGENS_PARA_CONTEXTO).map(m => m.conteudo || '')
+    const relevantes = selecionarConteudoRelevante(conteudos || [], mensagensRecentes)
     const blocoConteudo = relevantes.length > 0
       ? relevantes.map(c => `### ${c.titulo}\n${c.conteudo}`).join('\n\n')
       : '(nenhum conteúdo cadastrado ainda pelo gestor, ou nada bateu com essa pergunta)'
