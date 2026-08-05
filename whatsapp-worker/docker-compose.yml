@@ -1,0 +1,10 @@
+services:
+  whatsapp-worker:
+    build: .
+    restart: always
+    ports:
+      - "3300:3300"
+    volumes:
+      - ./sessions:/app/sessions
+    env_file:
+      - .env

@@ -173,7 +173,7 @@ export default function Dashboard({ user }) {
     const de14 = new Date(); de14.setDate(de14.getDate() - 13)
     let qRotina = supabase.from('rotina_diaria').select('*').gte('data', iso(de14))
     if (isConsultor) qRotina = qRotina.eq('consultor_id', user.id)
-    let qVendas = supabase.from('carteira_venda').select('id, carteira_cliente_id, consultor_id, data_venda')
+    let qVendas = supabase.from('carteira_venda').select('id, carteira_cliente_id, consultor_id, data_venda, status_apuracao')
     if (isConsultor) qVendas = qVendas.eq('consultor_id', user.id)
 
     const [{ data: clientesData }, { data: nomesData }, { data: vendasData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
@@ -280,6 +280,12 @@ export default function Dashboard({ user }) {
 
   const vendasMes = noPeriodo(inicioMesAtual, hoje)
   const vendasMesAnterior = noPeriodo(inicioMesAnterior, fimMesAnterior)
+
+  // apuração: venda registrada pelo consultor x resultado real de ativação (arquivo mensal
+  // reconcilia isso, ver Importar > Apuração de Vendas)
+  const apuradasMes = vendasMes.filter(v => v.status_apuracao === 'ativado')
+  const reprovadasMes = vendasMes.filter(v => v.status_apuracao === 'reprovado')
+  const pendenteApuracaoMes = vendasMes.length - apuradasMes.length - reprovadasMes.length
 
   // Cliente em renovação antecipada (M16) ainda não conta na carteira "de verdade" —
   // só entra nos totais quando virar (flag desligado manualmente).
@@ -492,6 +498,18 @@ export default function Dashboard({ user }) {
           onClick={() => setModal({ titulo: 'Receita — Renovação (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('Renovação')) })} />
         <CardSimples titulo="Aparelho" cor="verde" valor={aparelhoMes.qtd} sub={`${fmtMoeda(aparelhoMes.valor)} em receita`}
           onClick={() => setModal({ titulo: 'Receita — Aparelho (mês atual)', tipo: 'clientes', itens: paraItensVenda(itensPorTipoMes('aparelho')) })} />
+      </div>
+
+      <div className="dash-section-title">Apuração de Vendas (mês atual)</div>
+      <div className="dash-grid">
+        <CardSimples titulo="Apurado (Finalizado)" cor="verde" valor={apuradasMes.length}
+          sub={`${vendasMes.length > 0 ? Math.round((apuradasMes.length / vendasMes.length) * 100) : 0}% das vendas do mês`}
+          onClick={() => setModal({ titulo: 'Apurado (Finalizado) — mês atual', tipo: 'clientes', itens: paraItensClientes(apuradasMes) })} />
+        <CardSimples titulo="Reprovado" cor="laranja" valor={reprovadasMes.length}
+          sub="quebra técnica, cancelamento etc"
+          onClick={() => setModal({ titulo: 'Reprovado — mês atual', tipo: 'clientes', itens: paraItensClientes(reprovadasMes) })} />
+        <CardSimples titulo="Aguardando Apuração" cor="roxo" valor={pendenteApuracaoMes}
+          sub="ainda não veio no arquivo mensal" />
       </div>
 
       {!isConsultor && melhorDoDia && (
