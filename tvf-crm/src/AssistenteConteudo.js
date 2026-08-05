@@ -102,7 +102,11 @@ export default function AssistenteConteudo({ user }) {
         // sobe pro Storage (aguenta arquivo binário grande, sem o limite de request que uma
         // coluna de texto base64 tinha) e salva o job ANTES de processar — se a aba morrer
         // durante a leitura por IA (que demora mais), o job fica salvo e dá pra retomar depois
-        const path = `${user.id}/${Date.now()}-${file.name}`
+        // Storage rejeita acento/espaço/caractere especial na chave — nome do arquivo original
+        // fica salvo em `filename` (mandado pra IA), o path só precisa ser um identificador válido
+        const nomeSanitizado = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-zA-Z0-9.\-_]/g, '_')
+        const path = `${user.id}/${Date.now()}-${nomeSanitizado}`
         const { error: upError } = await supabase.storage.from('assistente-uploads').upload(path, file)
         if (upError) throw upError
         const { data: job, error: jobError } = await supabase.from('assistente_upload_job')

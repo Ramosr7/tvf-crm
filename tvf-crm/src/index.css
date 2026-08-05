@@ -127,10 +127,9 @@ body {
 .menu-config-analise-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #999; font-weight: 700; }
 
 /* SINO DE NOTIFICAÇÕES */
-.sino-item { padding: 10px 0; border-bottom: 1px solid #F0EAF8; font-size: 13px; }
+.sino-item { padding: 10px 12px; border: 1px solid #F0EAF8; border-radius: 8px; margin-bottom: 6px; font-size: 13px; background: #fff; }
 .sino-item-clicavel { cursor: pointer; }
 .sino-item-clicavel:hover { background: #FAF8FD; }
-.sino-item:last-child { border-bottom: none; }
 .sino-sondagem { font-size: 11px; color: #660099; background: #F7F4FC; border-radius: 6px; padding: 6px 8px; margin-top: 4px; line-height: 1.4; }
 .carteira-table-sticky .col-sticky { position: sticky; left: 0; background: #fff; z-index: 1; box-shadow: 2px 0 4px rgba(0,0,0,0.04); }
 .carteira-table-sticky thead th.col-sticky { z-index: 3; }
@@ -138,9 +137,18 @@ body {
 
 .main { padding: 20px 24px; flex: 1; }
 
+/* Texto solto direto em cima da textura de fundo do body fica difícil de ler — todo título de
+   seção e parágrafo de instrução que não está dentro de um card próprio ganha um quadro. */
+.dash-section-title,
+.main > p {
+  background: #fff; border: 1px solid #E0D8EC; border-radius: 8px;
+  padding: 8px 14px;
+}
+.main > p { font-size: 12px; color: #666; line-height: 1.5; }
+
 .dash-section-title {
   font-size: 15px; font-weight: 700; color: #26192F; margin-top: 26px; margin-bottom: 12px;
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; width: fit-content;
 }
 .dash-section-title:first-child { margin-top: 0; }
 .dash-section-title::before {
@@ -314,7 +322,11 @@ body {
 .lm-tab:hover { color: #660099; }
 .lm-tab.active { color: #660099; border-bottom-color: #FF6B00; }
 .lm-body { display: flex; flex-direction: column; gap: 12px; }
-.lm-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #999; margin-bottom: 8px; }
+.lm-section-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #999;
+  margin-bottom: 8px; background: #fff; border: 1px solid #E0D8EC; border-radius: 8px;
+  padding: 6px 12px; width: fit-content;
+}
 .lm-body .lm-section-title { margin-bottom: -8px; }
 .lm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lm-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
