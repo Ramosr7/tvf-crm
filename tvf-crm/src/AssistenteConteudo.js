@@ -14,6 +14,20 @@ function xlsxParaTexto(workbook) {
   }).join('\n\n')
 }
 
+async function chamarProcessarJob(jobId) {
+  const { data: sessao } = await supabase.auth.getSession()
+  const resp = await fetch('/api/processar-upload-job', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
+    body: JSON.stringify({ jobId }),
+  })
+  const textoResp = await resp.text()
+  let dados = null
+  try { dados = JSON.parse(textoResp) } catch { /* resposta não veio como JSON — provavelmente erro de infraestrutura (tamanho, timeout) */ }
+  if (!resp.ok || !dados) throw new Error(dados?.error || `Erro ${resp.status} ao processar o PDF: ${textoResp.slice(0, 300)}`)
+  return dados.conteudo
+}
+
 export default function AssistenteConteudo({ user }) {
   const [lista, setLista] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,11 +38,19 @@ export default function AssistenteConteudo({ user }) {
   const [erro, setErro] = useState('')
   const [editandoId, setEditandoId] = useState(null)
   const [expandidoId, setExpandidoId] = useState(null)
+  const [jobAtualId, setJobAtualId] = useState(null)
+  const [jobAtualPath, setJobAtualPath] = useState(null)
+  const [jobs, setJobs] = useState([])
+  const [retomandoId, setRetomandoId] = useState(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('assistente_conteudo').select('*').order('titulo', { ascending: true })
+    const [{ data }, { data: jobsData }] = await Promise.all([
+      supabase.from('assistente_conteudo').select('*').order('titulo', { ascending: true }),
+      supabase.from('assistente_upload_job').select('*').neq('status', 'concluido').order('criado_em', { ascending: false }),
+    ])
     setLista(data || [])
+    setJobs(jobsData || [])
     setLoading(false)
   }, [])
 
@@ -51,40 +73,76 @@ export default function AssistenteConteudo({ user }) {
     setTitulo('')
     setConteudo('')
     setErro('')
+    setJobAtualId(null)
+    setJobAtualPath(null)
   }
 
   async function handleArquivo(e) {
     const file = e.target.files[0]
     if (!file) return
     setErro('')
-    if (!titulo.trim()) setTitulo(file.name.replace(/\.(pdf|xlsx|xls)$/i, ''))
+    const tituloArquivo = titulo.trim() || file.name.replace(/\.(pdf|xlsx|xls)$/i, '')
+    if (!titulo.trim()) setTitulo(tituloArquivo)
 
     const ehPdf = file.name.toLowerCase().endsWith('.pdf')
     setLendo(true)
     try {
       if (ehPdf) {
-        const buf = await file.arrayBuffer()
-        const base64 = btoa(new Uint8Array(buf).reduce((s, b) => s + String.fromCharCode(b), ''))
-        const { data: sessao } = await supabase.auth.getSession()
-        const resp = await fetch('/api/extrair-conteudo-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
-          body: JSON.stringify({ pdfBase64: base64, filename: file.name }),
-        })
-        const dados = await resp.json()
-        if (!resp.ok) throw new Error(dados.error || 'Erro ao ler o PDF')
-        setConteudo(dados.conteudo || '')
+        // sobe pro Storage (aguenta arquivo binário grande, sem o limite de request que uma
+        // coluna de texto base64 tinha) e salva o job ANTES de processar — se a aba morrer
+        // durante a leitura por IA (que demora mais), o job fica salvo e dá pra retomar depois
+        const path = `${user.id}/${Date.now()}-${file.name}`
+        const { error: upError } = await supabase.storage.from('assistente-uploads').upload(path, file)
+        if (upError) throw upError
+        const { data: job, error: jobError } = await supabase.from('assistente_upload_job')
+          .insert({ titulo: tituloArquivo, filename: file.name, storage_path: path, criado_por: user.id })
+          .select().single()
+        if (jobError) throw jobError
+        setJobAtualId(job.id)
+        setJobAtualPath(job.storage_path)
+        const texto = await chamarProcessarJob(job.id)
+        setConteudo(texto || '')
+        carregar()
       } else {
         const buf = await file.arrayBuffer()
         const wb = XLSX.read(buf, { type: 'array' })
         setConteudo(xlsxParaTexto(wb))
       }
     } catch (err) {
-      setErro(err.message)
+      setErro(`${err.message} (se a aba caiu no meio, o arquivo já tá salvo — dá pra retomar na lista "Uploads pendentes" abaixo)`)
+      carregar()
     } finally {
       setLendo(false)
       e.target.value = ''
     }
+  }
+
+  async function retomarJob(job) {
+    setRetomandoId(job.id)
+    setErro('')
+    try {
+      const texto = await chamarProcessarJob(job.id)
+      setEditandoId(null)
+      setJobAtualId(job.id)
+      setJobAtualPath(job.storage_path)
+      setTitulo(job.titulo)
+      setConteudo(texto || '')
+      carregar()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (err) {
+      setErro(err.message)
+      carregar()
+    } finally {
+      setRetomandoId(null)
+    }
+  }
+
+  async function excluirJob(job) {
+    if (!window.confirm(`Descartar o upload "${job.titulo}"?`)) return
+    if (job.storage_path) await supabase.storage.from('assistente-uploads').remove([job.storage_path])
+    await supabase.from('assistente_upload_job').delete().eq('id', job.id)
+    if (jobAtualId === job.id) novoConteudo()
+    carregar()
   }
 
   async function salvar() {
@@ -99,6 +157,10 @@ export default function AssistenteConteudo({ user }) {
       .upsert({ titulo: titulo.trim(), conteudo: conteudo.trim(), atualizado_por: user.id, atualizado_em: new Date().toISOString() }, { onConflict: 'titulo' })
     setSalvando(false)
     if (error) { setErro(error.message); return }
+    if (jobAtualId) {
+      if (jobAtualPath) await supabase.storage.from('assistente-uploads').remove([jobAtualPath])
+      await supabase.from('assistente_upload_job').delete().eq('id', jobAtualId)
+    }
     novoConteudo()
     carregar()
   }
@@ -120,6 +182,29 @@ export default function AssistenteConteudo({ user }) {
         Cole texto direto ou sobe um PDF/Excel — o PDF é lido por IA, o Excel vira texto de
         todas as abas.
       </p>
+
+      {jobs.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div className="lm-section-title">Uploads pendentes ({jobs.length})</div>
+          <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+            Arquivo já salvo, faltou só a IA terminar de ler — clica em Retomar pra continuar de onde parou.
+          </p>
+          {jobs.map(job => (
+            <div key={job.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{job.titulo}</div>
+                <div style={{ fontSize: 11, color: job.status === 'erro' ? '#C0451A' : '#888' }}>
+                  {job.status === 'erro' ? `Erro: ${job.erro_msg}` : `Status: ${job.status}`}
+                </div>
+              </div>
+              <button className="btn-filter-light" onClick={() => retomarJob(job)} disabled={retomandoId === job.id}>
+                {retomandoId === job.id ? 'Processando...' : 'Retomar'}
+              </button>
+              <span style={{ cursor: 'pointer' }} title="Descartar" onClick={() => excluirJob(job)}>🗑</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="lm-field-edit" style={{ marginBottom: 8 }}>
         <label>Título do tema</label>
