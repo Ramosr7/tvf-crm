@@ -35,7 +35,7 @@ export default function Assistente({ user }) {
     const msgUsuario = { consultor_id: user.id, role: 'user', conteudo: pergunta }
     const historico = [...mensagens, msgUsuario]
     setMensagens(historico)
-    await supabase.from('assistente_mensagem').insert(msgUsuario)
+    const { data: msgSalva } = await supabase.from('assistente_mensagem').insert(msgUsuario).select().single()
 
     try {
       const { data: sessao } = await supabase.auth.getSession()
@@ -49,6 +49,10 @@ export default function Assistente({ user }) {
       const msgAssistente = { consultor_id: user.id, role: 'assistant', conteudo: dados.resposta }
       setMensagens(prev => [...prev, msgAssistente])
       await supabase.from('assistente_mensagem').insert(msgAssistente)
+      // marca a pergunta como "sem resposta" pro gestor ver depois o que falta cadastrar
+      if (dados.semResposta && msgSalva?.id) {
+        await supabase.from('assistente_mensagem').update({ sem_resposta: true }).eq('id', msgSalva.id)
+      }
     } catch (err) {
       setMensagens(prev => [...prev, { consultor_id: user.id, role: 'assistant', conteudo: `Deu erro: ${err.message}` }])
     } finally {

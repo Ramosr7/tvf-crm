@@ -62,6 +62,8 @@ export default function AssistenteConteudo({ user }) {
   const [jobs, setJobs] = useState([])
   const [retomandoId, setRetomandoId] = useState(null)
   const [progresso, setProgresso] = useState('')
+  const [semResposta, setSemResposta] = useState([])
+  const [staff, setStaff] = useState([])
 
   useEffect(() => {
     if (!titulo && !conteudo) { sessionStorage.removeItem(RASCUNHO_KEY); return }
@@ -70,16 +72,29 @@ export default function AssistenteConteudo({ user }) {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data }, { data: jobsData }] = await Promise.all([
+    const [{ data }, { data: jobsData }, { data: semRespostaData }, { data: staffData }] = await Promise.all([
       supabase.from('assistente_conteudo').select('*').order('titulo', { ascending: true }),
       supabase.from('assistente_upload_job').select('*').neq('status', 'concluido').order('criado_em', { ascending: false }),
+      supabase.from('assistente_mensagem').select('*').eq('sem_resposta', true).eq('resolvida', false).order('criado_em', { ascending: false }),
+      supabase.from('consultores_staff').select('id, nome'),
     ])
     setLista(data || [])
     setJobs(jobsData || [])
+    setSemResposta(semRespostaData || [])
+    setStaff(staffData || [])
     setLoading(false)
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
+
+  function nomeConsultor(id) {
+    return staff.find(s => s.id === id)?.nome || '—'
+  }
+
+  async function marcarResolvida(msg) {
+    await supabase.from('assistente_mensagem').update({ resolvida: true }).eq('id', msg.id)
+    carregar()
+  }
 
   function editar(item) {
     setEditandoId(item.id)
@@ -239,6 +254,24 @@ export default function AssistenteConteudo({ user }) {
 
   return (
     <div className="main">
+      {semResposta.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div className="lm-section-title">Perguntas que o Joaozinho não soube responder ({semResposta.length})</div>
+          <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+            O consultor perguntou, ele não achou no conteúdo cadastrado. Cadastra o tema e marca como resolvida.
+          </p>
+          {semResposta.map(msg => (
+            <div key={msg.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{msg.conteudo}</div>
+                <div style={{ fontSize: 11, color: '#888' }}>{nomeConsultor(msg.consultor_id)} · {formatDataHora(msg.criado_em)}</div>
+              </div>
+              <button className="btn-filter-light" onClick={() => marcarResolvida(msg)}>Marcar resolvida</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="lm-section-title">Alimentar Joaozinho (Assistente Virtual)</div>
       <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
         Cada bloco de conteúdo tem um título — é o que identifica o tema (ex: "Preços Banda

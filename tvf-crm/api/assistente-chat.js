@@ -26,7 +26,12 @@ Regras:
   puro, então escreva listas numeradas simples (1. 2. 3.) e emojis pra dar destaque, não símbolos.
 - Só um RECORTE do conteúdo de referência (os temas mais relevantes pra pergunta) é enviado
   aqui, não a base toda — se não achar a resposta no que veio, diga que não tem certeza e
-  sugira perguntar ao gestor, em vez de negar que a informação existe.`
+  sugira perguntar ao gestor, em vez de negar que a informação existe.
+- IMPORTANTE: toda vez que você disser que não tem uma informação, que não sabe, ou que
+  sugerir perguntar ao gestor porque não achou algo no conteúdo de referência, comece a
+  resposta EXATAMENTE com o marcador "[[SEM_RESPOSTA]]" (sem nada antes) seguido de um
+  espaço e o resto da resposta normal. Isso é usado internamente pra sinalizar pro gestor
+  o que falta cadastrar — o consultor nunca vê esse marcador.`
 
 const PARADAS = new Set(['para', 'como', 'que', 'com', 'uma', 'dos', 'das', 'por', 'tem', 'sao', 'seu', 'sua', 'qual', 'quais', 'quero', 'sobre', 'esse', 'essa', 'isso', 'preciso', 'gostaria', 'pode', 'poderia', 'funciona', 'ele', 'ela'])
 const LIMITE_CHARS_TOTAL = 40000 // ~10k tokens, folga confortável do limite de 30k TPM da conta
@@ -141,8 +146,10 @@ module.exports = async function handler(req, res) {
         ...mensagens.slice(-20).map(m => ({ role: m.role, content: m.conteudo })),
       ],
     })
-    const resposta = completion.choices[0]?.message?.content || ''
-    res.status(200).json({ resposta })
+    let resposta = completion.choices[0]?.message?.content || ''
+    const semResposta = resposta.trimStart().startsWith('[[SEM_RESPOSTA]]')
+    if (semResposta) resposta = resposta.trimStart().replace(/^\[\[SEM_RESPOSTA\]\]\s*/, '')
+    res.status(200).json({ resposta, semResposta })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao chamar a IA' })
   }
