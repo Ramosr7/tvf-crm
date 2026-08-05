@@ -16,7 +16,51 @@ Regras:
 - Use emojis com moderação pra deixar a resposta mais leve e fácil de escanear (ex: 💰 preço,
   📶 plano/internet, ✅ passo concluído, 🎯 dica/pitch) — sem exagerar, sem virar poluição visual.
 - NÃO use markdown de negrito/itálico (nada de **texto** ou *texto*) — o chat mostra o texto
-  puro, então escreva listas numeradas simples (1. 2. 3.) e emojis pra dar destaque, não símbolos.`
+  puro, então escreva listas numeradas simples (1. 2. 3.) e emojis pra dar destaque, não símbolos.
+- Só um RECORTE do conteúdo de referência (os temas mais relevantes pra pergunta) é enviado
+  aqui, não a base toda — se não achar a resposta no que veio, diga que não tem certeza e
+  sugira perguntar ao gestor, em vez de negar que a informação existe.`
+
+const PARADAS = new Set(['para', 'como', 'que', 'com', 'uma', 'dos', 'das', 'por', 'tem', 'sao', 'seu', 'sua', 'qual', 'quais', 'quero', 'sobre', 'esse', 'essa', 'isso', 'preciso', 'gostaria', 'pode', 'poderia', 'funciona'])
+const LIMITE_CHARS_TOTAL = 16000 // ~4-5k tokens, folga confortável do limite de 30k TPM da conta
+const LIMITE_CHARS_POR_TEMA = 6000 // um tema sozinho (ex: book de ofertas grande) não pode dominar o orçamento
+
+function normalizar(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+function palavrasRelevantes(texto) {
+  return normalizar(texto).split(/[^a-z0-9]+/).filter(p => p.length >= 3 && !PARADAS.has(p))
+}
+
+// escolhe só os temas mais relevantes pra pergunta (score por palavra em comum), com teto de
+// tamanho — evita mandar a base de conteúdo inteira em toda pergunta e estourar rate limit
+function selecionarConteudoRelevante(conteudos, pergunta) {
+  const termos = palavrasRelevantes(pergunta)
+  const pontuados = conteudos.map(c => {
+    const tituloNorm = normalizar(c.titulo)
+    const conteudoNorm = normalizar(c.conteudo)
+    let score = 0
+    for (const t of termos) {
+      if (tituloNorm.includes(t)) score += 3
+      if (conteudoNorm.includes(t)) score += 1
+    }
+    return { ...c, score }
+  }).sort((a, b) => b.score - a.score)
+
+  const selecionados = []
+  let charsUsados = 0
+  for (const item of pontuados) {
+    if (termos.length > 0 && item.score === 0 && selecionados.length > 0) break
+    const corpo = item.conteudo.length > LIMITE_CHARS_POR_TEMA
+      ? item.conteudo.slice(0, LIMITE_CHARS_POR_TEMA) + '\n[...conteúdo cortado por tamanho...]'
+      : item.conteudo
+    if (charsUsados + corpo.length > LIMITE_CHARS_TOTAL && selecionados.length > 0) break
+    selecionados.push({ titulo: item.titulo, conteudo: corpo })
+    charsUsados += corpo.length
+    if (charsUsados >= LIMITE_CHARS_TOTAL) break
+  }
+  return selecionados
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -60,9 +104,11 @@ module.exports = async function handler(req, res) {
     const { data: conteudos } = await supabaseComToken.from('assistente_conteudo')
       .select('titulo, conteudo').order('titulo', { ascending: true })
 
-    const blocoConteudo = (conteudos || []).length > 0
-      ? (conteudos || []).map(c => `### ${c.titulo}\n${c.conteudo}`).join('\n\n')
-      : '(nenhum conteúdo cadastrado ainda pelo gestor)'
+    const ultimaPergunta = mensagens[mensagens.length - 1]?.conteudo || ''
+    const relevantes = selecionarConteudoRelevante(conteudos || [], ultimaPergunta)
+    const blocoConteudo = relevantes.length > 0
+      ? relevantes.map(c => `### ${c.titulo}\n${c.conteudo}`).join('\n\n')
+      : '(nenhum conteúdo cadastrado ainda pelo gestor, ou nada bateu com essa pergunta)'
 
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const completion = await client.chat.completions.create({
