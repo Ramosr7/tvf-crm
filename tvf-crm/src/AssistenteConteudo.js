@@ -38,22 +38,35 @@ async function chamarProcessarJob(jobId, onProgresso) {
   }
 }
 
+const RASCUNHO_KEY = 'tvf_assistente_rascunho'
+function carregarRascunho() {
+  try { return JSON.parse(sessionStorage.getItem(RASCUNHO_KEY) || 'null') || {} } catch { return {} }
+}
+
 export default function AssistenteConteudo({ user }) {
+  const rascunhoInicial = carregarRascunho()
   const [lista, setLista] = useState([])
   const [loading, setLoading] = useState(true)
-  const [titulo, setTitulo] = useState('')
-  const [conteudo, setConteudo] = useState('')
+  // sessionStorage: se o Chrome descartar a aba (fica em segundo plano e recarrega do zero),
+  // o que já tava digitado/processado não some — só reseta ao salvar/cancelar ou fechar a aba
+  const [titulo, setTitulo] = useState(rascunhoInicial.titulo || '')
+  const [conteudo, setConteudo] = useState(rascunhoInicial.conteudo || '')
   const [lendo, setLendo] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const [editandoId, setEditandoId] = useState(null)
+  const [editandoId, setEditandoId] = useState(rascunhoInicial.editandoId || null)
   const [expandidoId, setExpandidoId] = useState(null)
-  const [jobAtualId, setJobAtualId] = useState(null)
-  const [jobAtualPath, setJobAtualPath] = useState(null)
-  const [jobAtualNome, setJobAtualNome] = useState(null)
+  const [jobAtualId, setJobAtualId] = useState(rascunhoInicial.jobAtualId || null)
+  const [jobAtualPath, setJobAtualPath] = useState(rascunhoInicial.jobAtualPath || null)
+  const [jobAtualNome, setJobAtualNome] = useState(rascunhoInicial.jobAtualNome || null)
   const [jobs, setJobs] = useState([])
   const [retomandoId, setRetomandoId] = useState(null)
   const [progresso, setProgresso] = useState('')
+
+  useEffect(() => {
+    if (!titulo && !conteudo) { sessionStorage.removeItem(RASCUNHO_KEY); return }
+    sessionStorage.setItem(RASCUNHO_KEY, JSON.stringify({ titulo, conteudo, editandoId, jobAtualId, jobAtualPath, jobAtualNome }))
+  }, [titulo, conteudo, editandoId, jobAtualId, jobAtualPath, jobAtualNome])
 
   const carregar = useCallback(async () => {
     setLoading(true)

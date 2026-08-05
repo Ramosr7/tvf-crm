@@ -593,12 +593,17 @@ function CrmLeads() {
 // ─── APP (auth gate + navegação) ───────────────────────────────────────────────
 export default function App() {
   const { session, user, loading, signOut } = useAuth()
-  const [tela, setTela] = useState('dashboard')
+  // sessionStorage (não localStorage): sobrevive o Chrome descartar a aba em segundo plano
+  // (que recarrega a página do zero) sem sentir que "voltou do início" — só reseta se a
+  // aba/janela for fechada de vez.
+  const [tela, setTela] = useState(() => sessionStorage.getItem('tvf_tela_atual') || 'dashboard')
 
   useEffect(() => {
     if (tela === 'leads') setTela('carteira')
     if (user?.perfil === 'Consultor' && tela === 'relatorios') setTela('carteira')
   }, [user, tela])
+
+  useEffect(() => { sessionStorage.setItem('tvf_tela_atual', tela) }, [tela])
 
   if (loading) return <div className="loading">Carregando...</div>
   if (!session) return <Login />
@@ -661,7 +666,7 @@ export default function App() {
         <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial /></div>
       )}
 
-      <Assistente user={user} />
+      {user.perfil !== 'Consultor' && <Assistente user={user} />}
     </div>
   )
 }
