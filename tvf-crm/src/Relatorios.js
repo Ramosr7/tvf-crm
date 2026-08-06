@@ -110,7 +110,8 @@ export default function Relatorios({ user }) {
 
   const carregarVendas = useCallback(async () => {
     setLoading(true)
-    let q = supabase.from('carteira_venda_item').select('*, carteira_cliente!inner(razao_social, cnpj, consultor_id, status)')
+    let q = supabase.from('carteira_venda_item')
+      .select('*, carteira_cliente!inner(razao_social, cnpj, consultor_id, status), carteira_venda(status_apuracao, numero_pedido)')
       .order('criado_em', { ascending: false })
     if (dataDe) q = q.gte('criado_em', dataDe)
     if (dataAte) q = q.lte('criado_em', dataAte + 'T23:59:59')
@@ -287,6 +288,8 @@ export default function Relatorios({ user }) {
   const receitaNovo = vendas.filter(v => v.tipo === 'Novo' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
   const receitaRenovacao = vendas.filter(v => v.tipo === 'Renovação' && !ehAparelho(v)).reduce((s, v) => s + Number(v.valor || 0), 0)
   const receitaAparelho = vendas.filter(ehAparelho).reduce((s, v) => s + Number(v.valor || 0), 0)
+  const qtdApurado = vendas.filter(v => v.carteira_venda?.status_apuracao === 'ativado').length
+  const qtdReprovado = vendas.filter(v => v.carteira_venda?.status_apuracao === 'reprovado').length
 
   // vendas por produto (subproduto) no período filtrado
   const porSubprodutoVendas = {}
@@ -430,18 +433,25 @@ export default function Relatorios({ user }) {
             <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{fmtMoeda(receitaAparelho)}</div><div className="diag-stat-label">Receita Aparelho</div></div>
             <div className="diag-stat diag-stat-bl"><div className="diag-stat-valor">{qtdNovo}</div><div className="diag-stat-label">Novo</div></div>
             <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{qtdRenovacao}</div><div className="diag-stat-label">Renovação</div></div>
+            <div className="diag-stat diag-stat-ti"><div className="diag-stat-valor">{qtdApurado}</div><div className="diag-stat-label">Apurado (Finalizado)</div></div>
+            <div className={`diag-stat diag-stat-voz ${qtdReprovado === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{qtdReprovado}</div><div className="diag-stat-label">Reprovado</div></div>
           </div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
-              <thead><tr><th>Data</th><th>Cliente</th>{isGestor(user) && <th>Consultor</th>}<th>Produto</th><th>Tipo</th><th>Qtd</th><th>Valor</th></tr></thead>
+              <thead><tr><th>Data</th><th>Cliente</th>{isGestor(user) && <th>Consultor</th>}<th>Produto</th><th>Tipo</th><th>Qtd</th><th>Valor</th><th>Apuração</th></tr></thead>
               <tbody>
-                {vendas.length === 0 && <tr><td colSpan={7} className="empty">Nenhuma venda no período</td></tr>}
+                {vendas.length === 0 && <tr><td colSpan={8} className="empty">Nenhuma venda no período</td></tr>}
                 {vendas.map(v => (
                   <tr key={v.id}>
                     <td>{formatDataBR(v.criado_em?.slice(0, 10))}</td>
                     <td>{v.carteira_cliente?.razao_social || v.carteira_cliente?.cnpj}</td>
                     {isGestor(user) && <td>{nomeConsultor(v.carteira_cliente?.consultor_id)}</td>}
                     <td>{v.subproduto}</td><td>{v.tipo}</td><td>{v.quantidade}</td><td>{fmtMoeda(v.valor)}</td>
+                    <td>
+                      {v.carteira_venda?.status_apuracao === 'ativado' && <span className="tag tag-avancado">Apurado</span>}
+                      {v.carteira_venda?.status_apuracao === 'reprovado' && <span className="tag tag-ap">Reprovado</span>}
+                      {(!v.carteira_venda || v.carteira_venda?.status_apuracao === 'pendente') && <span style={{ color: '#999', fontSize: 11 }}>Aguardando</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -599,6 +609,8 @@ export default function Relatorios({ user }) {
               <div className="print-kpi print-kpi-destaque"><div className="print-kpi-valor">{fmtMoeda(receitaNovo)}</div><div className="print-kpi-label">Receita Produto Novo</div></div>
               <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaRenovacao)}</div><div className="print-kpi-label">Receita Renovação</div></div>
               <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaAparelho)}</div><div className="print-kpi-label">Receita Aparelho</div></div>
+              <div className="print-kpi print-kpi-destaque"><div className="print-kpi-valor">{qtdApurado}</div><div className="print-kpi-label">Apurado (Finalizado)</div></div>
+              <div className="print-kpi"><div className="print-kpi-valor">{qtdReprovado}</div><div className="print-kpi-label">Reprovado</div></div>
             </div>
 
             {vendasPorProduto.length > 0 && (
