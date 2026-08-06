@@ -461,14 +461,16 @@ export default function Relatorios({ user }) {
           <div className="lm-section-title" style={{ marginTop: 24 }}>Vendas por Produto</div>
           {vendasPorProduto.length === 0 && <div className="empty">Nenhuma venda no período</div>}
           {vendasPorProduto.length > 0 && (
-            <table className="carteira-table">
-              <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
-              <tbody>
-                {vendasPorProduto.map(p => (
-                  <tr key={p.subproduto}><td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td></tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="carteira-table-wrap">
+              <table className="carteira-table">
+                <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+                <tbody>
+                  {vendasPorProduto.map(p => (
+                    <tr key={p.subproduto}><td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {isGestor(user) && (
@@ -476,27 +478,31 @@ export default function Relatorios({ user }) {
               <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Produto Novo</div>
               {rankingVendasNovo.length === 0 && <div className="empty">Nenhuma venda de produto novo no período</div>}
               {rankingVendasNovo.length > 0 && (
-                <table className="carteira-table">
-                  <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
-                  <tbody>
-                    {rankingVendasNovo.map((r, i) => (
-                      <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="carteira-table-wrap">
+                  <table className="carteira-table">
+                    <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
+                    <tbody>
+                      {rankingVendasNovo.map((r, i) => (
+                        <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Renovação</div>
               {rankingVendasRenovacao.length === 0 && <div className="empty">Nenhuma venda de renovação no período</div>}
               {rankingVendasRenovacao.length > 0 && (
-                <table className="carteira-table">
-                  <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
-                  <tbody>
-                    {rankingVendasRenovacao.map((r, i) => (
-                      <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="carteira-table-wrap">
+                  <table className="carteira-table">
+                    <thead><tr><th>#</th><th>Consultor</th><th>Vendas</th><th>Valor</th></tr></thead>
+                    <tbody>
+                      {rankingVendasRenovacao.map((r, i) => (
+                        <tr key={r.id}><td>{i + 1}</td><td>{r.nome}</td><td>{r.qtd}</td><td>{fmtMoeda(r.valor)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </>
           )}
