@@ -23,6 +23,7 @@ export default function Login() {
           <div className="login-hero-marca">TVF</div>
           <div className="login-hero-grid" />
           <div className="login-hero-conteudo">
+            <div className="login-hero-produto">CRM <span>NOVA ERA</span></div>
             <div className="login-hero-badge">// GESTÃO COMERCIAL</div>
             <div className="login-hero-titulo">Toda a carteira.<br />Um único painel.</div>
             <p className="login-hero-texto">
@@ -42,7 +43,6 @@ export default function Login() {
           <div className="login-logo-wrap">
             <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="login-logo-img" />
           </div>
-          <div className="login-box-badge">// ACESSO CRM</div>
           <div className="login-box-titulo">Acesse sua conta</div>
           <div className="lm-field-edit" style={{ marginTop: 18 }}>
             <label>E-mail</label>
