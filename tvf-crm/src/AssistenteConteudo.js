@@ -14,6 +14,33 @@ function xlsxParaTexto(workbook) {
   }).join('\n\n')
 }
 
+// o chat (api/assistente-chat.js) corta cada tema em no máximo ~9000 caracteres antes de
+// mandar pra IA — um book de 150k chars vinha 94% cortado, perdendo o plano exato que o
+// consultor perguntava. Solução: dividir o conteúdo grande em várias entradas menores no
+// próprio cadastro, cada uma cabendo inteira, em vez de confiar no corte automático.
+const TAMANHO_MAX_PARTE = 7000
+const SUFIXO_PARTE = / — parte \d+\/\d+$/
+
+// separa o texto respeitando os marcadores de página que a extração de PDF já grava
+// ("## Página N" / "## Páginas X-Y") — cada parte fica com página inteira, nunca corta uma
+// página no meio. Sem marcador (texto colado à mão, Excel), corta por tamanho bruto mesmo.
+function dividirEmPartes(texto, maxChars) {
+  const blocos = texto.split(/(?=^## Páginas? )/m).filter(b => b.trim())
+  if (blocos.length <= 1) {
+    const partes = []
+    for (let i = 0; i < texto.length; i += maxChars) partes.push(texto.slice(i, i + maxChars))
+    return partes
+  }
+  const partes = []
+  let atual = ''
+  for (const bloco of blocos) {
+    if (atual && (atual.length + bloco.length) > maxChars) { partes.push(atual); atual = '' }
+    atual += bloco
+  }
+  if (atual) partes.push(atual)
+  return partes
+}
+
 async function chamarUmaFatia(jobId) {
   const { data: sessao } = await supabase.auth.getSession()
   const resp = await fetch('/api/processar-upload-job', {
@@ -236,28 +263,50 @@ export default function AssistenteConteudo({ user }) {
     setSalvando(true)
     setErro('')
 
-    // se tá sobrescrevendo um tema que já tinha um original diferente, guarda pra apagar
-    // depois (evita acumular arquivo órfão no Storage)
-    const { data: existente } = await supabase.from('assistente_conteudo')
-      .select('arquivo_original_path').eq('titulo', titulo.trim()).maybeSingle()
+    const tituloBase = titulo.trim().replace(SUFIXO_PARTE, '')
+    // se o texto é grande, divide em várias entradas pequenas (uma por página/grupo de
+    // páginas) em vez de um blob só — assim nada fica de fora quando o chat corta cada tema
+    // por tamanho. Editar uma parte específica (título já termina em "— parte N/M") não
+    // re-divide, salva só aquela parte mesmo.
+    const dividir = !SUFIXO_PARTE.test(titulo.trim()) && conteudo.trim().length > TAMANHO_MAX_PARTE
+    const partes = dividir ? dividirEmPartes(conteudo.trim(), TAMANHO_MAX_PARTE) : [conteudo.trim()]
+    const titulosNovos = dividir
+      ? partes.map((_, i) => `${tituloBase} — parte ${i + 1}/${partes.length}`)
+      : [titulo.trim()]
 
-    const campos = {
-      titulo: titulo.trim(), conteudo: conteudo.trim(), atualizado_por: user.id, atualizado_em: new Date().toISOString(),
-    }
-    // só mexe no original se essa sessão processou um arquivo novo — editar texto na mão não
-    // deve apagar o vínculo com o original que já existia
-    if (jobAtualId && jobAtualPath) {
-      campos.arquivo_original_path = jobAtualPath
-      campos.arquivo_original_nome = jobAtualNome
+    // pega os originais de qualquer versão anterior desse tema (blob único ou partes de uma
+    // divisão anterior com outra quantidade de partes) pra não deixar arquivo órfão no Storage
+    const [{ data: existenteUnico }, { data: existentesPartes }] = await Promise.all([
+      supabase.from('assistente_conteudo').select('titulo, arquivo_original_path').eq('titulo', tituloBase),
+      supabase.from('assistente_conteudo').select('titulo, arquivo_original_path').ilike('titulo', `${tituloBase} — parte %`),
+    ])
+    const existentes = [...(existenteUnico || []), ...(existentesPartes || [])]
+
+    // remove as entradas antigas desse tema que não vão ser reescritas agora (ex: upload
+    // anterior tinha 20 partes, esse tem 15 — sobrariam 5 órfãs sem isso)
+    const titulosAntigos = (existentes || []).map(e => e.titulo).filter(t => !titulosNovos.includes(t))
+    if (titulosAntigos.length > 0) {
+      await supabase.from('assistente_conteudo').delete().in('titulo', titulosAntigos)
     }
 
-    // upsert por título — subir de novo o mesmo tema substitui o conteúdo anterior
-    const { error } = await supabase.from('assistente_conteudo').upsert(campos, { onConflict: 'titulo' })
+    for (let i = 0; i < partes.length; i++) {
+      const campos = {
+        titulo: titulosNovos[i], conteudo: partes[i], atualizado_por: user.id, atualizado_em: new Date().toISOString(),
+      }
+      // só a primeira parte carrega o vínculo com o arquivo original — só mexe nisso se essa
+      // sessão processou um arquivo novo, editar texto na mão não apaga o vínculo existente
+      if (i === 0 && jobAtualId && jobAtualPath) {
+        campos.arquivo_original_path = jobAtualPath
+        campos.arquivo_original_nome = jobAtualNome
+      }
+      const { error } = await supabase.from('assistente_conteudo').upsert(campos, { onConflict: 'titulo' })
+      if (error) { setSalvando(false); setErro(error.message); return }
+    }
     setSalvando(false)
-    if (error) { setErro(error.message); return }
 
-    if (existente?.arquivo_original_path && existente.arquivo_original_path !== jobAtualPath) {
-      await supabase.storage.from('assistente-uploads').remove([existente.arquivo_original_path])
+    const originalAntigo = (existentes || []).find(e => e.arquivo_original_path)?.arquivo_original_path
+    if (originalAntigo && originalAntigo !== jobAtualPath) {
+      await supabase.storage.from('assistente-uploads').remove([originalAntigo])
     }
     // job vira permanente (é o original do tema agora) — só apaga o registro de job, não o arquivo
     if (jobAtualId) await supabase.from('assistente_upload_job').delete().eq('id', jobAtualId)
@@ -323,7 +372,8 @@ export default function AssistenteConteudo({ user }) {
         Larga", "Book de Ofertas Móvel"). Subir de novo com o MESMO título substitui o
         conteúdo anterior daquele tema, pra não conflitar informação antiga com a nova.
         Cole texto direto ou sobe um PDF/Excel — o PDF é lido por IA, o Excel vira texto de
-        todas as abas.
+        todas as abas. Book grande (muitas páginas) é dividido em várias entradas menores
+        automaticamente ao salvar, senão o Joaozinho perde parte do conteúdo.
       </p>
 
       {jobs.length > 0 && (
@@ -363,6 +413,15 @@ export default function AssistenteConteudo({ user }) {
 
       <textarea className="obs-area" style={{ width: '100%', minHeight: 220 }} placeholder="Cole ou edite o conteúdo aqui..."
         value={conteudo} onChange={e => setConteudo(e.target.value)} />
+
+      {!SUFIXO_PARTE.test(titulo.trim()) && conteudo.trim().length > TAMANHO_MAX_PARTE && (
+        <p style={{ fontSize: 11, color: '#660099', margin: '4px 0 0' }}>
+          Conteúdo grande ({conteudo.trim().length.toLocaleString('pt-BR')} caracteres) — ao salvar,
+          vira {dividirEmPartes(conteudo.trim(), TAMANHO_MAX_PARTE).length} entradas menores automaticamente
+          ("{titulo.trim() || 'título'} — parte 1/{dividirEmPartes(conteudo.trim(), TAMANHO_MAX_PARTE).length}" etc),
+          pra nada ficar de fora quando o Joaozinho for responder.
+        </p>
+      )}
 
       {erro && <div className="login-erro" style={{ marginTop: 8 }}>{erro}</div>}
 
