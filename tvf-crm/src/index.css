@@ -545,3 +545,23 @@ body {
 .assistente-msg-bot { align-self: flex-start; background: #fff; border: 1px solid #E0D8EC; border-bottom-left-radius: 2px; }
 .assistente-msg-user { align-self: flex-end; background: #660099; color: #fff; border-bottom-right-radius: 2px; }
 .assistente-form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #E0D8EC; }
+
+.assistente-proposta {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
+  border-top: 1px solid #E0D8EC; background: #FAF8FC; max-height: 70%; overflow-y: auto;
+}
+.assistente-proposta-cabecalho {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; font-weight: 700; color: #4A0072;
+}
+.assistente-proposta-secao {
+  background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.assistente-proposta-secao-titulo {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #999;
+}
+.assistente-proposta-campo {
+  display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #666; font-weight: 600;
+}
+.assistente-proposta-campo .lm-input { font-weight: 400; }

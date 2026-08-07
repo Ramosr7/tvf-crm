@@ -142,23 +142,45 @@ export default function Assistente({ user }) {
           </div>
 
           {mostrarProposta ? (
-            <form className="assistente-form" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }} onSubmit={enviarProposta}>
-              <input className="lm-input" placeholder="Hoje o cliente paga (ex: R$ 250/mês)"
-                value={propostaForm.valorAtual} onChange={e => setPropostaForm(p => ({ ...p, valorAtual: e.target.value }))} />
-              <input className="lm-input" placeholder="E tem hoje (ex: BL 300MB, 2 linhas móvel)"
-                value={propostaForm.temAtual} onChange={e => setPropostaForm(p => ({ ...p, temAtual: e.target.value }))} />
-              <input className="lm-input" placeholder="Proposta nova: vai pagar (ex: R$ 320/mês)"
-                value={propostaForm.valorNovo} onChange={e => setPropostaForm(p => ({ ...p, valorNovo: e.target.value }))} />
-              <input className="lm-input" placeholder="E vai ter (ex: BL 500MB + Wi-Fi Pro)"
-                value={propostaForm.temNovo} onChange={e => setPropostaForm(p => ({ ...p, temNovo: e.target.value }))} />
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn-save-obs" style={{ float: 'none', margin: 0, flex: 1 }} type="submit" disabled={enviando}>Gerar Proposta</button>
-                <button className="btn-filter-light" type="button" onClick={() => setMostrarProposta(false)}>Cancelar</button>
+            <form className="assistente-proposta" onSubmit={enviarProposta}>
+              <div className="assistente-proposta-cabecalho">
+                <span>Montar proposta</span>
+                <button type="button" className="lm-close" onClick={() => setMostrarProposta(false)}>✕</button>
               </div>
+
+              <div className="assistente-proposta-secao">
+                <div className="assistente-proposta-secao-titulo">Cliente hoje</div>
+                <label className="assistente-proposta-campo">
+                  Valor mensal
+                  <input className="lm-input" placeholder="Ex: R$ 250/mês"
+                    value={propostaForm.valorAtual} onChange={e => setPropostaForm(p => ({ ...p, valorAtual: e.target.value }))} />
+                </label>
+                <label className="assistente-proposta-campo">
+                  O que tem
+                  <input className="lm-input" placeholder="Ex: BL 300MB, 2 linhas móvel"
+                    value={propostaForm.temAtual} onChange={e => setPropostaForm(p => ({ ...p, temAtual: e.target.value }))} />
+                </label>
+              </div>
+
+              <div className="assistente-proposta-secao">
+                <div className="assistente-proposta-secao-titulo">Proposta nova</div>
+                <label className="assistente-proposta-campo">
+                  Vai pagar
+                  <input className="lm-input" placeholder="Ex: R$ 320/mês"
+                    value={propostaForm.valorNovo} onChange={e => setPropostaForm(p => ({ ...p, valorNovo: e.target.value }))} />
+                </label>
+                <label className="assistente-proposta-campo">
+                  Vai ter
+                  <input className="lm-input" placeholder="Ex: BL 500MB + Wi-Fi Pro"
+                    value={propostaForm.temNovo} onChange={e => setPropostaForm(p => ({ ...p, temNovo: e.target.value }))} />
+                </label>
+              </div>
+
+              <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando}>Gerar proposta</button>
             </form>
           ) : (
             <>
-              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarProposta(true)}>📝 Montar Proposta</button>
+              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarProposta(true)}>Montar proposta</button>
               <form className="assistente-form" onSubmit={enviar}>
                 <input className="lm-input" style={{ flex: 1 }} placeholder="Pergunta pro Joaozinho..."
                   value={texto} onChange={e => setTexto(e.target.value)} disabled={enviando} />
