@@ -6,8 +6,8 @@ const VERTICAL_INFO = {
   APARELHO: { label: 'Aparelho', formato: 'moeda' },
   HA: { label: 'HA (Altas)', formato: 'inteiro' },
   BL: { label: 'Banda Larga', formato: 'inteiro' },
-  MM: { label: 'Móvel', formato: 'inteiro' },
-  MB: { label: 'MB', formato: 'moeda' },
+  MM: { label: 'Renovação Móvel', formato: 'inteiro' },
+  MB: { label: 'Renovação Fixa', formato: 'moeda' },
   RECEITA_TELECOM: { label: 'Receita Telecom', formato: 'moeda' },
 }
 
@@ -64,8 +64,7 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   const metaDiaria = duRestantes > 0 ? (row.meta - row.esteira) / duRestantes : 0
   const projecao = (row.esteira * fatorConversao) + (mediaDiaria * duRestantes)
   const pctAtingimento = row.meta > 0 ? projecao / row.meta : 0
-  const pctConcluido = row.meta > 0 ? row.concluido / row.meta : 0
-  return { realizado, mediaDiaria, metaDiaria, projecao, pctAtingimento, pctConcluido }
+  return { realizado, mediaDiaria, metaDiaria, projecao, pctAtingimento }
 }
 
 // gráfico de barras simples (Meta / Esteira / Projeção), igual ao padrão já usado no Dashboard
@@ -99,16 +98,16 @@ export default function PlanoComercial() {
   const [config, setConfig] = useState({})
   const [metaGlobal, setMetaGlobal] = useState({})
   const [loading, setLoading] = useState(true)
-  const [editandoConcluidoChave, setEditandoConcluidoChave] = useState(null)
   const [editandoMetaChave, setEditandoMetaChave] = useState(null)
   const [mostrarConfig, setMostrarConfig] = useState(false)
+  const [mostrarTimes, setMostrarTimes] = useState(false)
 
   const fetchDados = useCallback(async () => {
     setLoading(true)
     const mesData = `${mesReferencia}-01`
     const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }] = await Promise.all([
       supabase.from('plano_comercial').select('*').eq('mes_referencia', mesData),
-      supabase.from('consultores_staff').select('id, nome, perfil').order('nome'),
+      supabase.from('consultores_staff').select('id, nome, perfil, plano_comercial_ativo').order('nome'),
       supabase.from('plano_comercial_config').select('*'),
       supabase.from('plano_comercial_meta_global').select('*').eq('mes_referencia', mesData),
     ])
@@ -124,12 +123,6 @@ export default function PlanoComercial() {
   }, [mesReferencia])
 
   useEffect(() => { fetchDados() }, [fetchDados])
-
-  function atualizarConcluido(row, valor) {
-    const numero = Number(valor) || 0
-    setPlanos(prev => prev.map(p => p.id === row.id ? { ...p, concluido: numero } : p))
-    supabase.from('plano_comercial').update({ concluido: numero, atualizado_em: new Date().toISOString() }).eq('id', row.id)
-  }
 
   // Meta agora é preenchida direto na tela, por time e por vertical — sem regra fixa de quem
   // tem ou não cada pilar (ex: time consultivo pode não ter meta de Alta, mas o gestor pode
@@ -156,6 +149,11 @@ export default function PlanoComercial() {
     supabase.from('plano_comercial_config').update({ fator_conversao: numero }).eq('vertical', vertical)
   }
 
+  function alternarAtivo(staffId, ativo) {
+    setStaff(prev => prev.map(s => s.id === staffId ? { ...s, plano_comercial_ativo: ativo } : s))
+    supabase.from('consultores_staff').update({ plano_comercial_ativo: ativo }).eq('id', staffId)
+  }
+
   if (loading) return <div className="loading">Carregando Plano Comercial...</div>
 
   const { duTotais, duRestantes } = calcularDU(mesReferencia)
@@ -163,11 +161,13 @@ export default function PlanoComercial() {
   for (const s of staff) staffPorId[s.id] = s
 
   // Times = todo Supervisor/Gestor cadastrado + qualquer consultor que já tenha linha salva
-  // (cobre o caso de um time cujo "líder" não está marcado com esse perfil ainda).
+  // (cobre o caso de um time cujo "líder" não está marcado com esse perfil ainda), MENOS quem
+  // tiver o toggle "carta meta" desligado (ex-funcionário, sócio sem time de verdade etc) —
+  // controlável na própria tela em "Times no plano comercial", sem precisar editar código.
   const idsTimes = new Set([
     ...staff.filter(s => s.perfil === 'Supervisor' || s.perfil === 'Gestor').map(s => s.id),
     ...planos.map(p => p.consultor_id),
-  ])
+  ].filter(id => staffPorId[id]?.plano_comercial_ativo !== false))
 
   const porConsultor = {}
   for (const consultorId of idsTimes) {
@@ -185,7 +185,6 @@ export default function PlanoComercial() {
       meta: linhas.reduce((s, p) => s + Number(p.meta || 0), 0),
       backlog: linhas.reduce((s, p) => s + Number(p.backlog || 0), 0),
       esteira: linhas.reduce((s, p) => s + Number(p.esteira || 0), 0),
-      concluido: linhas.reduce((s, p) => s + Number(p.concluido || 0), 0),
     }
   }).filter(c => c.meta > 0 || c.backlog > 0 || c.esteira > 0)
 
@@ -211,16 +210,6 @@ export default function PlanoComercial() {
         <td>{fmtValor(calc.mediaDiaria, info.formato)}</td>
         <td>{fmtValor(calc.projecao, info.formato)}</td>
         <td><span className="plano-semaforo" style={{ background: corSemaforo(calc.pctAtingimento) }}>{fmtPct(calc.pctAtingimento)}</span></td>
-        <td>
-          {editavel && row.id && (editandoConcluidoChave === key ? (
-            <input className="lm-input" type="number" style={{ width: 100 }} autoFocus defaultValue={row.concluido}
-              onBlur={e => { atualizarConcluido(row, e.target.value); setEditandoConcluidoChave(null) }}
-              onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} />
-          ) : editavel ? (
-            <span className="plano-concluido-editavel" onClick={() => setEditandoConcluidoChave(key)}>{fmtValor(row.concluido, info.formato)}</span>
-          ) : fmtValor(row.concluido, info.formato))}
-        </td>
-        <td>{fmtPct(calc.pctConcluido)}</td>
       </tr>
     )
   }
@@ -228,7 +217,7 @@ export default function PlanoComercial() {
   const cabecalho = (
     <tr>
       <th>Vertical</th><th>Meta</th><th>Backlog</th><th>Esteira Mês</th>
-      <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th><th>Concluído</th><th>%</th>
+      <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th>
     </tr>
   )
 
@@ -242,7 +231,22 @@ export default function PlanoComercial() {
         </label>
         <span style={{ fontSize: 12, color: '#888' }}>Dias úteis: {duTotais} total, {duRestantes} restante(s)</span>
         <button className="btn-filter-light" onClick={() => setMostrarConfig(v => !v)}>Fatores de conversão</button>
+        <button className="btn-filter-light" onClick={() => setMostrarTimes(v => !v)}>Times no plano comercial</button>
       </div>
+
+      {mostrarTimes && (
+        <div className="lm-resumo" style={{ marginBottom: 16 }}>
+          <div className="lm-section-title" style={{ marginTop: 0 }}>Quem tem carta meta no Plano Comercial</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {staff.filter(s => s.perfil === 'Supervisor' || s.perfil === 'Gestor').map(s => (
+              <label key={s.id} style={{ fontSize: 13, color: '#333', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={s.plano_comercial_ativo !== false} onChange={e => alternarAtivo(s.id, e.target.checked)} />
+                {s.nome} <span style={{ color: '#999', fontSize: 11 }}>({s.perfil})</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {mostrarConfig && (
         <div className="lm-resumo" style={{ marginBottom: 16 }}>
@@ -290,7 +294,7 @@ export default function PlanoComercial() {
               )
             })}
           </div>
-          <div className="carteira-table-wrap" style={{ marginBottom: 24 }}>
+          <div className="carteira-table-wrap pc-table-wrap" style={{ marginBottom: 24 }}>
             <table className="carteira-table">
               <thead>{cabecalho}</thead>
               <tbody>
@@ -304,7 +308,7 @@ export default function PlanoComercial() {
       {Object.entries(porConsultor).map(([nome, linhasConsultor]) => (
         <div key={nome} style={{ marginBottom: 24 }}>
           <div className="plano-time-titulo">{nome}</div>
-          <div className="carteira-table-wrap">
+          <div className="carteira-table-wrap pc-table-wrap">
             <table className="carteira-table">
               <thead>{cabecalho}</thead>
               <tbody>

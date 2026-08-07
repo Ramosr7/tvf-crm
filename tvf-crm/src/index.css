@@ -179,6 +179,12 @@ body {
   padding: 6px 14px; border-radius: 8px; margin-bottom: 10px;
 }
 
+/* PLANO COMERCIAL — cabeçalho de tabela em roxo, no estilo das "cartas meta" */
+.pc-table-wrap thead th {
+  background: linear-gradient(135deg, #660099, #8B3FD1); color: #fff;
+  text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em;
+}
+
 .menu-temperatura {
   position: absolute; top: 100%; left: 0; z-index: 20; margin-top: 4px; background: #fff;
   border: 1px solid #E0D8EC; border-radius: 8px; box-shadow: 0 4px 16px rgba(38,25,47,0.14);
