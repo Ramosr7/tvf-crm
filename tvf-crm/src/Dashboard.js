@@ -179,7 +179,7 @@ export default function Dashboard({ user }) {
     const [{ data: clientesData }, { data: nomesData }, { data: vendasData }, { data: vendaItens }, { data: staffData }, { data: rotinaData }] = await Promise.all([
       fetchPaginado((de, ate) => {
         let q = supabase.from('carteira_cliente')
-          .select('id, cnpj, razao_social, status, data_venda, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
+          .select('id, cnpj, razao_social, status, data_venda, data_adicao, consultor_id, potencial_migracao, potencial_bl, potencial_ti, potencial_voz, credito_pre_aprovado, alerta_renovacao, no_kanban, temperatura')
           .is('excluido_em', null).range(de, ate)
         if (isConsultor) q = q.eq('consultor_id', user.id)
         return q
