@@ -291,10 +291,13 @@ export default function Dashboard({ user }) {
   // só entra nos totais quando virar (flag desligado manualmente).
   const clientesAtivos = clientes.filter(c => !c.alerta_renovacao)
   const totalCarteira = clientesAtivos.length
-  // conversão da carteira olha clientes únicos fechados (não eventos de venda — recompra do
-  // mesmo cliente não deveria inflar esse %)
-  const clientesFechadosUnicos = new Set(clientes.filter(c => STATUS_VENDA.includes(c.status)).map(c => c.id)).size
-  const conversao = totalCarteira > 0 ? Math.round((clientesFechadosUnicos / totalCarteira) * 100) : 0
+
+  // conversão do mês: só olha o lote de clientes distribuído ESTE mês (data_adicao), não a
+  // carteira toda acumulada — senão o % fica sempre baixo e não mostra a performance do mês
+  const inicioMesAtualISO = iso(inicioMesAtual)
+  const clientesDistribuidosMes = clientes.filter(c => c.data_adicao && c.data_adicao >= inicioMesAtualISO)
+  const clientesFechadosMesUnicos = new Set(clientesDistribuidosMes.filter(c => STATUS_VENDA.includes(c.status)).map(c => c.id)).size
+  const conversaoMes = clientesDistribuidosMes.length > 0 ? Math.round((clientesFechadosMesUnicos / clientesDistribuidosMes.length) * 100) : 0
 
   const potencialCarteira = clientesAtivos.reduce((acc, c) => {
     acc.migracao += c.potencial_migracao || 0
@@ -465,10 +468,10 @@ export default function Dashboard({ user }) {
         <CardComparativo titulo="Vendas no Mês" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
           anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
           onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasMes) })} />
-        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Vendidos (Conversão da Carteira)', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendidos) })}>
-          <div className="dash-card-titulo">Conversão da Carteira</div>
-          <div className="dash-card-numero">{conversao}%</div>
-          <div className="dash-card-valor">{vendidos.length} vendas / {totalCarteira} clientes</div>
+        <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Distribuídos e Fechados no Mês', tipo: 'clientes', itens: paraItensClientes(clientesDistribuidosMes) })}>
+          <div className="dash-card-titulo">Conversão do Mês</div>
+          <div className="dash-card-numero">{conversaoMes}%</div>
+          <div className="dash-card-valor">{clientesFechadosMesUnicos} fechados / {clientesDistribuidosMes.length} distribuídos esse mês</div>
         </div>
       </div>
 

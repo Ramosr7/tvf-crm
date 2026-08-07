@@ -48,6 +48,7 @@ const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
 const ehAparelho = (v) => SUBPRODUTOS_APARELHO.includes(v.subproduto)
 
 const isGestor = (user) => user.perfil === 'Gestor'
+const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 
 function agruparPorConsultor(lista, pegarConsultorId) {
   const mapa = {}
@@ -68,6 +69,7 @@ export default function Relatorios({ user }) {
   const [loading, setLoading] = useState(false)
 
   const [vendas, setVendas] = useState([])
+  const [clientesDistribuidos, setClientesDistribuidos] = useState([])
   const [kanbanClientes, setKanbanClientes] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [resumoInteracoes, setResumoInteracoes] = useState([])
@@ -121,6 +123,23 @@ export default function Relatorios({ user }) {
     if (!isGestor(user)) linhas = linhas.filter(v => v.carteira_cliente.consultor_id === user.id)
     setVendas(linhas)
     setLoading(false)
+    return linhas
+  }, [dataDe, dataAte, filtroConsultor, user])
+
+  // clientes distribuídos (data_adicao) no período filtrado — base pra "conversão do período"
+  // sem misturar com a carteira acumulada inteira
+  const carregarDistribuidos = useCallback(async () => {
+    const { data } = await fetchPaginado((de, ate) => {
+      let q = supabase.from('carteira_cliente').select('id, status, consultor_id, data_adicao')
+        .is('excluido_em', null).eq('alerta_renovacao', false).range(de, ate)
+      if (dataDe) q = q.gte('data_adicao', dataDe)
+      if (dataAte) q = q.lte('data_adicao', dataAte)
+      return q
+    })
+    let linhas = data || []
+    if (isGestor(user) && filtroConsultor) linhas = linhas.filter(c => c.consultor_id === filtroConsultor)
+    if (!isGestor(user)) linhas = linhas.filter(c => c.consultor_id === user.id)
+    setClientesDistribuidos(linhas)
     return linhas
   }, [dataDe, dataAte, filtroConsultor, user])
 
@@ -190,16 +209,17 @@ export default function Relatorios({ user }) {
   }, [filtroConsultor, user])
 
   useEffect(() => {
-    if (aba === 'vendas') carregarVendas()
+    if (aba === 'vendas') { carregarVendas(); carregarDistribuidos() }
     if (aba === 'kanban') carregarKanban()
     if (aba === 'rotina') carregarRotina()
     if (aba === 'interacoes') carregarInteracoes()
-  }, [aba, carregarVendas, carregarKanban, carregarRotina, carregarInteracoes])
+  }, [aba, carregarVendas, carregarDistribuidos, carregarKanban, carregarRotina, carregarInteracoes])
 
   async function gerarPdf() {
     setGerandoPdf(true)
     const carregadores = {
-      vendas: carregarVendas, kanban: carregarKanban, rotina: carregarRotina, interacoes: carregarInteracoes,
+      vendas: () => Promise.all([carregarVendas(), carregarDistribuidos()]),
+      kanban: carregarKanban, rotina: carregarRotina, interacoes: carregarInteracoes,
     }
     await Promise.all(Array.from(abasPdf).map(k => carregadores[k]()))
     setGerandoPdf(false)
@@ -290,6 +310,12 @@ export default function Relatorios({ user }) {
   const receitaAparelho = vendas.filter(ehAparelho).reduce((s, v) => s + Number(v.valor || 0), 0)
   const qtdApurado = vendas.filter(v => v.carteira_venda?.status_apuracao === 'ativado').length
   const qtdReprovado = vendas.filter(v => v.carteira_venda?.status_apuracao === 'reprovado').length
+
+  // conversão do período: só o lote de clientes distribuído dentro do filtro de data, não a
+  // carteira acumulada inteira — faz sentido comparar período com período
+  const qtdDistribuidos = clientesDistribuidos.length
+  const qtdFechadosDistribuidos = clientesDistribuidos.filter(c => STATUS_VENDA.includes(c.status)).length
+  const conversaoPeriodo = qtdDistribuidos > 0 ? Math.round((qtdFechadosDistribuidos / qtdDistribuidos) * 100) : 0
 
   // vendas por produto (subproduto) no período filtrado
   const porSubprodutoVendas = {}
@@ -435,6 +461,7 @@ export default function Relatorios({ user }) {
             <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{qtdRenovacao}</div><div className="diag-stat-label">Renovação</div></div>
             <div className="diag-stat diag-stat-ti"><div className="diag-stat-valor">{qtdApurado}</div><div className="diag-stat-label">Apurado (Finalizado)</div></div>
             <div className={`diag-stat diag-stat-voz ${qtdReprovado === 0 ? 'diag-stat-zero' : ''}`}><div className="diag-stat-valor">{qtdReprovado}</div><div className="diag-stat-label">Reprovado</div></div>
+            <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{conversaoPeriodo}%</div><div className="diag-stat-label">Conversão do Período ({qtdFechadosDistribuidos}/{qtdDistribuidos} distribuídos)</div></div>
           </div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
@@ -617,6 +644,7 @@ export default function Relatorios({ user }) {
               <div className="print-kpi"><div className="print-kpi-valor">{fmtMoeda(receitaAparelho)}</div><div className="print-kpi-label">Receita Aparelho</div></div>
               <div className="print-kpi print-kpi-destaque"><div className="print-kpi-valor">{qtdApurado}</div><div className="print-kpi-label">Apurado (Finalizado)</div></div>
               <div className="print-kpi"><div className="print-kpi-valor">{qtdReprovado}</div><div className="print-kpi-label">Reprovado</div></div>
+              <div className="print-kpi"><div className="print-kpi-valor">{conversaoPeriodo}%</div><div className="print-kpi-label">Conversão do Período ({qtdFechadosDistribuidos}/{qtdDistribuidos})</div></div>
             </div>
 
             {vendasPorProduto.length > 0 && (
