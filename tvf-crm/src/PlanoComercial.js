@@ -60,7 +60,11 @@ function corSemaforo(pct) {
 
 function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   const realizado = row.esteira - row.backlog
-  const mediaDiaria = duTotais > 0 ? realizado / duTotais : 0
+  // média diária de produtividade tem que dividir pelos dias úteis JÁ PASSADOS no mês, não pelo
+  // total — dividir pelo total sub-estima o ritmo no começo do mês (ex: dia 5 de 21, realizado
+  // de 5 dias / 21 fica bem menor que o ritmo real, e esse erro se multiplica na projeção).
+  const duDecorridos = duTotais - duRestantes
+  const mediaDiaria = duDecorridos > 0 ? realizado / duDecorridos : 0
   const metaDiaria = duRestantes > 0 ? (row.meta - row.esteira) / duRestantes : 0
   const projecao = (row.esteira * fatorConversao) + (mediaDiaria * duRestantes)
   const pctAtingimento = row.meta > 0 ? projecao / row.meta : 0
