@@ -80,6 +80,7 @@ export default function Relatorios({ user }) {
   const [mostrarConfigAnalise, setMostrarConfigAnalise] = useState(false)
   const [escopoAnalise, setEscopoAnalise] = useState(new Set(['vendas', 'rotina', 'interacoes']))
   const [focoAnalise, setFocoAnalise] = useState('geral')
+  const [pedidoAnalise, setPedidoAnalise] = useState('')
 
   useEffect(() => {
     if (isGestor(user)) supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
@@ -295,9 +296,15 @@ export default function Relatorios({ user }) {
     })
 
     const foco = FOCOS_ANALISE.find(f => f.key === focoAnalise)
+    const pedido = pedidoAnalise.trim()
+    // pedido livre do gestor tem prioridade sobre o preset — o preset ainda entra como pano de
+    // fundo, mas quem manda é o que ele escreveu
+    const focoFinal = pedido
+      ? `${foco.instrucao}\n\nPedido específico do gestor: "${pedido}" — responda EXATAMENTE isso como prioridade, usando só os dados enviados abaixo. Se os dados não forem suficientes pra responder o pedido, diga isso claramente em vez de inventar ou generalizar.`
+      : foco.instrucao
     setGerandoAnalise(false)
     setMostrarConfigAnalise(false)
-    setDadosAnalise({ periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`, foco: foco.instrucao, consultores })
+    setDadosAnalise({ periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`, foco: focoFinal, consultores })
   }
 
   const totalVendas = vendas.reduce((s, v) => s + Number(v.valor || 0), 0)
@@ -426,6 +433,10 @@ export default function Relatorios({ user }) {
               <select className="filter-select" style={{ width: '100%' }} value={focoAnalise} onChange={e => setFocoAnalise(e.target.value)}>
                 {FOCOS_ANALISE.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
               </select>
+              <div className="lm-section-title" style={{ marginTop: 12 }}>Pedido específico (opcional)</div>
+              <textarea className="obs-area" style={{ width: '100%', minHeight: 70 }}
+                placeholder='Ex: "quem tá sem interação há mais de 5 dias" ou "compara conversão de produto novo entre os consultores"'
+                value={pedidoAnalise} onChange={e => setPedidoAnalise(e.target.value)} />
             </div>
             <div className="lm-actions">
               <button className="btn-save-obs" style={{ flex: 1, float: 'none', margin: 0 }}

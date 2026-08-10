@@ -407,6 +407,20 @@ body {
 .lm-body .lm-section-title { margin-bottom: -8px; }
 .lm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .lm-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* ANÁLISE IA — cada consultor (ou o plano coletivo) vira um quadro próprio, em vez de
+   markdown cru (###, **) solto como texto */
+.analise-corpo { display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+.analise-secao { background: #FAF8FC; border: 1px solid #E0D8EC; border-radius: 12px; overflow: hidden; }
+.analise-secao-titulo {
+  background: linear-gradient(90deg, #4A0072 0%, #660099 55%, #8B3FD1 100%); color: #fff;
+  font-size: 13px; font-weight: 700; padding: 10px 14px;
+}
+.analise-secao-corpo { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.analise-subtitulo { font-size: 12px; font-weight: 700; color: #660099; margin-top: 4px; }
+.analise-paragrafo { font-size: 13px; line-height: 1.6; color: #333; margin: 0; }
+.analise-lista { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.analise-lista li { font-size: 13px; line-height: 1.5; color: #333; }
 .lm-field-edit label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; margin-bottom: 4px; }
 .lm-input { width: 100%; font-size: 13px; font-weight: 500; color: #1a1a2e; border: 1.5px solid #E0D8EC; border-radius: 7px; padding: 7px 10px; outline: none; background: #fff; font-family: inherit; transition: border-color 0.15s; }
 .lm-input:focus { border-color: #660099; }

@@ -25,7 +25,13 @@ individualmente, sintetize o que é sistêmico.
 
 Seja direto e específico, sempre ancorado nos números e nos textos reais recebidos. Nunca
 invente dado que não veio no payload. Evite generalidades vagas tipo "pode melhorar o
-atendimento" sem dizer o quê, quando e como.`
+atendimento" sem dizer o quê, quando e como.
+
+Se o gestor mandar um "Pedido específico", ele é a prioridade — responda ele primeiro e de
+forma direta, antes do resto da estrutura acima. Se os dados enviados não derem pra responder
+esse pedido (ex: perguntou algo de um escopo que não foi marcado, tipo vendas sem os dados de
+vendas terem vindo), diga isso claramente e sugira marcar o escopo certo — não generalize nem
+responda com base em suposição.`
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
