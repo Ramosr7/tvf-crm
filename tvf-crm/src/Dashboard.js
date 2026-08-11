@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchPaginado } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
+import { ehAparelho, splitReceita, categoriaItem } from './vendaUtils'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
-
-// Subproduto com "TA" no código é aparelho (Troca/Terminal de Aparelho) — não conta como
-// produto novo/renovação de plano, mesma regra do relatório de Vendas.
-const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
-const ehAparelho = (it) => SUBPRODUTOS_APARELHO.includes(it.subproduto)
+const LABEL_CATEGORIA = { novo: 'Produto Novo', renovacao: 'Renovação', aparelho: 'Aparelho' }
 
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -27,16 +24,34 @@ function variacao(atual, anterior) {
   return Math.round(((atual - anterior) / anterior) * 100)
 }
 
-function CardComparativo({ titulo, icone, cor = 'roxo', atualQtd, atualValor, anteriorQtd, labelAnterior, onClick }) {
+// receita nunca aparece como um total só misturado — sempre quebrada em Produto Novo /
+// Renovação / Aparelho, ao lado da quantidade (não mais embaixo empilhada)
+function ReceitaSplit({ split }) {
+  return (
+    <div className="dash-card-split">
+      <div className="dash-card-split-row"><span className="dash-card-split-key"><span className="dash-card-split-dot dot-novo" />Novo</span><span className="dash-card-split-val">{fmtMoeda(split.novo)}</span></div>
+      <div className="dash-card-split-row"><span className="dash-card-split-key"><span className="dash-card-split-dot dot-renov" />Renov</span><span className="dash-card-split-val">{fmtMoeda(split.renovacao)}</span></div>
+      <div className="dash-card-split-row"><span className="dash-card-split-key"><span className="dash-card-split-dot dot-aparelho" />Aparelho</span><span className="dash-card-split-val">{fmtMoeda(split.aparelho)}</span></div>
+    </div>
+  )
+}
+
+function CardComparativo({ titulo, atualQtd, split, anteriorQtd, labelAnterior, onClick }) {
   const varQtd = variacao(atualQtd, anteriorQtd)
   return (
     <div className={`dash-card ${onClick ? 'dash-card-clicavel' : ''}`} onClick={onClick}>
-      {icone && <div className={`dash-card-icon cor-${cor}`}>{icone}</div>}
-      <div className="dash-card-titulo">{titulo}</div>
-      <div className="dash-card-numero">{atualQtd}</div>
-      <div className="dash-card-valor">{fmtMoeda(atualValor)}</div>
-      <div className={`dash-card-var ${varQtd >= 0 ? 'var-up' : 'var-down'}`}>
-        {varQtd >= 0 ? '▲' : '▼'} {Math.abs(varQtd)}% vs {labelAnterior} ({anteriorQtd})
+      <div className="dash-card-top">
+        <div className="dash-card-titulo" style={{ marginBottom: 0 }}>{titulo}</div>
+        <div className={`dash-card-var ${varQtd >= 0 ? 'var-up' : 'var-down'}`}>
+          {varQtd >= 0 ? '▲' : '▼'} {Math.abs(varQtd)}%
+        </div>
+      </div>
+      <div className="dash-card-body">
+        <div className="dash-card-numero-wrap">
+          <div className="dash-card-numero">{atualQtd}</div>
+          <div className="dash-card-numero-sub">vs. {anteriorQtd} {labelAnterior}</div>
+        </div>
+        <ReceitaSplit split={split} />
       </div>
     </div>
   )
@@ -245,6 +260,11 @@ export default function Dashboard({ user }) {
   function somaValor(lista) {
     return lista.reduce((s, v) => s + valorVenda(v.id), 0)
   }
+  // receita da lista de vendas (eventos), quebrada em Produto Novo / Renovação / Aparelho
+  function splitPorVendas(lista) {
+    const ids = new Set(lista.map(v => v.id))
+    return splitReceita(itensPorVenda.filter(it => ids.has(it.carteira_venda_id)))
+  }
   // lista de eventos de venda -> linhas pro ModalDetalhe (nome do cliente + valor daquela venda).
   // Também aceita lista de clientes "crus" (Funil, Kanban) — nesse caso não tem venda associada.
   function paraItensClientes(lista) {
@@ -358,7 +378,7 @@ export default function Dashboard({ user }) {
     .filter(it => idsVendaMes.has(it.carteira_venda_id))
     .forEach(it => {
       const sub = it.subproduto || '—'
-      if (!porSubprodutoMes[sub]) porSubprodutoMes[sub] = { qtd: 0, valor: 0 }
+      if (!porSubprodutoMes[sub]) porSubprodutoMes[sub] = { qtd: 0, valor: 0, categoria: categoriaItem(it) }
       porSubprodutoMes[sub].qtd += 1
       porSubprodutoMes[sub].valor += Number(it.valor || 0)
     })
@@ -378,6 +398,7 @@ export default function Dashboard({ user }) {
     .map(([id, v]) => ({ id, nome: nomeConsultor(id), ...v }))
     .sort((a, b) => b.valor - a.valor)
   const melhorDoDia = rankingHoje[0]
+  const splitMelhorDoDia = melhorDoDia ? splitPorVendas(vendasHoje.filter(v => v.consultor_id === melhorDoDia.id)) : null
 
   // indicadores de atendimento (rotina diária) de hoje, somados na equipe toda
   const rotinasHoje = rotinas.filter(r => r.data === hojeISO)
@@ -450,7 +471,7 @@ export default function Dashboard({ user }) {
     meses6.push({
       label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
       valor: doMes.length,
-      valorReceita: somaValor(doMes),
+      split: splitPorVendas(doMes),
     })
   }
 
@@ -459,13 +480,13 @@ export default function Dashboard({ user }) {
       <div className="dash-section-title">Visão Geral</div>
 
       <div className="dash-grid">
-        <CardComparativo titulo="Vendas Hoje" cor="roxo" atualQtd={vendasHoje.length} atualValor={somaValor(vendasHoje)}
+        <CardComparativo titulo="Vendas Hoje" atualQtd={vendasHoje.length} split={splitPorVendas(vendasHoje)}
           anteriorQtd={vendasOntem.length} labelAnterior="ontem"
           onClick={() => setModal({ titulo: 'Vendas Hoje', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasHoje) })} />
-        <CardComparativo titulo="Vendas na Semana" cor="laranja" atualQtd={vendasSemana.length} atualValor={somaValor(vendasSemana)}
+        <CardComparativo titulo="Vendas na Semana" atualQtd={vendasSemana.length} split={splitPorVendas(vendasSemana)}
           anteriorQtd={vendasSemanaAnterior.length} labelAnterior="semana passada"
           onClick={() => setModal({ titulo: 'Vendas na Semana', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasSemana) })} />
-        <CardComparativo titulo="Vendas no Mês" cor="azul" atualQtd={vendasMes.length} atualValor={somaValor(vendasMes)}
+        <CardComparativo titulo="Vendas no Mês" atualQtd={vendasMes.length} split={splitPorVendas(vendasMes)}
           anteriorQtd={vendasMesAnterior.length} labelAnterior="mês passado"
           onClick={() => setModal({ titulo: 'Vendas no Mês', tipo: 'clientes', podeEditarVenda: true, itens: paraItensClientes(vendasMes) })} />
         <div className="dash-card dash-card-clicavel" onClick={() => setModal({ titulo: 'Clientes Distribuídos e Fechados no Mês', tipo: 'clientes', itens: paraItensClientes(clientesDistribuidosMes) })}>
@@ -517,7 +538,8 @@ export default function Dashboard({ user }) {
 
       {!isConsultor && melhorDoDia && (
         <div className="dash-destaque">
-          Melhor vendedor do dia: <strong>{melhorDoDia.nome}</strong> — {melhorDoDia.qtd} venda(s) · {fmtMoeda(melhorDoDia.valor)}
+          Melhor vendedor do dia: <strong>{melhorDoDia.nome}</strong> — {melhorDoDia.qtd} venda(s) ·
+          {' '}Novo: {fmtMoeda(splitMelhorDoDia.novo)} · Renov: {fmtMoeda(splitMelhorDoDia.renovacao)} · Aparelho: {fmtMoeda(splitMelhorDoDia.aparelho)}
         </div>
       )}
 
@@ -532,9 +554,14 @@ export default function Dashboard({ user }) {
       </div>
       <div className="dash-card" style={{ marginTop: 14, marginBottom: 14, overflow: 'auto' }}>
         <table className="carteira-table">
-          <thead><tr><th>Mês</th><th>Vendas</th><th>Receita</th></tr></thead>
+          <thead><tr><th>Mês</th><th>Vendas</th><th>Receita Novo</th><th>Receita Renovação</th><th>Receita Aparelho</th></tr></thead>
           <tbody>
-            {meses6.map((m, i) => <tr key={i}><td>{m.label}</td><td>{m.valor}</td><td>{fmtMoeda(m.valorReceita)}</td></tr>)}
+            {meses6.map((m, i) => (
+              <tr key={i}>
+                <td>{m.label}</td><td>{m.valor}</td>
+                <td>{fmtMoeda(m.split.novo)}</td><td>{fmtMoeda(m.split.renovacao)}</td><td>{fmtMoeda(m.split.aparelho)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -583,11 +610,11 @@ export default function Dashboard({ user }) {
           </div>
           <div className="dash-card" style={{ overflow: 'auto' }}>
             <table className="carteira-table">
-              <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+              <thead><tr><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Valor</th></tr></thead>
               <tbody>
                 {vendasPorProdutoMes.map(p => (
                   <tr key={p.subproduto}>
-                    <td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
+                    <td>{p.subproduto}</td><td>{LABEL_CATEGORIA[p.categoria]}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td>
                   </tr>
                 ))}
               </tbody>
