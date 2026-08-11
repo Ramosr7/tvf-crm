@@ -54,7 +54,7 @@ body {
 }
 .login-hero-marca {
   position: absolute; right: -18px; bottom: -50px; font-size: 220px; font-weight: 900;
-  font-family: 'SF Mono', Menlo, Consolas, monospace; color: rgba(255,255,255,0.06);
+  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: rgba(255,255,255,0.06);
   line-height: 1; letter-spacing: -10px; pointer-events: none; user-select: none;
 }
 .login-hero-grid {
@@ -65,7 +65,7 @@ body {
 }
 .login-hero-conteudo { position: relative; z-index: 1; }
 .login-hero-produto {
-  font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 26px; font-weight: 800;
+  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 26px; font-weight: 800;
   letter-spacing: 0.04em; color: #fff; margin-bottom: 14px; text-transform: uppercase;
 }
 .login-hero-produto span {
@@ -73,7 +73,7 @@ body {
   color: transparent; text-shadow: 0 0 24px rgba(239,159,39,0.5);
 }
 .login-hero-badge {
-  display: inline-block; width: fit-content; font-family: 'SF Mono', Menlo, Consolas, monospace;
+  display: inline-block; width: fit-content; font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
   padding: 6px 14px; border-radius: 4px; margin-bottom: 24px;
@@ -87,7 +87,7 @@ body {
 .login-hero-lista-icone {
   display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-  font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; color: #EF9F27;
+  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #EF9F27;
 }
 
 .login-box {
@@ -98,7 +98,7 @@ body {
 .login-box .lm-field-edit { width: 100%; }
 .login-logo-wrap { margin-bottom: 20px; display: flex; justify-content: center; }
 .login-box-badge {
-  display: inline-block; width: fit-content; font-family: 'SF Mono', Menlo, Consolas, monospace;
+  display: inline-block; width: fit-content; font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
   color: #660099; background: #F0E6FA; padding: 5px 12px; border-radius: 4px; margin-bottom: 12px;
 }
