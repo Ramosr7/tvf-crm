@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchPaginado } from './supabaseClient'
 import AnaliseIAModal from './AnaliseIAModal'
+import { ehAparelho, categoriaItem } from './vendaUtils'
 
 function fmtMoeda(v) {
   return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -42,13 +43,9 @@ const FOCOS_ANALISE = [
   { key: 'risco', label: 'Clientes em risco', instrucao: 'Foque em clientes parados, sem interação recente ou nunca contatados — priorize quem precisa de ação urgente. Ignore o que não for risco de perda de cliente.' },
 ]
 
-// Subproduto com "TA" no código é aparelho (Troca/Terminal de Aparelho) — não é receita de
-// produto novo/renovação de plano, entra numa conta separada.
-const SUBPRODUTOS_APARELHO = ['TA', 'RM+TA', 'PC-TA']
-const ehAparelho = (v) => SUBPRODUTOS_APARELHO.includes(v.subproduto)
-
 const isGestor = (user) => user.perfil === 'Gestor'
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
+const LABEL_CATEGORIA = { novo: 'Produto Novo', renovacao: 'Renovação', aparelho: 'Aparelho' }
 
 function agruparPorConsultor(lista, pegarConsultorId) {
   const mapa = {}
@@ -263,11 +260,20 @@ export default function Relatorios({ user }) {
         periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`,
       }
       if (usaVendas) {
+        const vendasNovo = vendasC.filter(v => categoriaItem(v) === 'novo')
+        const vendasRenovacao = vendasC.filter(v => categoriaItem(v) === 'renovacao')
+        const vendasAparelho = vendasC.filter(v => categoriaItem(v) === 'aparelho')
+        // receita SEMPRE separada por categoria pra IA, nunca um total misturado — senão a
+        // análise gerada acaba comparando/somando produto novo com renovação como se fosse a
+        // mesma coisa
         registro.vendas = {
           qtd: vendasC.length,
-          valor: vendasC.reduce((s, v) => s + Number(v.valor || 0), 0),
-          novo: vendasC.filter(v => v.tipo === 'Novo').length,
-          renovacao: vendasC.filter(v => v.tipo === 'Renovação').length,
+          receitaProdutoNovo: vendasNovo.reduce((s, v) => s + Number(v.valor || 0), 0),
+          receitaRenovacao: vendasRenovacao.reduce((s, v) => s + Number(v.valor || 0), 0),
+          receitaAparelho: vendasAparelho.reduce((s, v) => s + Number(v.valor || 0), 0),
+          qtdProdutoNovo: vendasNovo.length,
+          qtdRenovacao: vendasRenovacao.length,
+          qtdAparelho: vendasAparelho.length,
         }
       }
       if (usaRotina) {
@@ -328,7 +334,7 @@ export default function Relatorios({ user }) {
   const porSubprodutoVendas = {}
   vendas.forEach(v => {
     const sub = v.subproduto || '—'
-    if (!porSubprodutoVendas[sub]) porSubprodutoVendas[sub] = { qtd: 0, valor: 0 }
+    if (!porSubprodutoVendas[sub]) porSubprodutoVendas[sub] = { qtd: 0, valor: 0, categoria: categoriaItem(v) }
     porSubprodutoVendas[sub].qtd += v.quantidade || 1
     porSubprodutoVendas[sub].valor += Number(v.valor || 0)
   })
@@ -501,10 +507,10 @@ export default function Relatorios({ user }) {
           {vendasPorProduto.length > 0 && (
             <div className="carteira-table-wrap">
               <table className="carteira-table">
-                <thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead>
+                <thead><tr><th>Produto</th><th>Categoria</th><th>Qtd</th><th>Valor</th></tr></thead>
                 <tbody>
                   {vendasPorProduto.map(p => (
-                    <tr key={p.subproduto}><td>{p.subproduto}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td></tr>
+                    <tr key={p.subproduto}><td>{p.subproduto}</td><td>{LABEL_CATEGORIA[p.categoria]}</td><td>{p.qtd}</td><td>{fmtMoeda(p.valor)}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -666,7 +672,7 @@ export default function Relatorios({ user }) {
                   const pct = Math.max(4, Math.round((p.valor / max) * 100))
                   return (
                     <div key={p.subproduto} className="print-chart-linha">
-                      <div className="print-chart-label">{p.subproduto}</div>
+                      <div className="print-chart-label">{p.subproduto} <span style={{ color: '#999', fontWeight: 400 }}>({LABEL_CATEGORIA[p.categoria]})</span></div>
                       <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: pct + '%' }} /></div>
                       <div className="print-chart-valor">{p.qtd} un. · {fmtMoeda(p.valor)}</div>
                     </div>

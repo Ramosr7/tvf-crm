@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import VendaChecklistModal from './VendaChecklistModal'
 import VendaItensModal from './VendaItensModal'
 import LembreteModal from './LembreteModal'
+import { splitReceita } from './vendaUtils'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 const STATUS_GATILHO_CHECKLIST = STATUS_VENDA
@@ -104,7 +105,12 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
   }
 
   const dias = diasDesde(cliente.temperatura_atualizada_em)
-  const totalVendido = vendaItens.reduce((s, i) => s + Number(i.valor || 0), 0)
+  const splitVendido = splitReceita(vendaItens)
+  const resumoVendido = [
+    splitVendido.novo > 0 && `Novo ${fmtMoeda(splitVendido.novo)}`,
+    splitVendido.renovacao > 0 && `Renov ${fmtMoeda(splitVendido.renovacao)}`,
+    splitVendido.aparelho > 0 && `Aparelho ${fmtMoeda(splitVendido.aparelho)}`,
+  ].filter(Boolean).join(' · ')
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -136,7 +142,7 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
             <div className="lm-field"><label>Pot. TI</label><span>{cliente.potencial_ti || 0}</span></div>
             <div className="lm-field"><label>Pot. Voz</label><span>{cliente.potencial_voz || 0}</span></div>
             <div className="lm-field"><label>Crédito Pré-aprovado</label><span>{fmtMoeda(cliente.credito_pre_aprovado)}</span></div>
-            <div className="lm-field"><label>Vendido</label><span>{vendaItens.length} item(ns) · {fmtMoeda(totalVendido)}</span></div>
+            <div className="lm-field"><label>Vendido</label><span>{vendaItens.length} item(ns){resumoVendido && ` · ${resumoVendido}`}</span></div>
           </div>
           <button type="button" className="btn-filter-light" style={{ marginTop: 8 }} onClick={() => setMostrarChecklist(true)}>📋 Ver Checklist de Venda</button>
 

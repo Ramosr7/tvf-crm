@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { ehAparelho } from './vendaUtils'
 
 // RM+TA e PC-TA (combo com aparelho) foram removidos de propósito: misturam receita de
 // plano com receita de aparelho numa linha só, impossível separar depois no relatório.
@@ -93,10 +94,16 @@ export default function VendaItensModal({ cliente, vendaId: vendaIdProp, onClose
   }
 
   const selecionados = Object.entries(itens)
-  const totalNovo = selecionados.filter(([, v]) => v.tipo === 'Novo').reduce((s, [, v]) => s + (Number(v.valor) || 0), 0)
-  const totalRenovacao = selecionados.filter(([, v]) => v.tipo === 'Renovação').reduce((s, [, v]) => s + (Number(v.valor) || 0), 0)
-  const qtdNovo = selecionados.filter(([, v]) => v.tipo === 'Novo').length
-  const qtdRenovacao = selecionados.filter(([, v]) => v.tipo === 'Renovação').length
+  // aparelho (TA/RM+TA/PC-TA) é categoria própria, separada de Novo/Renovação mesmo quando o
+  // subproduto tem tipo "Novo" por padrão — nunca soma dentro de Novo
+  const naoAparelho = selecionados.filter(([sub]) => !ehAparelho({ subproduto: sub }))
+  const doAparelho = selecionados.filter(([sub]) => ehAparelho({ subproduto: sub }))
+  const totalNovo = naoAparelho.filter(([, v]) => v.tipo === 'Novo').reduce((s, [, v]) => s + (Number(v.valor) || 0), 0)
+  const totalRenovacao = naoAparelho.filter(([, v]) => v.tipo === 'Renovação').reduce((s, [, v]) => s + (Number(v.valor) || 0), 0)
+  const totalAparelho = doAparelho.reduce((s, [, v]) => s + (Number(v.valor) || 0), 0)
+  const qtdNovo = naoAparelho.filter(([, v]) => v.tipo === 'Novo').length
+  const qtdRenovacao = naoAparelho.filter(([, v]) => v.tipo === 'Renovação').length
+  const qtdAparelho = doAparelho.length
 
   // Une com chaves já salvas fora da lista atual (ex: RM+TA/PC-TA lançados antes de serem
   // removidos) — senão a linha antiga fica órfã, contando no total sem dar pra editar/apagar.
@@ -148,7 +155,8 @@ export default function VendaItensModal({ cliente, vendaId: vendaIdProp, onClose
 
             <div className="lm-resumo">
               Novo: {qtdNovo} item(ns) · {totalNovo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}<br />
-              Renovação: {qtdRenovacao} item(ns) · {totalRenovacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              Renovação: {qtdRenovacao} item(ns) · {totalRenovacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}<br />
+              Aparelho: {qtdAparelho} item(ns) · {totalAparelho.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </div>
 
             <div className="lm-actions">

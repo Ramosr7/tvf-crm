@@ -5,6 +5,7 @@ import VendaItensModal from './VendaItensModal'
 import InteracaoCarteiraModal from './InteracaoCarteiraModal'
 import { calcularPotencial } from './potencialLogic'
 import VendaChecklistModal from './VendaChecklistModal'
+import { splitReceita } from './vendaUtils'
 
 const STATUS_OPCOES = [
   'Aguardando Aceite', 'Aguardando Atendimento', 'Cliente Cancelou', 'Cliente Já Renovado', 'CNPJ Baixado',
@@ -143,8 +144,14 @@ export default function PotencialCarteira({ user }) {
   function resumoVenda(clienteId) {
     const itens = vendaItensPorCliente[clienteId] || []
     if (itens.length === 0) return null
-    const total = itens.reduce((s, i) => s + Number(i.valor || 0), 0)
-    return `${itens.length} item(ns) · ${fmtMoeda(total)}`
+    // receita sempre separada por categoria, mesmo nesse resumo compacto — some quando é zero
+    // pra não poluir o caso comum de venda de uma categoria só
+    const split = splitReceita(itens)
+    const partes = []
+    if (split.novo > 0) partes.push(`Novo ${fmtMoeda(split.novo)}`)
+    if (split.renovacao > 0) partes.push(`Renov ${fmtMoeda(split.renovacao)}`)
+    if (split.aparelho > 0) partes.push(`Aparelho ${fmtMoeda(split.aparelho)}`)
+    return `${itens.length} item(ns) · ${partes.join(' · ')}`
   }
 
   function resumoInteracao(clienteId) {
@@ -266,7 +273,9 @@ export default function PotencialCarteira({ user }) {
       'Pot. TI': c.potencial_ti || 0,
       'Pot. Voz': c.potencial_voz || 0,
       'Crédito Pré-aprovado': Number(c.credito_pre_aprovado || 0),
-      'Vendido (R$)': (vendaItensPorCliente[c.id] || []).reduce((s, i) => s + Number(i.valor || 0), 0),
+      'Vendido Produto Novo (R$)': splitReceita(vendaItensPorCliente[c.id] || []).novo,
+      'Vendido Renovação (R$)': splitReceita(vendaItensPorCliente[c.id] || []).renovacao,
+      'Vendido Aparelho (R$)': splitReceita(vendaItensPorCliente[c.id] || []).aparelho,
       'Data Venda': c.data_venda || '',
       'Data Adição': c.data_adicao || '',
       Observações: c.observacoes || '',
