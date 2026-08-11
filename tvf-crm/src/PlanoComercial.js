@@ -227,7 +227,7 @@ export default function PlanoComercial() {
 
   return (
     <div className="main">
-      <div className="lm-section-title">Plano Comercial</div>
+      <div className="dash-section-title">Plano Comercial</div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
         <label style={{ fontSize: 12, color: '#888' }}>Mês
@@ -240,7 +240,7 @@ export default function PlanoComercial() {
 
       {mostrarTimes && (
         <div className="lm-resumo" style={{ marginBottom: 16 }}>
-          <div className="lm-section-title" style={{ marginTop: 0 }}>Quem tem carta meta no Plano Comercial</div>
+          <div className="dash-section-title" style={{ marginTop: 0 }}>Quem tem carta meta no Plano Comercial</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {staff.filter(s => s.perfil === 'Supervisor' || s.perfil === 'Gestor').map(s => (
               <label key={s.id} style={{ fontSize: 13, color: '#333', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -254,7 +254,7 @@ export default function PlanoComercial() {
 
       {mostrarConfig && (
         <div className="lm-resumo" style={{ marginBottom: 16 }}>
-          <div className="lm-section-title" style={{ marginTop: 0 }}>Fator de conversão por vertical</div>
+          <div className="dash-section-title" style={{ marginTop: 0 }}>Fator de conversão por vertical</div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {ORDEM_VERTICAIS.map(v => (
               <label key={v} style={{ fontSize: 12, color: '#555', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -273,7 +273,7 @@ export default function PlanoComercial() {
 
       {Object.keys(metaGlobal).length > 0 && (
         <>
-          <div className="lm-section-title">Meta Global do Escritório (antes da quebra por time)</div>
+          <div className="dash-section-title">Meta Global do Escritório (antes da quebra por time)</div>
           <div className="dash-grid" style={{ marginBottom: 24 }}>
             {ORDEM_VERTICAIS.filter(v => metaGlobal[v] !== undefined).map(v => (
               <div key={v} className="dash-card">
@@ -287,7 +287,7 @@ export default function PlanoComercial() {
 
       {consolidado.length > 0 && (
         <>
-          <div className="lm-section-title">Projeção Total — Regional São Paulo Capital</div>
+          <div className="dash-section-title">Projeção Total — Regional São Paulo Capital</div>
           <div className="plano-grafico-grid" style={{ marginBottom: 16 }}>
             {consolidado.map(c => {
               const fator = config[c.vertical] ?? 0.8

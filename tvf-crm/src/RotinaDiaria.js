@@ -134,7 +134,7 @@ export default function RotinaDiaria({ user }) {
 
       {!isGestor(user) && (
         <>
-          <div className="lm-section-title" style={{ marginBottom: 12 }}>Rotina do dia — {formatDataBR(dataSelecionada)}</div>
+          <div className="dash-section-title" style={{ marginBottom: 12 }}>Rotina do dia — {formatDataBR(dataSelecionada)}</div>
           {existeRegistro && (
             <div style={{ fontSize: 12, color: '#666', margin: '0 0 6px' }}>
               {campos.validado ? '✅ Validado pelo gestor' : '⏳ Aguardando validação'}
@@ -158,7 +158,7 @@ export default function RotinaDiaria({ user }) {
             {salvando ? 'Salvando...' : existeRegistro ? 'Atualizar Rotina' : 'Salvar Rotina de Hoje'}
           </button>
 
-          <div className="lm-section-title" style={{ marginTop: 28, marginBottom: 12 }}>Últimos 14 dias</div>
+          <div className="dash-section-title" style={{ marginTop: 28, marginBottom: 12 }}>Últimos 14 dias</div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
               <thead>
@@ -185,7 +185,7 @@ export default function RotinaDiaria({ user }) {
 
       {isGestor(user) && (
         <>
-          <div className="lm-section-title" style={{ marginBottom: 12 }}>Rotina da equipe — {formatDataBR(dataSelecionada)}</div>
+          <div className="dash-section-title" style={{ marginBottom: 12 }}>Rotina da equipe — {formatDataBR(dataSelecionada)}</div>
           <div className="carteira-table-wrap">
             <table className="carteira-table">
               <thead>

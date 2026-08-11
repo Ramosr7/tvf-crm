@@ -332,7 +332,7 @@ export default function AssistenteConteudo({ user }) {
   return (
     <div className="main">
       <div style={{ marginBottom: 20 }}>
-        <div className="lm-section-title">Diagnóstico de Dúvidas (últimos 30 dias)</div>
+        <div className="dash-section-title">Diagnóstico de Dúvidas (últimos 30 dias)</div>
         <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
           Analisa todas as perguntas feitas ao Joaozinho por toda a equipe (sem identificar quem
           perguntou) e sugere padrões e plano de ação.
@@ -350,7 +350,7 @@ export default function AssistenteConteudo({ user }) {
 
       {semResposta.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <div className="lm-section-title">Perguntas que o Joaozinho não soube responder ({semResposta.length})</div>
+          <div className="dash-section-title">Perguntas que o Joaozinho não soube responder ({semResposta.length})</div>
           <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
             O consultor perguntou, ele não achou no conteúdo cadastrado. Cadastra o tema e marca como resolvida.
           </p>
@@ -366,7 +366,7 @@ export default function AssistenteConteudo({ user }) {
         </div>
       )}
 
-      <div className="lm-section-title">Alimentar Joaozinho (Assistente Virtual)</div>
+      <div className="dash-section-title">Alimentar Joaozinho (Assistente Virtual)</div>
       <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
         Cada bloco de conteúdo tem um título — é o que identifica o tema (ex: "Preços Banda
         Larga", "Book de Ofertas Móvel"). Subir de novo com o MESMO título substitui o
@@ -378,7 +378,7 @@ export default function AssistenteConteudo({ user }) {
 
       {jobs.length > 0 && (
         <div style={{ marginBottom: 20 }}>
-          <div className="lm-section-title">Uploads pendentes ({jobs.length})</div>
+          <div className="dash-section-title">Uploads pendentes ({jobs.length})</div>
           <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
             Arquivo já salvo, faltou só a IA terminar de ler — clica em Retomar pra continuar de onde parou.
           </p>
@@ -434,7 +434,7 @@ export default function AssistenteConteudo({ user }) {
         )}
       </div>
 
-      <div className="lm-section-title" style={{ marginTop: 24 }}>Histórico — o que já foi ensinado ({lista.length})</div>
+      <div className="dash-section-title" style={{ marginTop: 24 }}>Histórico — o que já foi ensinado ({lista.length})</div>
       {loading && <div className="empty">Carregando...</div>}
       {!loading && lista.length === 0 && <div className="empty">Nenhum conteúdo cadastrado ainda.</div>}
       {!loading && lista.map(item => (

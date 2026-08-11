@@ -122,8 +122,17 @@ body {
 /* CARTEIRA TABLE */
 .carteira-table-wrap { overflow-x: auto; background: #fff; border: 1px solid #E0D8EC; border-radius: 10px; }
 .carteira-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.carteira-table th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #999; padding: 10px 12px; border-bottom: 1px solid #E0D8EC; white-space: nowrap; }
-.carteira-table td { padding: 8px 12px; border-bottom: 1px solid #F0EAF8; white-space: nowrap; }
+/* cabeçalho padrão de TODA tabela do CRM — mesmo roxo→lilás em toda tela, não só no Plano
+   Comercial. Sem isso cada tela inventava um estilo de cabeçalho diferente (branco cru, cinza
+   uppercase, roxo...), sem padrão visual entre as telas. */
+.carteira-table th {
+  text-align: left; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: #fff; padding: 10px 12px; white-space: nowrap;
+  background: linear-gradient(135deg, #660099, #8B3FD1);
+}
+.carteira-table th:first-child { border-top-left-radius: 10px; }
+.carteira-table th:last-child { border-top-right-radius: 10px; }
+.carteira-table td { padding: 8px 12px; border-bottom: 1px solid #F0EAF8; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .carteira-table td .lm-input { min-width: 110px; padding: 5px 8px; }
 .carteira-table td .filter-select { padding: 5px 8px; }
 .razao-social-truncada { display: inline-block; max-width: 52ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
@@ -163,9 +172,9 @@ body {
 @media (max-width: 900px) { .diag-stats { grid-template-columns: repeat(3, 1fr); } }
 
 /* CARTEIRA TABLE STICKY */
-.carteira-table-sticky thead th { position: sticky; top: 0; background: #fff; z-index: 2; }
+.carteira-table-sticky thead th { position: sticky; top: 0; background: linear-gradient(135deg, #660099, #8B3FD1); z-index: 2; }
 .col-ordenavel { cursor: pointer; user-select: none; }
-.col-ordenavel:hover { color: #660099; }
+.col-ordenavel:hover { color: #FFD9A3; }
 .flag-ativo { background: #FFF3E0; border-color: #FFB347; color: #C0651A; font-weight: 600; }
 
 .plano-semaforo { display: inline-block; padding: 2px 10px; border-radius: 20px; color: #fff; font-size: 11px; font-weight: 700; }
@@ -177,12 +186,6 @@ body {
 .plano-time-titulo {
   display: inline-block; font-size: 14px; font-weight: 700; color: #fff; background: #660099;
   padding: 6px 14px; border-radius: 8px; margin-bottom: 10px;
-}
-
-/* PLANO COMERCIAL — cabeçalho de tabela em roxo, no estilo das "cartas meta" */
-.pc-table-wrap thead th {
-  background: linear-gradient(135deg, #660099, #8B3FD1); color: #fff;
-  text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em;
 }
 
 .menu-temperatura {

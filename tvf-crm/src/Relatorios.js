@@ -502,7 +502,7 @@ export default function Relatorios({ user }) {
             </table>
           </div>
 
-          <div className="lm-section-title" style={{ marginTop: 24 }}>Vendas por Produto</div>
+          <div className="dash-section-title" style={{ marginTop: 24 }}>Vendas por Produto</div>
           {vendasPorProduto.length === 0 && <div className="empty">Nenhuma venda no período</div>}
           {vendasPorProduto.length > 0 && (
             <div className="carteira-table-wrap">
@@ -519,7 +519,7 @@ export default function Relatorios({ user }) {
 
           {isGestor(user) && (
             <>
-              <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Produto Novo</div>
+              <div className="dash-section-title" style={{ marginTop: 24 }}>Ranking — Produto Novo</div>
               {rankingVendasNovo.length === 0 && <div className="empty">Nenhuma venda de produto novo no período</div>}
               {rankingVendasNovo.length > 0 && (
                 <div className="carteira-table-wrap">
@@ -534,7 +534,7 @@ export default function Relatorios({ user }) {
                 </div>
               )}
 
-              <div className="lm-section-title" style={{ marginTop: 24 }}>Ranking — Renovação</div>
+              <div className="dash-section-title" style={{ marginTop: 24 }}>Ranking — Renovação</div>
               {rankingVendasRenovacao.length === 0 && <div className="empty">Nenhuma venda de renovação no período</div>}
               {rankingVendasRenovacao.length > 0 && (
                 <div className="carteira-table-wrap">
