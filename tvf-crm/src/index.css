@@ -533,6 +533,14 @@ body {
   .print-bloco-destaque { color: #1D9E75; font-weight: 700; }
   .print-secao-titulo { font-size: 15px; font-weight: 700; color: #660099; margin: 20px 0 10px; border-bottom: 1px solid #E0D8EC; padding-bottom: 5px; break-after: avoid; page-break-after: avoid; }
   .print-secao-titulo:first-child { margin-top: 0; }
+
+  /* PLANO COMERCIAL — PDF reaproveita o mesmo grid de gráficos (.plano-grafico-grid) e a mesma
+     .carteira-table da tela, só encolhe o card do gráfico pra caber 3 por linha no A4 */
+  .print-plano-secao { break-inside: avoid; page-break-inside: avoid; margin-bottom: 22px; }
+  .print-plano-secao .dash-card { padding: 10px 12px; box-shadow: none; border: 1px solid #E0D8EC; }
+  .print-plano-secao .dash-chart-v { height: 70px !important; }
+  .print-plano-secao .carteira-table { font-size: 10.5px; }
+  .print-plano-secao .carteira-table th, .print-plano-secao .carteira-table td { padding: 5px 8px; }
 }
 
 /* ASSISTENTE VIRTUAL (Joaozinho) — widget flutuante no canto inferior direito */

@@ -72,7 +72,7 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
 }
 
 // gráfico de barras simples (Meta / Esteira / Projeção), igual ao padrão já usado no Dashboard
-function GraficoVertical({ titulo, meta, esteira, projecao, formato }) {
+function GraficoVertical({ titulo, meta, esteira, projecao, formato, pct }) {
   const max = Math.max(1, meta, esteira, projecao)
   const barras = [
     { label: 'Meta', valor: meta, cor: '#660099' },
@@ -81,7 +81,10 @@ function GraficoVertical({ titulo, meta, esteira, projecao, formato }) {
   ]
   return (
     <div className="dash-card">
-      <div className="dash-card-titulo">{titulo}</div>
+      <div className="dash-card-titulo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {titulo}
+        {pct !== undefined && <span className="plano-semaforo" style={{ background: corSemaforo(pct) }}>{fmtPct(pct)}</span>}
+      </div>
       <div className="dash-chart-v" style={{ height: 110 }}>
         {barras.map((b, i) => (
           <div key={i} className="dash-chart-v-col">
@@ -105,6 +108,8 @@ export default function PlanoComercial() {
   const [editandoMetaChave, setEditandoMetaChave] = useState(null)
   const [mostrarConfig, setMostrarConfig] = useState(false)
   const [mostrarTimes, setMostrarTimes] = useState(false)
+  const [filtroTimePdf, setFiltroTimePdf] = useState('todos')
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   const fetchDados = useCallback(async () => {
     setLoading(true)
@@ -158,6 +163,13 @@ export default function PlanoComercial() {
     supabase.from('consultores_staff').update({ plano_comercial_ativo: ativo }).eq('id', staffId)
   }
 
+  // dados já estão todos carregados na tela — o PDF só espelha o que já foi buscado, filtrado
+  // pelo time escolhido, sem precisar de uma nova busca no banco
+  function gerarPdf() {
+    setGerandoPdf(true)
+    setTimeout(() => { window.print(); setGerandoPdf(false) }, 50)
+  }
+
   if (loading) return <div className="loading">Carregando Plano Comercial...</div>
 
   const { duTotais, duRestantes } = calcularDU(mesReferencia)
@@ -192,7 +204,7 @@ export default function PlanoComercial() {
     }
   }).filter(c => c.meta > 0 || c.backlog > 0 || c.esteira > 0)
 
-  function renderLinha(row, key, editavel = false) {
+  function renderLinha(row, key, editavel = false, semBacklog = false) {
     const info = VERTICAL_INFO[row.vertical] || { label: row.vertical, formato: 'inteiro' }
     const fator = config[row.vertical] ?? 0.8
     const calc = calcularLinha(row, fator, duTotais, duRestantes)
@@ -208,7 +220,7 @@ export default function PlanoComercial() {
             <span className="plano-concluido-editavel" onClick={() => setEditandoMetaChave(key)}>{fmtValor(row.meta, info.formato)}</span>
           )) : fmtValor(row.meta, info.formato)}
         </td>
-        <td>{fmtValor(row.backlog, info.formato)}</td>
+        {!semBacklog && <td>{fmtValor(row.backlog, info.formato)}</td>}
         <td>{fmtValor(row.esteira, info.formato)}</td>
         <td>{fmtValor(calc.metaDiaria, info.formato)}</td>
         <td>{fmtValor(calc.mediaDiaria, info.formato)}</td>
@@ -224,9 +236,49 @@ export default function PlanoComercial() {
       <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th>
     </tr>
   )
+  // export tira Backlog — tabela tava cortando na largura do A4
+  const cabecalhoPdf = (
+    <tr>
+      <th>Vertical</th><th>Meta</th><th>Esteira Mês</th>
+      <th>Meta Diária</th><th>Média Diária</th><th>Projeção</th><th>%</th>
+    </tr>
+  )
+
+  const [anoRef, mesRefNum] = mesReferencia.split('-').map(Number)
+  const mesReferenciaLabel = new Date(anoRef, mesRefNum - 1, 1)
+    .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  // pro PDF, reaproveita exatamente o mesmo gráfico de 3 barras (Meta/Esteira/Projeção) e a
+  // mesma tabela que já aparecem na tela — sem inventar uma visualização nova
+  function renderPrintTime(nome, linhas) {
+    return (
+      <div key={nome} className="print-plano-secao">
+        <div className="print-secao-titulo">{nome}</div>
+        <div className="plano-grafico-grid" style={{ marginBottom: 16 }}>
+          {linhas.map(row => {
+            const fator = config[row.vertical] ?? 0.8
+            const calc = calcularLinha(row, fator, duTotais, duRestantes)
+            const info = VERTICAL_INFO[row.vertical] || { label: row.vertical, formato: 'inteiro' }
+            return (
+              <GraficoVertical key={row.vertical} titulo={info.label} meta={row.meta} esteira={row.esteira} projecao={calc.projecao} formato={info.formato} pct={calc.pctAtingimento} />
+            )
+          })}
+        </div>
+        <div className="carteira-table-wrap">
+          <table className="carteira-table">
+            <thead>{cabecalhoPdf}</thead>
+            <tbody>{linhas.map(row => renderLinha(row, `print-${nome}-${row.vertical}`, false, true))}</tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  const timesFiltradosPdf = Object.entries(porConsultor).filter(([nome]) => filtroTimePdf === 'todos' || filtroTimePdf === nome)
 
   return (
     <div className="main">
+    <div className="tela-relatorio">
       <div className="dash-section-title">Plano Comercial</div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
@@ -236,6 +288,15 @@ export default function PlanoComercial() {
         <span style={{ fontSize: 12, color: '#888' }}>Dias úteis: {duTotais} total, {duRestantes} restante(s)</span>
         <button className="btn-filter-light" onClick={() => setMostrarConfig(v => !v)}>Fatores de conversão</button>
         <button className="btn-filter-light" onClick={() => setMostrarTimes(v => !v)}>Times no plano comercial</button>
+        <label style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>Exportar
+          <select className="filter-select" style={{ marginLeft: 8 }} value={filtroTimePdf} onChange={e => setFiltroTimePdf(e.target.value)}>
+            <option value="todos">Todos os times</option>
+            {Object.keys(porConsultor).map(nome => <option key={nome} value={nome}>{nome}</option>)}
+          </select>
+        </label>
+        <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>
+          {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
+        </button>
       </div>
 
       {mostrarTimes && (
@@ -294,7 +355,7 @@ export default function PlanoComercial() {
               const calc = calcularLinha(c, fator, duTotais, duRestantes)
               const info = VERTICAL_INFO[c.vertical] || { label: c.vertical, formato: 'inteiro' }
               return (
-                <GraficoVertical key={c.vertical} titulo={info.label} meta={c.meta} esteira={c.esteira} projecao={calc.projecao} formato={info.formato} />
+                <GraficoVertical key={c.vertical} titulo={info.label} meta={c.meta} esteira={c.esteira} projecao={calc.projecao} formato={info.formato} pct={calc.pctAtingimento} />
               )
             })}
           </div>
@@ -322,6 +383,22 @@ export default function PlanoComercial() {
           </div>
         </div>
       ))}
+    </div>
+
+    <div className="print-relatorio">
+      <div className="print-cabecalho">
+        <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="print-logo" />
+        <div>
+          <div className="print-titulo">Plano Comercial{filtroTimePdf !== 'todos' ? ` — ${filtroTimePdf}` : ''}</div>
+          <div className="print-periodo">{mesReferenciaLabel}</div>
+        </div>
+      </div>
+
+      {filtroTimePdf === 'todos' && consolidado.length > 0 &&
+        renderPrintTime('Projeção Total — Regional São Paulo Capital', consolidado.map(c => ({ ...c, id: null })))}
+
+      {timesFiltradosPdf.map(([nome, linhas]) => renderPrintTime(nome, linhas))}
+    </div>
     </div>
   )
 }
