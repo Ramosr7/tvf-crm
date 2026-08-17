@@ -8,6 +8,32 @@ const RESUMO_KEY_PREFIX = 'tvf_joaozinho_resumo_'
 
 function iso(d) { return d.toISOString().slice(0, 10) }
 
+// print de celular em resolução original passa fácil de 3-4MB — 2 ou 3 juntos em base64
+// estouram o limite de payload da function e a requisição morre com "Failed to fetch" antes
+// de chegar no servidor. Redesenha pro tamanho máximo que a IA já lê perfeitamente bem.
+function comprimirImagem(file, ladoMax = 1600, qualidade = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      let { width, height } = img
+      if (width > ladoMax || height > ladoMax) {
+        const escala = ladoMax / Math.max(width, height)
+        width = Math.round(width * escala)
+        height = Math.round(height * escala)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      URL.revokeObjectURL(url)
+      resolve({ nome: file.name, dataUrl: canvas.toDataURL('image/jpeg', qualidade) })
+    }
+    img.onerror = reject
+    img.src = url
+  })
+}
+
 // resumo do dia é calculado direto dos dados reais (rotina, kanban quente, lembrete vencido) —
 // não é a IA "chutando", é fato — evita o mesmo risco de invenção que já corrigimos no chat
 async function montarResumoDia(user) {
@@ -34,8 +60,10 @@ export default function Assistente({ user }) {
   const [texto, setTexto] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [mostrarProposta, setMostrarProposta] = useState(false)
-  const [propostaForm, setPropostaForm] = useState({ valorAtual: '', temAtual: '', valorNovo: '', temNovo: '' })
+  const [mostrarSimulacao, setMostrarSimulacao] = useState(false)
+  const [arquivosSimulacao, setArquivosSimulacao] = useState([])
+  const [notaSimulacao, setNotaSimulacao] = useState('')
+  const [consumoForm, setConsumoForm] = useState({ pacote: '', mes1: '', mes2: '', mes3: '' })
   const fimRef = useRef(null)
 
   const carregar = useCallback(async () => {
@@ -60,8 +88,8 @@ export default function Assistente({ user }) {
     }
   }
 
-  async function enviarTexto(pergunta) {
-    if (!pergunta || enviando) return
+  async function enviarTexto(pergunta, imagens) {
+    if ((!pergunta && !(imagens && imagens.length)) || enviando) return
     setEnviando(true)
 
     const msgUsuario = { consultor_id: user.id, role: 'user', conteudo: pergunta }
@@ -74,7 +102,10 @@ export default function Assistente({ user }) {
       const resp = await fetch('/api/assistente-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
-        body: JSON.stringify({ mensagens: historico.map(m => ({ role: m.role, conteudo: m.conteudo })) }),
+        body: JSON.stringify({
+          mensagens: historico.map(m => ({ role: m.role, conteudo: m.conteudo })),
+          ...(imagens && imagens.length ? { imagens } : {}),
+        }),
       })
       const dados = await resp.json()
       if (!resp.ok) throw new Error(dados.error || 'Erro ao falar com o Joaozinho')
@@ -99,18 +130,24 @@ export default function Assistente({ user }) {
     enviarTexto(pergunta)
   }
 
-  function enviarProposta(e) {
+  async function enviarSimulacao(e) {
     e.preventDefault()
-    const { valorAtual, temAtual, valorNovo, temNovo } = propostaForm
-    if (!valorNovo.trim() || !temNovo.trim()) return
-    const pergunta = `Monta uma proposta comercial pronta, formatada, que eu possa copiar e mandar pro cliente. `
-      + `Hoje o cliente paga ${valorAtual || 'não informado'} e tem: ${temAtual || 'não informado'}. `
-      + `Proposta nova: ${valorNovo}/mês por: ${temNovo}. `
-      + `Usa os preços do conteúdo de referência pra confirmar os valores dos produtos citados, se estiverem lá. `
-      + `Destaca o ganho/economia se fizer sentido.`
-    setMostrarProposta(false)
-    setPropostaForm({ valorAtual: '', temAtual: '', valorNovo: '', temNovo: '' })
-    enviarTexto(pergunta)
+    if (arquivosSimulacao.length === 0) return
+    const imagens = await Promise.all(arquivosSimulacao.map(f => comprimirImagem(f)))
+    const { pacote, mes1, mes2, mes3 } = consumoForm
+    const partes = [`Print${arquivosSimulacao.length > 1 ? 's' : ''} do Estruturante em anexo (${arquivosSimulacao.length} imagem${arquivosSimulacao.length > 1 ? 'ns' : ''}) — monta a simulação de renovação móvel seguindo as regras.`]
+    if (pacote || mes1 || mes2 || mes3) {
+      partes.push(`Dados de consumo (InfoB2B): pacote geral contratado = ${pacote || 'não informado'}; `
+        + `consumo mês 1 = ${mes1 || 'não informado'}; consumo mês 2 = ${mes2 || 'não informado'}; consumo mês 3 = ${mes3 || 'não informado'}.`)
+    }
+    const nota = notaSimulacao.trim()
+    if (nota) partes.push(`Observação: ${nota}`)
+    const pergunta = partes.join(' ')
+    setMostrarSimulacao(false)
+    setArquivosSimulacao([])
+    setNotaSimulacao('')
+    setConsumoForm({ pacote: '', mes1: '', mes2: '', mes3: '' })
+    enviarTexto(pergunta, imagens)
   }
 
   return (
@@ -141,46 +178,67 @@ export default function Assistente({ user }) {
             <div ref={fimRef} />
           </div>
 
-          {mostrarProposta ? (
-            <form className="assistente-proposta" onSubmit={enviarProposta}>
+          {mostrarSimulacao ? (
+            <form className="assistente-proposta" onSubmit={enviarSimulacao}>
               <div className="assistente-proposta-cabecalho">
-                <span>Montar proposta</span>
-                <button type="button" className="lm-close" onClick={() => setMostrarProposta(false)}>✕</button>
+                <span>Simular renovação móvel</span>
+                <button type="button" className="lm-close" onClick={() => setMostrarSimulacao(false)}>✕</button>
               </div>
 
               <div className="assistente-proposta-secao">
-                <div className="assistente-proposta-secao-titulo">Cliente hoje</div>
+                <div className="assistente-proposta-secao-titulo">Print do Estruturante</div>
+                <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+                  Anexa o print da recomendação por linha. Se tiver, manda também o do InfoB2B (consumo/fatura) — até 4 imagens.
+                </p>
+                <input type="file" accept="image/*" multiple
+                  onChange={e => setArquivosSimulacao(Array.from(e.target.files || []).slice(0, 4))} />
+                {arquivosSimulacao.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#660099', marginTop: 6 }}>
+                    {arquivosSimulacao.map(f => f.name).join(', ')}
+                  </div>
+                )}
+              </div>
+
+              <div className="assistente-proposta-secao">
+                <div className="assistente-proposta-secao-titulo">Consumo (InfoB2B)</div>
                 <label className="assistente-proposta-campo">
-                  Valor mensal
-                  <input className="lm-input" placeholder="Ex: R$ 250/mês"
-                    value={propostaForm.valorAtual} onChange={e => setPropostaForm(p => ({ ...p, valorAtual: e.target.value }))} />
+                  Pacote geral de dados
+                  <input className="lm-input" placeholder="Ex: 500GB"
+                    value={consumoForm.pacote} onChange={e => setConsumoForm(f => ({ ...f, pacote: e.target.value }))} />
                 </label>
                 <label className="assistente-proposta-campo">
-                  O que tem
-                  <input className="lm-input" placeholder="Ex: BL 300MB, 2 linhas móvel"
-                    value={propostaForm.temAtual} onChange={e => setPropostaForm(p => ({ ...p, temAtual: e.target.value }))} />
+                  Consumo mês 1
+                  <input className="lm-input" placeholder="Ex: 210GB"
+                    value={consumoForm.mes1} onChange={e => setConsumoForm(f => ({ ...f, mes1: e.target.value }))} />
+                </label>
+                <label className="assistente-proposta-campo">
+                  Consumo mês 2
+                  <input className="lm-input" placeholder="Ex: 195GB"
+                    value={consumoForm.mes2} onChange={e => setConsumoForm(f => ({ ...f, mes2: e.target.value }))} />
+                </label>
+                <label className="assistente-proposta-campo">
+                  Consumo mês 3
+                  <input className="lm-input" placeholder="Ex: 230GB"
+                    value={consumoForm.mes3} onChange={e => setConsumoForm(f => ({ ...f, mes3: e.target.value }))} />
                 </label>
               </div>
 
               <div className="assistente-proposta-secao">
-                <div className="assistente-proposta-secao-titulo">Proposta nova</div>
+                <div className="assistente-proposta-secao-titulo">Observação (opcional)</div>
                 <label className="assistente-proposta-campo">
-                  Vai pagar
-                  <input className="lm-input" placeholder="Ex: R$ 320/mês"
-                    value={propostaForm.valorNovo} onChange={e => setPropostaForm(p => ({ ...p, valorNovo: e.target.value }))} />
-                </label>
-                <label className="assistente-proposta-campo">
-                  Vai ter
-                  <input className="lm-input" placeholder="Ex: BL 500MB + Wi-Fi Pro"
-                    value={propostaForm.temNovo} onChange={e => setPropostaForm(p => ({ ...p, temNovo: e.target.value }))} />
+                  Alguma informação a mais?
+                  <input className="lm-input" placeholder="Ex: cliente também tem fibra pra renovar"
+                    value={notaSimulacao} onChange={e => setNotaSimulacao(e.target.value)} />
                 </label>
               </div>
 
-              <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando}>Gerar proposta</button>
+              <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando || arquivosSimulacao.length === 0}>
+                {enviando ? 'Analisando...' : 'Gerar simulação'}
+              </button>
             </form>
           ) : (
             <>
-              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarProposta(true)}>Montar proposta</button>
+              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarSimulacao(true)}>Simular renovação móvel</button>
               <form className="assistente-form" onSubmit={enviar}>
                 <input className="lm-input" style={{ flex: 1 }} placeholder="Pergunta pro Joaozinho..."
                   value={texto} onChange={e => setTexto(e.target.value)} disabled={enviando} />

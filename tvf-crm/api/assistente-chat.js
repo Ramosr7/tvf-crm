@@ -33,6 +33,61 @@ Regras:
   espaço e o resto da resposta normal. Isso é usado internamente pra sinalizar pro gestor
   o que falta cadastrar — o consultor nunca vê esse marcador.`
 
+// regras de negócio da simulação de renovação móvel (Estruturante) — fixas aqui, não no
+// cadastro de conteúdo, porque são poucas, não mudam toda hora, e não podem sofrer o mesmo
+// corte por tamanho que o book de ofertas sofria
+const SISTEMA_RENOVACAO_MOVEL = `
+Além de tirar dúvida usando o conteúdo de referência, você também ajuda o consultor a montar
+simulação de RENOVAÇÃO MÓVEL a partir de um print do sistema "Estruturante" (tela de
+recomendação por linha) e, opcionalmente, prints do InfoB2B (consumo/fatura).
+
+Quando o consultor mandar uma imagem do Estruturante, siga este processo:
+
+1. LEIA a imagem e extraia, linha por linha: número da linha, tipo de negociação, M da linha
+   (mês de contrato), Plano De (plano atual). Extraia também os campos de conta: Fat. Atual,
+   Fat. Limite, Red. Limite (%).
+2. Se ainda não tiver as informações abaixo NESTA conversa, PERGUNTE antes de propor qualquer
+   plano — não invente, não assuma:
+   - Pacote de dados contratado da conta e o consumo dos últimos 3 meses (do InfoB2B, um valor
+     por mês) — pra tirar a média e propor com base no que o cliente REALMENTE consome, não no
+     que ele tem contratado (às vezes tem 1000GB de pacote mas usa 500GB — a proposta deve ser
+     ancorada no uso real, dá mais margem de negociação).
+   - Se o cliente tem serviço adicional (SVA) fora da fatura mostrada (ex: Office 365, Vivo
+     Travel) e quanto custa — pra montar o valor final com e sem esses adicionais.
+   - Se o cliente também tem plano fixo/banda larga com linha fixa pra renovar (isso é só uma
+     SUGESTÃO à parte pro consultor considerar depois, não entra na proposta de móvel).
+3. TABELA DE PREÇO POR PLANO (Smart Empresas, valor mensal por linha):
+   1GB R$29,99 · 3GB R$34,99 · 6GB R$39,99 · 10GB R$44,99 · 12GB R$49,99 · 15GB R$54,99 ·
+   20GB R$59,99 · 25GB R$64,99 · 30GB R$69,99 · 40GB R$79,99 · 50GB R$89,99 · 60GB R$92,99 ·
+   80GB R$94,99 · 100GB R$99,99
+4. REGRAS OBRIGATÓRIAS pra escolher o plano de cada linha:
+   a. Linha com M ≥ 17: pode subir OU descer de plano (downgrade liberado).
+      Linha com M < 17: só pode subir de plano (upgrade), nunca descer.
+   b. Linha que hoje está em 100GB nunca pode ser reduzida abaixo de 30GB.
+   c. Nenhuma linha pode ser migrada PARA 1GB, exceto quem já está em 1GB hoje (essas podem
+      continuar em 1GB — o ideal é sugerir upgrade pra 3GB).
+   d. Use a média de consumo dos últimos 3 meses (não o pacote contratado) pra escolher o
+      tamanho de plano de cada linha, sempre que a média informada for menor que o pacote
+      contratado — isso dá folga real de negociação, evita propor plano maior do que precisa.
+   e. A soma de todas as linhas simuladas (Fat. Simulação) tem que respeitar o Fat. Limite e
+      o Red. Limite da conta. Se a soma ficar ABAIXO do Fat. Limite (reduziu mais do que
+      podia), primeiro tente fechar a diferença oferecendo uma HABILITAÇÃO ALTA (HA, linha
+      nova): o valor da HA tem que ser suficiente pra que Fat. Simulação + HA ≥ Fat. Limite.
+      Se ainda não der pra fechar (ou o consultor não quiser vender HA), calcule o Delta
+      Alçada: Delta Alçada = |Red. Limite − Delta Simulação|, onde Delta Simulação é a
+      variação percentual real da simulação final vs. Fat. Atual. Informe esse percentual
+      claramente como "alçada a solicitar".
+5. Depois de aplicar as regras, monte a resposta em duas partes:
+   - Resumo interno pro consultor: tabela linha a linha (número, plano de, plano para, valor
+     novo), Fat. Atual, Fat. Simulação, Delta Simulação, e alçada a solicitar (se houver).
+   - Texto pronto pra enviar ao cliente: "Hoje vocês pagam R$X com [resumo do que tem].
+     Proposta nova: R$Y com [resumo do que passa a ter]." — direto, sem jargão interno (não
+     menciona alçada, M da linha, delta etc pro cliente).
+6. Se faltar informação da imagem (não deu pra ler algum valor com certeza), diga exatamente o
+   que não conseguiu ler e peça o dado — nunca invente número de plano, M da linha ou valor de
+   fatura que não estava visível na imagem.
+`
+
 const PARADAS = new Set(['para', 'como', 'que', 'com', 'uma', 'dos', 'das', 'por', 'tem', 'sao', 'seu', 'sua', 'qual', 'quais', 'quero', 'sobre', 'esse', 'essa', 'isso', 'preciso', 'gostaria', 'pode', 'poderia', 'funciona', 'ele', 'ela'])
 const LIMITE_CHARS_TOTAL = 40000 // ~10k tokens, folga confortável do limite de 30k TPM da conta
 const LIMITE_CHARS_POR_TEMA = 9000 // um tema sozinho (ex: book de ofertas grande) não pode dominar o orçamento
@@ -121,9 +176,15 @@ module.exports = async function handler(req, res) {
     return
   }
 
-  const { mensagens } = req.body || {}
+  const { mensagens, imagens } = req.body || {}
   if (!Array.isArray(mensagens) || mensagens.length === 0) {
     res.status(400).json({ error: 'mensagens obrigatório' })
+    return
+  }
+  // limite de segurança: cada imagem já vem em base64 (~33% maior que o arquivo original) —
+  // sem teto, um upload de fotos grandes estoura o limite de payload da function
+  if (Array.isArray(imagens) && imagens.length > 4) {
+    res.status(400).json({ error: 'Manda no máximo 4 imagens por vez.' })
     return
   }
 
@@ -137,13 +198,29 @@ module.exports = async function handler(req, res) {
       ? relevantes.map(c => `### ${c.titulo}\n${c.conteudo}`).join('\n\n')
       : '(nenhum conteúdo cadastrado ainda pelo gestor, ou nada bateu com essa pergunta)'
 
+    // a imagem (print do Estruturante/InfoB2B) sempre vai junto da ÚLTIMA mensagem do usuário —
+    // não fica persistida pra sempre na conversa, só usada nessa chamada
+    const historico = mensagens.slice(-20).map((m, i, arr) => {
+      const ehUltima = i === arr.length - 1
+      if (ehUltima && m.role === 'user' && Array.isArray(imagens) && imagens.length > 0) {
+        return {
+          role: 'user',
+          content: [
+            { type: 'text', text: m.conteudo || 'Analisa esse print, por favor.' },
+            ...imagens.map(img => ({ type: 'image_url', image_url: { url: img.dataUrl } })),
+          ],
+        }
+      }
+      return { role: m.role, content: m.conteudo }
+    })
+
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.2, // menos "criativo", mais literal ao conteúdo de referência — reduz invenção
       messages: [
-        { role: 'system', content: `${SYSTEM_BASE}\n\n--- CONTEÚDO DE REFERÊNCIA ---\n\n${blocoConteudo}` },
-        ...mensagens.slice(-20).map(m => ({ role: m.role, content: m.conteudo })),
+        { role: 'system', content: `${SYSTEM_BASE}\n\n${SISTEMA_RENOVACAO_MOVEL}\n\n--- CONTEÚDO DE REFERÊNCIA ---\n\n${blocoConteudo}` },
+        ...historico,
       ],
     })
     let resposta = completion.choices[0]?.message?.content || ''
