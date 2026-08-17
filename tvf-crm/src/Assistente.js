@@ -97,13 +97,20 @@ export default function Assistente({ user }) {
     setMensagens(historico)
     const { data: msgSalva } = await supabase.from('assistente_mensagem').insert(msgUsuario).select().single()
 
+    // simulação com print novo começa do zero — sem isso, o modelo via a resposta de uma
+    // simulação anterior (outro cliente, ou tentativa anterior) ainda no histórico e repetia
+    // os mesmos números por "consistência" com o que ele mesmo já tinha dito antes, em vez de
+    // reanalisar a imagem nova com as regras atuais
+    const temImagem = imagens && imagens.length > 0
+    const mensagensParaApi = temImagem ? [msgUsuario] : historico
+
     try {
       const { data: sessao } = await supabase.auth.getSession()
       const resp = await fetch('/api/assistente-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
         body: JSON.stringify({
-          mensagens: historico.map(m => ({ role: m.role, conteudo: m.conteudo })),
+          mensagens: mensagensParaApi.map(m => ({ role: m.role, conteudo: m.conteudo })),
           ...(imagens && imagens.length ? { imagens } : {}),
         }),
       })

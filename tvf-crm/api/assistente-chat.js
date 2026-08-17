@@ -56,10 +56,14 @@ Quando o consultor mandar uma imagem do Estruturante, siga este processo:
      Travel) e quanto custa — pra montar o valor final com e sem esses adicionais.
    - Se o cliente também tem plano fixo/banda larga com linha fixa pra renovar (isso é só uma
      SUGESTÃO à parte pro consultor considerar depois, não entra na proposta de móvel).
-3. TABELA DE PREÇO POR PLANO (Smart Empresas, valor mensal por linha):
+3. TABELA DE PREÇO POR PLANO (Smart Empresas, valor mensal por linha, renovação/migração):
    1GB R$29,99 · 3GB R$34,99 · 6GB R$39,99 · 10GB R$44,99 · 12GB R$49,99 · 15GB R$54,99 ·
    20GB R$59,99 · 25GB R$64,99 · 30GB R$69,99 · 40GB R$79,99 · 50GB R$89,99 · 60GB R$92,99 ·
    80GB R$94,99 · 100GB R$99,99
+   TABELA DE PREÇO PRA LINHA NOVA (Habilitação Alta / HA) — só essas faixas ficam
+   disponíveis pra HA, não a tabela completa acima:
+   6GB R$39,99 · 15GB R$54,99 · 20GB R$59,99 · 30GB R$69,99 · 40GB R$79,99 · 50GB R$89,99 ·
+   100GB R$99,99
 4. LIMITES ESTRUTURAIS pra escolher o plano de cada linha (nunca ultrapasse):
    a. Linha com M ≥ 17: pode subir OU descer de plano (downgrade liberado).
       Linha com M < 17: só pode subir de plano (upgrade), nunca descer.
