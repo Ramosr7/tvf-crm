@@ -19,10 +19,12 @@ function limparMarkdown(texto) {
     .replace(/^-{3,}$/gm, '')
 }
 
-// print de celular em resolução original passa fácil de 3-4MB — 2 ou 3 juntos em base64
-// estouram o limite de payload da function e a requisição morre com "Failed to fetch" antes
-// de chegar no servidor. Redesenha pro tamanho máximo que a IA já lê perfeitamente bem.
-function comprimirImagem(file, ladoMax = 1600, qualidade = 0.82) {
+// print de celular/desktop em resolução original passa fácil de 3-4MB — 2 ou 3 juntos em
+// base64 estouram o limite de payload da function e a requisição morre com "Failed to fetch"
+// antes de chegar no servidor. Mas comprimir demais borra números pequenos de tabela densa
+// (print do Estruturante tem 8 colunas) e a IA passa a dizer que não conseguiu ler a imagem —
+// por isso o lado máximo e a qualidade ficam altos, só o suficiente pra cortar o payload.
+function comprimirImagem(file, ladoMax = 2200, qualidade = 0.92) {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
     const url = URL.createObjectURL(file)
