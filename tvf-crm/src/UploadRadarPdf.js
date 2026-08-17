@@ -124,18 +124,21 @@ export default function UploadRadarPdf({ modo }) {
   return (
     <div className="main">
       <div className="lm-section-title">{modo === 'backlog' ? 'Upload Backlog (Radar PDF, dia 1)' : 'Upload Radar Diário (PDF)'}</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        {modo === 'backlog' ? (
-          'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" do dia 1 do mês — usa só a tabela ' +
-          '"VENDAS COM ACEITE", ignora "Aguardando Aceite" e a linha TOTAL. Define o Backlog ' +
-          '(baseline) do mês pra cada time. Roda uma vez por mês, no início.'
-        ) : (
-          'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — usa só a tabela "VENDAS COM ACEITE", ' +
-          'ignora "Aguardando Aceite" e a linha TOTAL. Atualiza a Esteira Mês (acumulado até a ' +
-          'data do PDF, substitui o valor anterior, não soma em cima). Roda todo dia. Backlog e ' +
-          'Meta vêm de outras abas de importação.'
-        )}
-      </p>
+      <details className="regras-toggle">
+        <summary>Ver regras dessa importação</summary>
+        <div className="regras-toggle-corpo">
+          {modo === 'backlog' ? (
+            'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" do dia 1 do mês — usa só a tabela ' +
+            '"VENDAS COM ACEITE", ignora "Aguardando Aceite" e a linha TOTAL. Define o Backlog ' +
+            '(baseline) do mês pra cada time. Roda uma vez por mês, no início.'
+          ) : (
+            'Sobe o PDF "RADAR DIÁRIO GERENCIAL DE VENDA" — usa só a tabela "VENDAS COM ACEITE", ' +
+            'ignora "Aguardando Aceite" e a linha TOTAL. Atualiza a Esteira Mês (acumulado até a ' +
+            'data do PDF, substitui o valor anterior, não soma em cima). Roda todo dia. Backlog e ' +
+            'Meta vêm de outras abas de importação.'
+          )}
+        </div>
+      </details>
 
       <div className="kanban-toolbar">
         <label style={{ fontSize: 12, color: '#888' }}>Mês de referência

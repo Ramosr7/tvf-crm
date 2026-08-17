@@ -163,14 +163,17 @@ export default function UploadRenovacaoAntecipada() {
   return (
     <div className="main">
       <div className="lm-section-title">Upload Renovação Antecipada (M16 → M17)</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe o export do Parque Móvel filtrado em M16. Cliente que já existe na carteira só ganha o flag de
-        renovação antecipada (mantém o consultor atual). Cliente novo é distribuído entre os consultores marcados
-        abaixo, do maior pro menor QT_PLANTA (linhas), sempre pro que tiver menos linhas acumuladas até agora —
-        fica balanceado por volume, não só por quantidade de clientes. Potencial de migração vem do QT_ELEGIVEIS
-        do próprio arquivo (mais confiável que o Mapa Parque oficial pra esses clientes); BL/TI/Voz/Crédito
-        continuam cruzando com o Mapa Parque por CNPJ.
-      </p>
+      <details className="regras-toggle">
+        <summary>Ver regras dessa importação</summary>
+        <div className="regras-toggle-corpo">
+          Sobe o export do Parque Móvel filtrado em M16. Cliente que já existe na carteira só ganha o flag de
+          renovação antecipada (mantém o consultor atual). Cliente novo é distribuído entre os consultores marcados
+          abaixo, do maior pro menor QT_PLANTA (linhas), sempre pro que tiver menos linhas acumuladas até agora —
+          fica balanceado por volume, não só por quantidade de clientes. Potencial de migração vem do QT_ELEGIVEIS
+          do próprio arquivo (mais confiável que o Mapa Parque oficial pra esses clientes); BL/TI/Voz/Crédito
+          continuam cruzando com o Mapa Parque por CNPJ.
+        </div>
+      </details>
 
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
         <span style={{ fontSize: 11, color: '#888' }}>Distribuir novos entre:</span>

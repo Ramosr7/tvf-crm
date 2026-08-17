@@ -235,13 +235,16 @@ export default function UploadApuracaoVendas() {
   return (
     <div className="main">
       <div className="lm-section-title">Apuração de Vendas</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe o relatório de pedidos (Excel/CSV com coluna ID, ou PDF) pra reconciliar a venda
-        registrada pelo consultor com o resultado real. Pedido finalizado vira "Pedido
-        Finalizado" no cliente; cancelado/mesa de fraude atualiza pro status do CRM
-        correspondente, se o texto do arquivo já bater com um existente. O relatório costuma ter
-        várias linhas por pedido (histórico de trâmite) — só a última/definitiva de cada um conta.
-      </p>
+      <details className="regras-toggle">
+        <summary>Ver regras dessa importação</summary>
+        <div className="regras-toggle-corpo">
+          Sobe o relatório de pedidos (Excel/CSV com coluna ID, ou PDF) pra reconciliar a venda
+          registrada pelo consultor com o resultado real. Pedido finalizado vira "Pedido
+          Finalizado" no cliente; cancelado/mesa de fraude atualiza pro status do CRM
+          correspondente, se o texto do arquivo já bater com um existente. O relatório costuma ter
+          várias linhas por pedido (histórico de trâmite) — só a última/definitiva de cada um conta.
+        </div>
+      </details>
 
       <div className="kanban-toolbar">
         <input type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleArquivo} disabled={lendo} />

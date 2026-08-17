@@ -149,10 +149,13 @@ export default function UploadMapaParque() {
   return (
     <div className="main">
       <div className="lm-section-title">Upload Mapa Parque</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe a carga bruta (CSV/XLSX) do Mapa Parque (export InfoB2B). Depois de importar, clique em "Processar" para calcular
-        o potencial e atualizar os clientes já existentes na carteira (por CNPJ). Clientes novos entram na carteira via Upload Mailing Diário.
-      </p>
+      <details className="regras-toggle">
+        <summary>Ver regras dessa importação</summary>
+        <div className="regras-toggle-corpo">
+          Sobe a carga bruta (CSV/XLSX) do Mapa Parque (export InfoB2B). Depois de importar, clique em "Processar" para calcular
+          o potencial e atualizar os clientes já existentes na carteira (por CNPJ). Clientes novos entram na carteira via Upload Mailing Diário.
+        </div>
+      </details>
 
       <div className="kanban-toolbar">
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleArquivo} />

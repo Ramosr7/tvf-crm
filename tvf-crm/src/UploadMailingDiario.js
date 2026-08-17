@@ -153,10 +153,13 @@ export default function UploadMailingDiario() {
   return (
     <div className="main">
       <div className="lm-section-title">Upload Mailing Diário</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
-        Sobe a lista de clientes do dia (export do CRM5) e atribui pro consultor escolhido abaixo. O potencial de cada cliente
-        é cruzado direto com o Mapa Parque pelo CNPJ; se o CNPJ ainda não estiver no Mapa Parque, entra com potencial zerado.
-      </p>
+      <details className="regras-toggle">
+        <summary>Ver regras dessa importação</summary>
+        <div className="regras-toggle-corpo">
+          Sobe a lista de clientes do dia (export do CRM5) e atribui pro consultor escolhido abaixo. O potencial de cada cliente
+          é cruzado direto com o Mapa Parque pelo CNPJ; se o CNPJ ainda não estiver no Mapa Parque, entra com potencial zerado.
+        </div>
+      </details>
 
       <div className="kanban-toolbar">
         <select className="filter-select" value={consultorId} onChange={e => setConsultorId(e.target.value)}>
