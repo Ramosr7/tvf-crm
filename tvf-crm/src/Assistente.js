@@ -8,6 +8,17 @@ const RESUMO_KEY_PREFIX = 'tvf_joaozinho_resumo_'
 
 function iso(d) { return d.toISOString().slice(0, 10) }
 
+// segurança extra: o prompt já pede "sem markdown" várias vezes e o modelo às vezes ignora
+// mesmo assim (### título, **negrito**) — limpa antes de mostrar em vez de depender só do
+// prompt, que já falhou nisso mais de uma vez
+function limparMarkdown(texto) {
+  return String(texto ?? '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '$1')
+    .replace(/^-{3,}$/gm, '')
+}
+
 // print de celular em resolução original passa fácil de 3-4MB — 2 ou 3 juntos em base64
 // estouram o limite de payload da function e a requisição morre com "Failed to fetch" antes
 // de chegar no servidor. Redesenha pro tamanho máximo que a IA já lê perfeitamente bem.
@@ -178,7 +189,7 @@ export default function Assistente({ user }) {
             )}
             {mensagens.map((m, i) => (
               <div key={m.id || i} className={`assistente-msg ${m.role === 'user' ? 'assistente-msg-user' : 'assistente-msg-bot'}`}>
-                {m.conteudo}
+                {m.role === 'assistant' ? limparMarkdown(m.conteudo) : m.conteudo}
               </div>
             ))}
             {enviando && <div className="assistente-msg assistente-msg-bot">Digitando...</div>}
