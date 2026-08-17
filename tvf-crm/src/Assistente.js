@@ -38,7 +38,12 @@ function comprimirImagem(file, ladoMax = 2200, qualidade = 0.92) {
       const canvas = document.createElement('canvas')
       canvas.width = width
       canvas.height = height
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      const ctx = canvas.getContext('2d')
+      // PNG com transparência (print com fundo alpha) vira PRETO por cima dos dados quando
+      // convertido pra JPEG sem isso — pinta branco antes de desenhar a imagem em cima
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
       URL.revokeObjectURL(url)
       resolve({ nome: file.name, dataUrl: canvas.toDataURL('image/jpeg', qualidade) })
     }
