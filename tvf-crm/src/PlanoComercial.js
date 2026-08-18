@@ -55,6 +55,7 @@ function calcularDU(mesReferencia) {
 function corSemaforo(pct) {
   if (pct >= 1) return '#28A745'
   if (pct >= 0.6) return '#F39C12'
+  if (pct <= 0) return '#999999'
   return '#E74C3C'
 }
 
