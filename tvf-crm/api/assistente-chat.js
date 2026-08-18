@@ -245,7 +245,11 @@ module.exports = async function handler(req, res) {
           role: 'user',
           content: [
             { type: 'text', text: m.conteudo || 'Analisa esse print, por favor.' },
-            ...imagens.map(img => ({ type: 'image_url', image_url: { url: img.dataUrl } })),
+            // detail "high" força a IA a processar a imagem em resolução alta (múltiplos
+            // recortes de 512px) em vez do modo rápido/baixa-resolução que o "auto" às vezes
+            // escolhe pra imagem que parece simples — essencial pra ler número pequeno de
+            // tabela densa (print do Estruturante tem 8 colunas)
+            ...imagens.map(img => ({ type: 'image_url', image_url: { url: img.dataUrl, detail: 'high' } })),
           ],
         }
       }
