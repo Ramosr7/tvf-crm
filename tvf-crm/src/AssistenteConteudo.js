@@ -406,7 +406,7 @@ export default function AssistenteConteudo({ user }) {
       </div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
-        <input type="file" accept=".pdf,.xlsx,.xls" onChange={handleArquivo} disabled={lendo} />
+        <input type="file" accept=".pdf,application/pdf,.xlsx,.xls" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>{progresso || 'Lendo arquivo...'}</span>}
         {editandoId && <span style={{ fontSize: 12, color: '#888' }}>Editando conteúdo existente — salvar substitui.</span>}
       </div>

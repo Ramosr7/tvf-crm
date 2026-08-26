@@ -144,7 +144,7 @@ export default function UploadRadarPdf({ modo }) {
         <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
-        <input type="file" accept=".pdf" onChange={handleArquivo} disabled={lendo} />
+        <input type="file" accept=".pdf,application/pdf" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo PDF com IA...</span>}
         {arquivo && !lendo && <span style={{ fontSize: 12, color: '#660099' }}>{arquivo.name} — {supervisores.length} time(s) reconhecido(s)</span>}
       </div>

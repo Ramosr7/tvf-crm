@@ -247,7 +247,7 @@ export default function UploadApuracaoVendas() {
       </details>
 
       <div className="kanban-toolbar">
-        <input type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleArquivo} disabled={lendo} />
+        <input type="file" accept=".csv,.xlsx,.xls,.pdf,application/pdf" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo arquivo...</span>}
         {linhas.length > 0 && !lendo && <span style={{ fontSize: 12, color: '#660099' }}>{linhas.length} linha(s) com CNPJ válido</span>}
       </div>
