@@ -48,14 +48,28 @@ export default function UploadRadarPdf({ modo }) {
     supabase.from('consultores_staff').select('id, nome').order('nome').then(({ data }) => setStaff(data || []))
   }, [])
 
-  function acharConsultor(nome) {
+  // recebe a lista de staff explícita (não o state) — o upload dispara o processamento
+  // automático logo depois de ler o PDF, antes do useEffect de cima necessariamente já ter
+  // resolvido, então não dá pra confiar no state `staff` fechado por closure nesse momento
+  function acharConsultor(nome, staffList) {
     const alvoNorm = normalizar(nome)
-    const exato = staff.find(s => normalizar(s.nome) === alvoNorm)
+    const exato = staffList.find(s => normalizar(s.nome) === alvoNorm)
     if (exato) return exato
     const alvoPalavras = palavras(nome)
-    return staff.find(s => palavras(s.nome).every(p => alvoPalavras.includes(p)))
+    return staffList.find(s => palavras(s.nome).every(p => alvoPalavras.includes(p)))
   }
 
+  async function garantirStaff() {
+    if (staff.length > 0) return staff
+    const { data } = await supabase.from('consultores_staff').select('id, nome').order('nome')
+    const lista = data || []
+    setStaff(lista)
+    return lista
+  }
+
+  // sobe o PDF e já processa sozinho, sem precisar de um segundo clique — antes exigia
+  // "Ler" e depois "Processar" separado, e ficou claro que consultor esquecia o segundo passo
+  // e achava que tinha subido quando na verdade nada foi salvo.
   async function handleArquivo(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -76,23 +90,27 @@ export default function UploadRadarPdf({ modo }) {
       })
       const dados = await resp.json()
       if (!resp.ok) throw new Error(dados.error || 'Erro ao ler o PDF')
-      setSupervisores(dados.supervisores || [])
+      const lista = dados.supervisores || []
+      setSupervisores(lista)
+      setLendo(false)
+      if (lista.length > 0) await processar(lista)
     } catch (err) {
       setErro(err.message)
-    } finally {
       setLendo(false)
     }
   }
 
-  async function processar() {
+  async function processar(lista) {
+    const listaFinal = lista || supervisores
     setProcessando(true)
     setResultado(null)
+    const staffAtual = await garantirStaff()
     const mesData = `${mesReferencia}-01`
     let atualizadas = 0, criadas = 0, falhas = 0
     const semMatch = new Set()
 
-    for (const s of supervisores) {
-      const consultor = acharConsultor(s.nome)
+    for (const s of listaFinal) {
+      const consultor = acharConsultor(s.nome, staffAtual)
       if (!consultor) { semMatch.add(s.nome); continue }
       const verticais = calcularVerticais(s)
 
@@ -117,8 +135,6 @@ export default function UploadRadarPdf({ modo }) {
 
     setProcessando(false)
     setResultado({ atualizadas, criadas, falhas, semMatch: Array.from(semMatch) })
-    setSupervisores([])
-    setArquivo(null)
   }
 
   return (
@@ -144,9 +160,12 @@ export default function UploadRadarPdf({ modo }) {
         <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
-        <input type="file" accept=".pdf,application/pdf" onChange={handleArquivo} disabled={lendo} />
+        <input type="file" accept=".pdf,application/pdf" onChange={handleArquivo} disabled={lendo || processando} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>Lendo PDF com IA...</span>}
-        {arquivo && !lendo && <span style={{ fontSize: 12, color: '#660099' }}>{arquivo.name} — {supervisores.length} time(s) reconhecido(s)</span>}
+        {processando && <span style={{ fontSize: 12, color: '#660099' }}>Salvando no Plano Comercial...</span>}
+        {arquivo && !lendo && !processando && (
+          <span style={{ fontSize: 12, color: '#660099' }}>{arquivo.name} — {supervisores.length} time(s) reconhecido(s), salvo automaticamente</span>
+        )}
       </div>
 
       {erro && <div className="login-erro" style={{ marginTop: 8 }}>{erro}</div>}
@@ -159,7 +178,7 @@ export default function UploadRadarPdf({ modo }) {
               <tbody>
                 {supervisores.map((s, i) => {
                   const v = calcularVerticais(s)
-                  const consultor = acharConsultor(s.nome)
+                  const consultor = acharConsultor(s.nome, staff)
                   return (
                     <tr key={i} style={!consultor ? { background: '#FFF5EE' } : {}}>
                       <td>{s.nome}{!consultor && <span style={{ color: '#C0451A', fontWeight: 600 }}> (sem match)</span>}</td>
@@ -175,8 +194,11 @@ export default function UploadRadarPdf({ modo }) {
               </tbody>
             </table>
           </div>
-          <button className="btn-save-obs" style={{ float: 'none' }} onClick={processar} disabled={processando}>
-            {processando ? 'Processando...' : `Processar ${supervisores.length} time(s)`}
+          {/* já processa sozinho ao subir o arquivo — esse botão só existe pra reprocessar
+              manualmente (ex: corrigiu o nome de um supervisor em consultores_staff e quer
+              tentar de novo sem subir o PDF outra vez) */}
+          <button className="btn-filter-light" onClick={() => processar()} disabled={processando || lendo}>
+            {processando ? 'Processando...' : `Reprocessar ${supervisores.length} time(s)`}
           </button>
         </>
       )}
