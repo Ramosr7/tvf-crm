@@ -51,6 +51,11 @@ function fmtValor(v, formato) {
 function fmtPct(v) {
   return `${Math.round((v || 0) * 100)}%`
 }
+// taxa de Aparelho é 0,1/0,2/0,3% — arredondar pra inteiro sempre dá "0%", então mantém 1 casa
+function fmtPctTaxa(v) {
+  const pct = (v || 0) * 100
+  return `${pct % 1 === 0 ? pct : pct.toFixed(1)}%`
+}
 function mesAtualISO() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -93,12 +98,74 @@ function comissaoDoPilar(pilar, receita, pctAtingimento) {
   return { faixa, taxa, comissao: receita * taxa }
 }
 
+// rótulo/campos de cada visão, usado tanto nos cards quanto no modal de detalhamento
+const VISOES = {
+  esteira: { titulo: 'Comissão — Esteira Atual', receita: l => l.row.receita, pct: l => l.pctEsteira, calc: l => l.esteira },
+  projecao: { titulo: 'Comissão — Projeção do Mês', receita: l => l.receitaProjetada, pct: l => l.pctProjecao, calc: l => l.projecao },
+  apurado: { titulo: 'Comissão — Real Apurado', receita: l => l.receitaApurada, pct: l => l.pctEsteira, calc: l => l.apuradoCalc },
+}
+
+// abre ao clicar num dos 3 cards de total — mostra, pilar a pilar, a receita-base usada
+// naquela visão, a % de atingimento/faixa que decidiu a taxa, e a comissão resultante,
+// pra dar pra conferir de onde veio cada centavo do total do card.
+function DetalheFaixaModal({ visao, linhas, total, onClose }) {
+  const v = VISOES[visao]
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="lead-modal" style={{ width: 640 }} onClick={e => e.stopPropagation()}>
+        <div className="lm-header">
+          <div className="lm-header-left"><div>{v.titulo}</div></div>
+          <button className="lm-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="lm-body">
+          {visao === 'apurado' && (
+            <div className="lm-resumo" style={{ marginBottom: 12, fontSize: 12, color: '#888' }}>
+              Só conta pedido com "Pedido Finalizado" batido na Apuração de Vendas — se o pedido do
+              operador não achou a venda correspondente no CRM, ele nunca vira "ativado" e não entra
+              aqui (confere a tela Importar → Apuração Pedidos pra ver quantos ficaram sem match). Além
+              disso, pilar abaixo de 80% de atingimento na Esteira não paga nada mesmo tendo receita
+              apurada — é por isso que Altas e Renovação Móvel podem aparecer com R$ apurado mas
+              comissão zerada.
+            </div>
+          )}
+          <div className="carteira-table-wrap">
+            <table className="carteira-table">
+              <thead><tr><th>Pilar</th><th>Receita-base</th><th>% Atingimento</th><th>Comissão</th></tr></thead>
+              <tbody>
+                {linhas.map(l => {
+                  const receita = v.receita(l)
+                  const pct = v.pct(l)
+                  const calc = v.calc(l)
+                  return (
+                    <tr key={l.pilar}>
+                      <td>{l.info.label}</td>
+                      <td>{fmtMoeda(receita)}</td>
+                      <td><span className="plano-semaforo" style={{ background: calc.faixa === 0 ? '#999999' : calc.faixa === 3 ? '#28A745' : calc.faixa === 2 ? '#F39C12' : '#E74C3C' }}>
+                        {fmtPct(pct)}{calc.faixa > 0 && ` · F${calc.faixa} (${fmtPctTaxa(calc.taxa)})`}
+                      </span></td>
+                      <td>{fmtMoeda(calc.comissao)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr><td colSpan={3} style={{ textAlign: 'right', fontWeight: 600 }}>Total</td><td style={{ fontWeight: 600 }}>{fmtMoeda(total)}</td></tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function MinhaComissao() {
   const [mesReferencia, setMesReferencia] = useState(mesAtualISO())
   const [pilares, setPilares] = useState({})
   const [apurado, setApurado] = useState({})
   const [loading, setLoading] = useState(true)
   const [editandoMeta, setEditandoMeta] = useState(null)
+  const [detalheAberto, setDetalheAberto] = useState(null) // null | 'esteira' | 'projecao' | 'apurado'
 
   const fetchDados = useCallback(async () => {
     setLoading(true)
@@ -108,8 +175,11 @@ export default function MinhaComissao() {
 
     const [{ data: pilaresData }, { data: vendasData }] = await Promise.all([
       supabase.from('comissao_pilar').select('*').eq('mes_referencia', mesData),
+      // carteira_venda.consultor_id é o vendedor individual, não o supervisor/time — o João
+      // (Gestor) nunca aparece aqui. A Variável é o resultado dos 4 times inteiros, então
+      // conta a apuração de TODO mundo, sem filtrar por consultor.
       supabase.from('carteira_venda').select('id')
-        .eq('consultor_id', JOAO_ID).eq('status_apuracao', 'ativado')
+        .eq('status_apuracao', 'ativado')
         .gte('data_venda', mesData).lt('data_venda', proximoMesData),
     ])
 
@@ -196,10 +266,14 @@ export default function MinhaComissao() {
       </div>
 
       <div className="diag-stats" style={{ marginBottom: 24 }}>
-        <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{fmtMoeda(totalEsteira)}</div><div className="diag-stat-label">Comissão — Esteira Atual</div></div>
-        <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{fmtMoeda(totalProjecao)}</div><div className="diag-stat-label">Comissão — Projeção do Mês</div></div>
-        <div className="diag-stat diag-stat-credito"><div className="diag-stat-valor">{fmtMoeda(totalApurado)}</div><div className="diag-stat-label">Comissão — Real Apurado</div></div>
+        <div className="diag-stat diag-stat-neutro" style={{ cursor: 'pointer' }} onClick={() => setDetalheAberto('esteira')}><div className="diag-stat-valor">{fmtMoeda(totalEsteira)}</div><div className="diag-stat-label">Comissão — Esteira Atual</div></div>
+        <div className="diag-stat diag-stat-migracao" style={{ cursor: 'pointer' }} onClick={() => setDetalheAberto('projecao')}><div className="diag-stat-valor">{fmtMoeda(totalProjecao)}</div><div className="diag-stat-label">Comissão — Projeção do Mês</div></div>
+        <div className="diag-stat diag-stat-credito" style={{ cursor: 'pointer' }} onClick={() => setDetalheAberto('apurado')}><div className="diag-stat-valor">{fmtMoeda(totalApurado)}</div><div className="diag-stat-label">Comissão — Real Apurado</div></div>
       </div>
+
+      {detalheAberto && (
+        <DetalheFaixaModal visao={detalheAberto} linhas={linhas} total={{ esteira: totalEsteira, projecao: totalProjecao, apurado: totalApurado }[detalheAberto]} onClose={() => setDetalheAberto(null)} />
+      )}
 
       <div className="carteira-table-wrap">
         <table className="carteira-table">
