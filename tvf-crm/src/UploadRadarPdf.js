@@ -15,6 +15,27 @@ function calcularVerticais(s) {
   }
 }
 
+// pra "Minha Comissão" — 6 pilares do plano de remuneração, diferente dos 6 do Plano
+// Comercial (Avançado e Outras Receitas não existem lá, ficam somados dentro de
+// RECEITA_TELECOM; Renovação Fixa não entra na comissão). Gatilho é a métrica que decide a
+// faixa (quantidade em Altas/BL/Renovação Móvel, R$ nos outros); receita é sempre o R$ que a
+// comissão de fato multiplica.
+const JOAO_ID = '971645c3-b9a3-44a9-9848-5a5fa83ff8b1'
+function calcularComissaoPilares(s) {
+  return {
+    ALTAS: { gatilho: s.ha_qtd || 0, receita: s.ha_valor || 0 },
+    BANDA_LARGA: { gatilho: s.bl_qtd || 0, receita: s.bl_valor || 0 },
+    RENOVACAO_MOVEL: { gatilho: s.renovacao_movel_qtd || 0, receita: s.renovacao_movel_valor || 0 },
+    AVANCADO: { gatilho: s.avancado_valor || 0, receita: s.avancado_valor || 0 },
+    OUTRAS_RECEITAS: { gatilho: (s.digital_valor || 0) + (s.cpf_valor || 0), receita: (s.digital_valor || 0) + (s.cpf_valor || 0) },
+    APARELHO: { gatilho: s.aparelho_valor || 0, receita: s.aparelho_valor || 0 },
+  }
+}
+// meta de Altas/BL/Renovação Móvel/Aparelho já existe no Plano Comercial (mesmo pilar,
+// reaproveita); Avançado/Outras Receitas não têm meta lá — mantém o que já tava salvo em
+// comissao_pilar (editado à mão na própria aba), sem sobrescrever nesse upload.
+const PILAR_PARA_VERTICAL_PC = { ALTAS: 'HA', BANDA_LARGA: 'BL', RENOVACAO_MOVEL: 'MM', APARELHO: 'APARELHO' }
+
 function normalizar(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 }
@@ -109,9 +130,12 @@ export default function UploadRadarPdf({ modo }) {
     let atualizadas = 0, criadas = 0, falhas = 0
     const semMatch = new Set()
 
+    const consultoresMatched = []
+
     for (const s of listaFinal) {
       const consultor = acharConsultor(s.nome, staffAtual)
       if (!consultor) { semMatch.add(s.nome); continue }
+      consultoresMatched.push(consultor.id)
       const verticais = calcularVerticais(s)
 
       for (const [vertical, valor] of Object.entries(verticais)) {
@@ -129,6 +153,43 @@ export default function UploadRadarPdf({ modo }) {
           const { error } = await supabase.from('plano_comercial')
             .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: 0, backlog: 0, esteira: 0, ...campos })
           if (error) falhas++; else criadas++
+        }
+      }
+    }
+
+    // "Minha Comissão" é a visão do João como Gestor das 4 equipes — o resultado soma TODOS
+    // os times do radar (não só o time cujo supervisor bate com o nome dele), e a meta
+    // também soma a meta das 4 equipes em vez de usar só a meta individual dele.
+    if (modo === 'esteira') {
+      const pilaresSoma = {}
+      for (const s of listaFinal) {
+        const p = calcularComissaoPilares(s)
+        for (const [pilar, { gatilho, receita }] of Object.entries(p)) {
+          if (!pilaresSoma[pilar]) pilaresSoma[pilar] = { gatilho: 0, receita: 0 }
+          pilaresSoma[pilar].gatilho += gatilho
+          pilaresSoma[pilar].receita += receita
+        }
+      }
+
+      const metaPorVertical = {}
+      if (consultoresMatched.length > 0) {
+        const { data: metasPc } = await supabase.from('plano_comercial').select('vertical, meta')
+          .eq('mes_referencia', mesData).in('consultor_id', consultoresMatched)
+        for (const m of (metasPc || [])) metaPorVertical[m.vertical] = (metaPorVertical[m.vertical] || 0) + (m.meta || 0)
+      }
+
+      for (const [pilar, { gatilho, receita }] of Object.entries(pilaresSoma)) {
+        const { data: existentePilar } = await supabase.from('comissao_pilar').select('id, meta_gatilho')
+          .eq('mes_referencia', mesData).eq('pilar', pilar).maybeSingle()
+        const verticalPc = PILAR_PARA_VERTICAL_PC[pilar]
+        const metaGatilho = verticalPc && metaPorVertical[verticalPc] !== undefined
+          ? metaPorVertical[verticalPc]
+          : (existentePilar?.meta_gatilho ?? 0)
+
+        if (existentePilar) {
+          await supabase.from('comissao_pilar').update({ gatilho, receita, meta_gatilho: metaGatilho, atualizado_em: new Date().toISOString() }).eq('id', existentePilar.id)
+        } else {
+          await supabase.from('comissao_pilar').insert({ mes_referencia: mesData, pilar, gatilho, receita, meta_gatilho: metaGatilho })
         }
       }
     }

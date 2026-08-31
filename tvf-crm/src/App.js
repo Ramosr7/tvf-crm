@@ -8,6 +8,7 @@ import KanbanTemperatura from './KanbanTemperatura'
 import Importar from './Importar'
 import Relatorios from './Relatorios'
 import PlanoComercial from './PlanoComercial'
+import MinhaComissao, { JOAO_ID } from './MinhaComissao'
 import NotificacoesSino from './NotificacoesSino'
 import Dashboard from './Dashboard'
 import Assistente from './Assistente'
@@ -641,6 +642,9 @@ export default function App() {
             {user.perfil === 'Gestor' && (
               <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => setTela('plano_comercial')}>Plano Comercial</span>
             )}
+            {user.id === JOAO_ID && (
+              <span className={`topbar-nav-item ${tela === 'minha_comissao' ? 'active' : ''}`} onClick={() => setTela('minha_comissao')}>Variável</span>
+            )}
           </div>
         </div>
         <div className="topbar-right">
@@ -664,6 +668,9 @@ export default function App() {
       )}
       {user.perfil === 'Gestor' && (
         <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial /></div>
+      )}
+      {user.id === JOAO_ID && (
+        <div style={{ display: tela === 'minha_comissao' ? 'block' : 'none' }}><MinhaComissao /></div>
       )}
 
       {user.perfil !== 'Consultor' && <Assistente user={user} />}
