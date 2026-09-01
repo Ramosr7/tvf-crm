@@ -181,8 +181,12 @@ body {
 .plano-concluido-editavel { cursor: pointer; border-bottom: 1px dashed #ccc; }
 .plano-concluido-editavel:hover { border-bottom-color: #660099; color: #660099; }
 .plano-faixa-badge { font-size: 10px; color: #1D9E75; font-weight: 700; margin-top: 2px; }
-.plano-grafico-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-@media (max-width: 900px) { .plano-grafico-grid { grid-template-columns: repeat(2, 1fr); } }
+/* flex em vez de grid: quando sobra card sozinho na última linha (ex: 7 verticais = 3+3+1),
+   justify-content:center deixa ele centralizado em vez de colado à esquerda. Linha cheia não
+   muda visualmente — os cards já preenchem a largura toda, então centralizar não desloca nada. */
+.plano-grafico-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
+.plano-grafico-grid > .dash-card { flex: 0 1 calc((100% - 32px) / 3); }
+@media (max-width: 900px) { .plano-grafico-grid > .dash-card { flex-basis: calc((100% - 16px) / 2); } }
 .plano-time-titulo {
   display: inline-block; font-size: 14px; font-weight: 700; color: #fff; background: #660099;
   padding: 6px 14px; border-radius: 8px; margin-bottom: 10px;
