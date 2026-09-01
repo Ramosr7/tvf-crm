@@ -72,6 +72,12 @@ function corSemaforo(pct) {
   return '#E74C3C'
 }
 
+// Avançado é pilar de venda esporádica/lumpy (poucas vendas, valor alto cada) — com pouco dia
+// útil decorrido, uma venda isolada no início do mês vira uma média diária gigante e explode a
+// projeção (ex: R$3k num único dia já projetava R$67k pro mês). Sem jeito bom de "travar" isso
+// só ajustando fator de conversão, então trava com teto fixo — só nesse pilar.
+const TETO_PROJECAO_AVANCADO = 12000
+
 function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   const realizado = row.esteira - row.backlog
   // média diária de produtividade tem que dividir pelos dias úteis JÁ PASSADOS no mês, não pelo
@@ -80,7 +86,8 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   const duDecorridos = duTotais - duRestantes
   const mediaDiaria = duDecorridos > 0 ? realizado / duDecorridos : 0
   const metaDiaria = duRestantes > 0 ? (row.meta - row.esteira) / duRestantes : 0
-  const projecao = (row.esteira * fatorConversao) + (mediaDiaria * duRestantes)
+  const projecaoBruta = (row.esteira * fatorConversao) + (mediaDiaria * duRestantes)
+  const projecao = row.vertical === 'AVANCADO' ? Math.min(projecaoBruta, TETO_PROJECAO_AVANCADO) : projecaoBruta
   const pctAtingimento = row.meta > 0 ? projecao / row.meta : 0
   return { realizado, mediaDiaria, metaDiaria, projecao, pctAtingimento }
 }
@@ -300,7 +307,7 @@ export default function PlanoComercial() {
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
         <span style={{ fontSize: 12, color: '#888' }}>Dias úteis: {duTotais} total, {duRestantes} restante(s)</span>
-        <button className="btn-filter-light" onClick={() => setMostrarConfig(v => !v)}>Fatores de conversão</button>
+        <button className="btn-filter-light" onClick={() => setMostrarConfig(v => !v)}>Quebra</button>
         <button className="btn-filter-light" onClick={() => setMostrarTimes(v => !v)}>Times no plano comercial</button>
         <label style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>Exportar
           <select className="filter-select" style={{ marginLeft: 8 }} value={filtroTimePdf} onChange={e => setFiltroTimePdf(e.target.value)}>
@@ -329,7 +336,7 @@ export default function PlanoComercial() {
 
       {mostrarConfig && (
         <div className="lm-resumo" style={{ marginBottom: 16 }}>
-          <div className="dash-section-title" style={{ marginTop: 0 }}>Fator de conversão por vertical</div>
+          <div className="dash-section-title" style={{ marginTop: 0 }}>Quebra por vertical</div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {ORDEM_VERTICAIS.map(v => (
               <label key={v} style={{ fontSize: 12, color: '#555', display: 'flex', flexDirection: 'column', gap: 4 }}>
