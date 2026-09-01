@@ -82,7 +82,13 @@ function calcularDU(mesReferencia) {
   let duRestantes
   if (ultimoDia < hoje) duRestantes = 0
   else if (primeiroDia > hoje) duRestantes = duTotais
-  else duRestantes = contarDiasUteis(hoje, ultimoDia)
+  else {
+    // hoje já conta como decorrido assim que o dia começa (não como "restante") — restante
+    // só soma dias úteis estritamente depois de hoje.
+    const amanha = new Date(hoje)
+    amanha.setDate(amanha.getDate() + 1)
+    duRestantes = contarDiasUteis(amanha, ultimoDia)
+  }
   return { duTotais, duRestantes }
 }
 function faixaDe(pct) {
