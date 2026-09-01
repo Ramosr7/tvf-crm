@@ -29,6 +29,15 @@ const TAXAS = {
   APARELHO: { 1: 0.001, 2: 0.002, 3: 0.003 },
 }
 
+// projeção da Variável usa a MESMA referência do Plano Comercial (mesmo fator de conversão
+// por vertical, mesmo teto no Avançado) — mapeia pilar da comissão pro código de vertical do
+// PC. Outras Receitas não tem vertical própria no PC, fica sem fator específico (usa 0.8
+// default, igual PlanoComercial.js faz pra vertical sem linha em plano_comercial_config).
+const PILAR_PARA_VERTICAL_PC = { ALTAS: 'HA', BANDA_LARGA: 'BL', RENOVACAO_MOVEL: 'MM', APARELHO: 'APARELHO', AVANCADO: 'AVANCADO' }
+// mesmo teto usado em PlanoComercial.js pro pilar Avançado (venda esporádica/lumpy — um dia
+// bom sozinho explode a extrapolação linear)
+const TETO_PROJECAO_AVANCADO = 12000
+
 // mesma agrupação de subproduto usada na leitura do Radar Gerencial (api/parse-radar-pdf.js)
 // — pra "Real Apurado" bater com a mesma régua que já categoriza o time inteiro.
 const SUBPRODUTO_PARA_PILAR = {
@@ -169,6 +178,7 @@ export default function MinhaComissao() {
   const [mesReferencia, setMesReferencia] = useState(mesAtualISO())
   const [pilares, setPilares] = useState({})
   const [apurado, setApurado] = useState({})
+  const [config, setConfig] = useState({})
   const [loading, setLoading] = useState(true)
   const [editandoMeta, setEditandoMeta] = useState(null)
   const [detalheAberto, setDetalheAberto] = useState(null) // null | 'esteira' | 'projecao' | 'apurado'
@@ -179,7 +189,7 @@ export default function MinhaComissao() {
     const [ano, mes] = mesReferencia.split('-').map(Number)
     const proximoMesData = `${mes === 12 ? ano + 1 : ano}-${String(mes === 12 ? 1 : mes + 1).padStart(2, '0')}-01`
 
-    const [{ data: pilaresData }, { data: vendasData }] = await Promise.all([
+    const [{ data: pilaresData }, { data: vendasData }, { data: configData }] = await Promise.all([
       supabase.from('comissao_pilar').select('*').eq('mes_referencia', mesData),
       // carteira_venda.consultor_id é o vendedor individual, não o supervisor/time — o João
       // (Gestor) nunca aparece aqui. A Variável é o resultado dos 4 times inteiros, então
@@ -187,11 +197,18 @@ export default function MinhaComissao() {
       supabase.from('carteira_venda').select('id')
         .eq('status_apuracao', 'ativado')
         .gte('data_venda', mesData).lt('data_venda', proximoMesData),
+      // mesma "quebra" (fator de conversão) por vertical usada no Plano Comercial — projeção
+      // da Variável tem que usar a mesma referência, não uma conta separada.
+      supabase.from('plano_comercial_config').select('*'),
     ])
 
     const mapaPilares = {}
     for (const p of (pilaresData || [])) mapaPilares[p.pilar] = p
     setPilares(mapaPilares)
+
+    const mapaConfig = {}
+    for (const c of (configData || [])) mapaConfig[c.vertical] = c.fator_conversao
+    setConfig(mapaConfig)
 
     const idsVenda = (vendasData || []).map(v => v.id)
     const mapaApurado = {}
@@ -235,11 +252,19 @@ export default function MinhaComissao() {
     const pctEsteira = row.meta_gatilho > 0 ? row.gatilho / row.meta_gatilho : 0
     const esteira = comissaoDoPilar(pilar, row.receita, pctEsteira)
 
-    // projeção: projeta o gatilho no ritmo médio diário até o fim do mês, e escala a
-    // receita na mesma proporção (assume receita média por unidade constante no mês)
-    const fatorProjecao = duDecorridos > 0 ? duTotais / duDecorridos : 1
-    const gatilhoProjetado = row.gatilho * fatorProjecao
-    const receitaProjetada = row.receita * fatorProjecao
+    // projeção: mesma referência do Plano Comercial (não é mais uma regra de três simples
+    // duTotais/duDecorridos, que em dia 1 do mês multiplicava tudo por duTotais e explodia) —
+    // pega o fator de conversão da vertical equivalente e aplica média diária × dias
+    // restantes, igual calcularLinha() de PlanoComercial.js.
+    const fatorPC = config[PILAR_PARA_VERTICAL_PC[pilar]] ?? 0.8
+    const mediaDiariaGatilho = duDecorridos > 0 ? row.gatilho / duDecorridos : 0
+    const mediaDiariaReceita = duDecorridos > 0 ? row.receita / duDecorridos : 0
+    let gatilhoProjetado = (row.gatilho * fatorPC) + (mediaDiariaGatilho * duRestantes)
+    let receitaProjetada = (row.receita * fatorPC) + (mediaDiariaReceita * duRestantes)
+    if (pilar === 'AVANCADO') {
+      gatilhoProjetado = Math.min(gatilhoProjetado, TETO_PROJECAO_AVANCADO)
+      receitaProjetada = Math.min(receitaProjetada, TETO_PROJECAO_AVANCADO)
+    }
     const pctProjecao = row.meta_gatilho > 0 ? gatilhoProjetado / row.meta_gatilho : 0
     const projecao = comissaoDoPilar(pilar, receitaProjetada, pctProjecao)
 
