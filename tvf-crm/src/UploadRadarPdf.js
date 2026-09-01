@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
-// Mapa das colunas do PDF pros 6 pilares do Plano Comercial (Excel usa os mesmos códigos).
-// Receita Telecom soma tudo que é produto novo (não renovação, não aparelho — que tem pilar
-// próprio): Móvel + Fibra + Digital + Avançado + CPF.
-function calcularVerticais(s) {
-  return {
+// Mapa das colunas do PDF pros pilares do Plano Comercial (Excel usa os mesmos códigos).
+// Receita Telecom soma produto novo que não tem pilar próprio: Móvel + Fibra + Digital + CPF
+// (Avançado saiu daqui — virou vertical própria, só no time do Nishida, que é quem vende).
+// Só inclui a chave AVANCADO quando o supervisor é o Nishida — os outros times não têm essa
+// linha no Plano Comercial (mesma trava usada em PlanoComercial.js).
+const NISHIDA_ID = 'dddba003-a87c-4511-8047-55ffd30ca46c'
+function calcularVerticais(s, consultorId) {
+  const base = {
     APARELHO: s.aparelho_valor || 0,
     HA: s.ha_qtd || 0,
     BL: s.bl_qtd || 0,
     MM: s.renovacao_movel_qtd || 0,
     MB: s.renovacao_fixa_valor || 0,
-    RECEITA_TELECOM: (s.ha_valor || 0) + (s.bl_valor || 0) + (s.digital_valor || 0) + (s.avancado_valor || 0) + (s.cpf_valor || 0),
+    RECEITA_TELECOM: (s.ha_valor || 0) + (s.bl_valor || 0) + (s.digital_valor || 0) + (s.cpf_valor || 0),
   }
+  if (consultorId === NISHIDA_ID) base.AVANCADO = s.avancado_valor || 0
+  return base
 }
 
 // pra "Minha Comissão" — 6 pilares do plano de remuneração, diferente dos 6 do Plano
@@ -34,7 +39,7 @@ function calcularComissaoPilares(s) {
 // meta de Altas/BL/Renovação Móvel/Aparelho já existe no Plano Comercial (mesmo pilar,
 // reaproveita); Avançado/Outras Receitas não têm meta lá — mantém o que já tava salvo em
 // comissao_pilar (editado à mão na própria aba), sem sobrescrever nesse upload.
-const PILAR_PARA_VERTICAL_PC = { ALTAS: 'HA', BANDA_LARGA: 'BL', RENOVACAO_MOVEL: 'MM', APARELHO: 'APARELHO' }
+const PILAR_PARA_VERTICAL_PC = { ALTAS: 'HA', BANDA_LARGA: 'BL', RENOVACAO_MOVEL: 'MM', APARELHO: 'APARELHO', AVANCADO: 'AVANCADO' }
 
 function normalizar(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
@@ -136,7 +141,7 @@ export default function UploadRadarPdf({ modo }) {
       const consultor = acharConsultor(s.nome, staffAtual)
       if (!consultor) { semMatch.add(s.nome); continue }
       consultoresMatched.push(consultor.id)
-      const verticais = calcularVerticais(s)
+      const verticais = calcularVerticais(s, consultor.id)
 
       for (const [vertical, valor] of Object.entries(verticais)) {
         const { data: existente } = await supabase.from('plano_comercial').select('id')
@@ -235,11 +240,11 @@ export default function UploadRadarPdf({ modo }) {
         <>
           <div className="carteira-table-wrap" style={{ marginTop: 12, marginBottom: 12 }}>
             <table className="carteira-table">
-              <thead><tr><th>Supervisor</th><th>Aparelho</th><th>HA</th><th>BL</th><th>MM (Renov. Móvel)</th><th>MB (Renov. Fixa)</th><th>Receita Telecom</th></tr></thead>
+              <thead><tr><th>Supervisor</th><th>Aparelho</th><th>HA</th><th>BL</th><th>MM (Renov. Móvel)</th><th>MB (Renov. Fixa)</th><th>Receita Avançado</th><th>Receita Telecom</th></tr></thead>
               <tbody>
                 {supervisores.map((s, i) => {
-                  const v = calcularVerticais(s)
                   const consultor = acharConsultor(s.nome, staff)
+                  const v = calcularVerticais(s, consultor?.id)
                   return (
                     <tr key={i} style={!consultor ? { background: '#FFF5EE' } : {}}>
                       <td>{s.nome}{!consultor && <span style={{ color: '#C0451A', fontWeight: 600 }}> (sem match)</span>}</td>
@@ -248,6 +253,7 @@ export default function UploadRadarPdf({ modo }) {
                       <td>{v.BL}</td>
                       <td>{v.MM}</td>
                       <td>{fmtMoeda(v.MB)}</td>
+                      <td>{v.AVANCADO !== undefined ? fmtMoeda(v.AVANCADO) : '—'}</td>
                       <td>{fmtMoeda(v.RECEITA_TELECOM)}</td>
                     </tr>
                   )

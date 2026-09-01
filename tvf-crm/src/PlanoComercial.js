@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 
-const ORDEM_VERTICAIS = ['APARELHO', 'HA', 'BL', 'MM', 'MB', 'RECEITA_TELECOM']
+// Avançado só existe pro time do Nishida hoje (nenhum outro time vende esse serviço) — fica
+// de fora do ORDEM_VERTICAIS base e só entra na lista do card dele, via verticaisDoTime().
+const NISHIDA_ID = 'dddba003-a87c-4511-8047-55ffd30ca46c'
+const ORDEM_VERTICAIS = ['APARELHO', 'HA', 'BL', 'MM', 'MB', 'AVANCADO', 'RECEITA_TELECOM']
 const VERTICAL_INFO = {
   APARELHO: { label: 'Aparelho', formato: 'moeda' },
   HA: { label: 'HA (Altas)', formato: 'inteiro' },
   BL: { label: 'Banda Larga', formato: 'inteiro' },
   MM: { label: 'Renovação Móvel', formato: 'inteiro' },
   MB: { label: 'Renovação Fixa', formato: 'moeda' },
+  AVANCADO: { label: 'Receita Avançado', formato: 'moeda' },
   RECEITA_TELECOM: { label: 'Receita Telecom', formato: 'moeda' },
+}
+function verticaisDoTime(consultorId) {
+  return consultorId === NISHIDA_ID ? ORDEM_VERTICAIS : ORDEM_VERTICAIS.filter(v => v !== 'AVANCADO')
 }
 
 function fmtMoeda(v) {
@@ -189,7 +196,7 @@ export default function PlanoComercial() {
   const porConsultor = {}
   for (const consultorId of idsTimes) {
     const nome = staffPorId[consultorId]?.nome || '—'
-    porConsultor[nome] = ORDEM_VERTICAIS.map(v => {
+    porConsultor[nome] = verticaisDoTime(consultorId).map(v => {
       const existente = planos.find(p => p.consultor_id === consultorId && p.vertical === v)
       return existente || { id: null, consultor_id: consultorId, vertical: v, meta: 0, backlog: 0, esteira: 0, concluido: 0 }
     })
