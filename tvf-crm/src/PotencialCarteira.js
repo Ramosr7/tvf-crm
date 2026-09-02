@@ -471,8 +471,8 @@ export default function PotencialCarteira({ user, refreshSignal }) {
           </select>
         )}
         {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
-        <label style={{ fontSize: 11, color: '#888' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} /></label>
-        <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} /></label>
+        <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataDe} onChange={e => setFiltroDataDe(e.target.value)} /></label>
+        <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} /></label>
         <select className="filter-select" value={filtroOrigem} onChange={e => setFiltroOrigem(e.target.value)}>
           <option value="">Todas as origens</option>
           <option value="Manual">Manual</option>
@@ -518,14 +518,14 @@ export default function PotencialCarteira({ user, refreshSignal }) {
           )}
           <button className="btn-filter-light" onClick={exportarXlsx}>⬇ Exportar</button>
           <button className="btn-filter-light" onClick={() => setMostrarLixeira(true)}>🗑 Lixeira{lixeira.length > 0 && ` (${lixeira.length})`}</button>
-          <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.40)', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
         </div>
       )}
       {!podeAdicionarCliente(user) && (
         <div className="kanban-toolbar">
           <input className="search-input" placeholder="🔍 Filtrar por CNPJ..." value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)} />
           <button className="btn-filter-light" onClick={exportarXlsx}>⬇ Exportar</button>
-          <span style={{ fontSize: 11, color: '#aaa', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.40)', marginLeft: 'auto' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
         </div>
       )}
 
@@ -678,7 +678,7 @@ export default function PotencialCarteira({ user, refreshSignal }) {
                 <div key={c.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                   <div>
                     <div style={{ fontWeight: 700 }}>{c.razao_social || c.cnpj}</div>
-                    <div style={{ fontSize: 11, color: '#888' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>
                       {c.cnpj} · removido em {new Date(c.excluido_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>

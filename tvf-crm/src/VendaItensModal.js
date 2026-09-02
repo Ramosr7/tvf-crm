@@ -126,7 +126,7 @@ export default function VendaItensModal({ cliente, vendaId: vendaIdProp, onClose
         {loading ? <div className="empty">Carregando...</div> : (
           <div className="lm-body">
             <input className="search-input" style={{ width: '100%' }} placeholder="Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
-            <div style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+            <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '4px 0 8px' }}>
               Venda com aparelho junto (ex: RM + TA)? Marca as duas linhas separadas, cada uma com seu próprio valor.
             </div>
 

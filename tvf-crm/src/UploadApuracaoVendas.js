@@ -270,7 +270,7 @@ export default function UploadApuracaoVendas() {
                 ))}
               </tbody>
             </table>
-            {linhas.length > 50 && <div style={{ fontSize: 11, color: '#888', padding: 8 }}>Mostrando 50 de {linhas.length} linhas.</div>}
+            {linhas.length > 50 && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', padding: 8 }}>Mostrando 50 de {linhas.length} linhas.</div>}
           </div>
           <button className="btn-save-obs" style={{ float: 'none' }} onClick={processar} disabled={processando}>
             {processando ? 'Processando...' : `Processar ${linhas.length} linha(s)`}

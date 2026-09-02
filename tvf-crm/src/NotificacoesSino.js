@@ -71,7 +71,7 @@ export default function NotificacoesSino({ user }) {
                 return (
                   <div key={l.id} className="sino-item sino-item-clicavel" onClick={() => abrirCliente(l)}>
                     <div style={{ fontWeight: 700 }}>{l.carteira_cliente?.razao_social || l.carteira_cliente?.cnpj}</div>
-                    <div style={{ fontSize: 11, color: '#888' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>
                       {formatDataHora(l.data_hora)} · {pilarInfo?.label || l.pilar}
                       {podeVerConsultor(user) && l.carteira_cliente && ` · ${nomeConsultor(l.carteira_cliente.consultor_id)}`}
                     </div>

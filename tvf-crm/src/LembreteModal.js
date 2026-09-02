@@ -95,7 +95,7 @@ export default function LembreteModal({ cliente, user, onClose, onSalvo }) {
                   <div key={l.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                     <div>
                       <div style={{ fontWeight: 700 }}>{formatDataHora(l.data_hora)} · {info?.label || l.pilar}</div>
-                      {l.nota && <div style={{ fontSize: 12, color: '#666' }}>{l.nota}</div>}
+                      {l.nota && <div style={{ fontSize: 12, color: 'rgba(245,241,250,0.68)' }}>{l.nota}</div>}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       <button type="button" className="btn-action" onClick={() => editar(l)}>Atualizar</button>

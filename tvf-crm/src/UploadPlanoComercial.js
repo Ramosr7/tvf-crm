@@ -181,7 +181,7 @@ export default function UploadPlanoComercial() {
   return (
     <div className="main">
       <div className="lm-section-title">Upload Plano Comercial</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
+      <p style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)', margin: '4px 0 16px' }}>
         Sobe a carta meta do mês (aba "CONTROLE 2026" ou o que tiver "controle" no nome — não
         precisa ser a primeira aba do arquivo). Lê os blocos por time (Meta/Backlog/Esteira) e
         também a meta global do escritório antes da quebra ("PLANO COMERCIAL (s/ quebra)").
@@ -191,7 +191,7 @@ export default function UploadPlanoComercial() {
       </p>
 
       <div className="kanban-toolbar">
-        <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
+        <label style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
         <input type="file" accept=".xlsx,.xls" onChange={handleArquivo} />
@@ -209,7 +209,7 @@ export default function UploadPlanoComercial() {
         </button>
       )}
 
-      {progresso && <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>{progresso}</div>}
+      {progresso && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', marginTop: 8 }}>{progresso}</div>}
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>

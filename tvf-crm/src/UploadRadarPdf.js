@@ -223,7 +223,7 @@ export default function UploadRadarPdf({ modo }) {
       </details>
 
       <div className="kanban-toolbar">
-        <label style={{ fontSize: 12, color: '#888' }}>Mês de referência
+        <label style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Mês de referência
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
         <input type="file" accept=".pdf,application/pdf" onChange={handleArquivo} disabled={lendo || processando} />

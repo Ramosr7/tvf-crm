@@ -59,7 +59,7 @@ export default function VendaChecklistModal({ cliente, user, onClose, onConcluid
         </div>
 
         <div className="lm-body">
-          <p style={{ fontSize: 12, color: '#888' }}>
+          <p style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>
             Pra cada pilar de potencial que esse cliente tem, confirma se foi oferecido e por quê (ou por que não).
           </p>
 

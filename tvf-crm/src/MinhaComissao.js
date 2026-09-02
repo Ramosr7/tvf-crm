@@ -134,7 +134,7 @@ function DetalheFaixaModal({ visao, linhas, total, onClose }) {
         </div>
         <div className="lm-body">
           {visao === 'apurado' && (
-            <div className="lm-resumo" style={{ marginBottom: 12, fontSize: 12, color: '#888' }}>
+            <div className="lm-resumo" style={{ marginBottom: 12, fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>
               Só conta pedido com "Pedido Finalizado" batido na Apuração de Vendas — se o pedido do
               operador não achou a venda correspondente no CRM, ele nunca vira "ativado" e não entra
               aqui (confere a tela Importar → Apuração Pedidos pra ver quantos ficaram sem match). Além
@@ -284,16 +284,16 @@ export default function MinhaComissao() {
   return (
     <div className="main">
       <div className="dash-section-title">Variável</div>
-      <div className="lm-resumo" style={{ marginBottom: 16, fontSize: 12, color: '#888' }}>
+      <div className="lm-resumo" style={{ marginBottom: 16, fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>
         Visão pessoal — não aparece pra mais ninguém. Faixa de atingimento por pilar: abaixo de 80% não paga; 80-99% Faixa 1; 100-119% Faixa 2; 120%+ Faixa 3.
         A % da faixa multiplica sempre a receita R$ do pilar, mesmo em Altas/Banda Larga/Renovação Móvel (que usam quantidade só pra decidir a faixa).
       </div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
-        <label style={{ fontSize: 12, color: '#888' }}>Mês
+        <label style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Mês
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
-        <span style={{ fontSize: 12, color: '#888' }}>Dias úteis: {duTotais} total, {duDecorridos} decorrido(s), {duRestantes} restante(s)</span>
+        <span style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Dias úteis: {duTotais} total, {duDecorridos} decorrido(s), {duRestantes} restante(s)</span>
       </div>
 
       <div className="diag-stats" style={{ marginBottom: 24 }}>

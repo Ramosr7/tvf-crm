@@ -306,13 +306,13 @@ export default function PlanoComercial({ refreshSignal }) {
       <div className="dash-section-title">Plano Comercial</div>
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
-        <label style={{ fontSize: 12, color: '#888' }}>Mês
+        <label style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Mês
           <input type="month" className="lm-input" style={{ marginLeft: 8 }} value={mesReferencia} onChange={e => setMesReferencia(e.target.value)} />
         </label>
-        <span style={{ fontSize: 12, color: '#888' }}>Dias úteis: {duTotais} total, {duRestantes} restante(s)</span>
+        <span style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Dias úteis: {duTotais} total, {duRestantes} restante(s)</span>
         <button className="btn-filter-light" onClick={() => setMostrarConfig(v => !v)}>Quebra</button>
         <button className="btn-filter-light" onClick={() => setMostrarTimes(v => !v)}>Times no plano comercial</button>
-        <label style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>Exportar
+        <label style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)', marginLeft: 'auto' }}>Exportar
           <select className="filter-select" style={{ marginLeft: 8 }} value={filtroTimePdf} onChange={e => setFiltroTimePdf(e.target.value)}>
             <option value="todos">Todos os times</option>
             {Object.keys(porConsultor).map(nome => <option key={nome} value={nome}>{nome}</option>)}
@@ -328,9 +328,9 @@ export default function PlanoComercial({ refreshSignal }) {
           <div className="dash-section-title" style={{ marginTop: 0 }}>Quem tem carta meta no Plano Comercial</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {staff.filter(s => s.perfil === 'Supervisor' || s.perfil === 'Gestor').map(s => (
-              <label key={s.id} style={{ fontSize: 13, color: '#333', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label key={s.id} style={{ fontSize: 13, color: '#F5F1FA', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <input type="checkbox" checked={s.plano_comercial_ativo !== false} onChange={e => alternarAtivo(s.id, e.target.checked)} />
-                {s.nome} <span style={{ color: '#999', fontSize: 11 }}>({s.perfil})</span>
+                {s.nome} <span style={{ color: 'rgba(245,241,250,0.48)', fontSize: 11 }}>({s.perfil})</span>
               </label>
             ))}
           </div>
@@ -342,7 +342,7 @@ export default function PlanoComercial({ refreshSignal }) {
           <div className="dash-section-title" style={{ marginTop: 0 }}>Quebra por vertical</div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {ORDEM_VERTICAIS.map(v => (
-              <label key={v} style={{ fontSize: 12, color: '#555', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label key={v} style={{ fontSize: 12, color: 'rgba(245,241,250,0.68)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {VERTICAL_INFO[v].label}
                 <input className="lm-input" type="number" step="0.05" min="0" max="1" style={{ width: 80 }}
                   value={config[v] ?? ''} onChange={e => atualizarFator(v, e.target.value)} />

@@ -333,7 +333,7 @@ export default function AssistenteConteudo({ user }) {
     <div className="main">
       <div style={{ marginBottom: 20 }}>
         <div className="dash-section-title">Diagnóstico de Dúvidas (últimos 30 dias)</div>
-        <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+        <p style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '4px 0 8px' }}>
           Analisa todas as perguntas feitas ao Joaozinho por toda a equipe (sem identificar quem
           perguntou) e sugere padrões e plano de ação.
         </p>
@@ -342,7 +342,7 @@ export default function AssistenteConteudo({ user }) {
         </button>
         {erroDiagnostico && <div className="login-erro" style={{ marginTop: 8 }}>{erroDiagnostico}</div>}
         {diagnostico && (
-          <div style={{ fontSize: 12, color: '#333', background: '#F7F4FC', borderRadius: 8, padding: 12, marginTop: 10, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 12, color: '#F5F1FA', background: '#F7F4FC', borderRadius: 8, padding: 12, marginTop: 10, whiteSpace: 'pre-wrap' }}>
             {diagnostico}
           </div>
         )}
@@ -351,14 +351,14 @@ export default function AssistenteConteudo({ user }) {
       {semResposta.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <div className="dash-section-title">Perguntas que o Joaozinho não soube responder ({semResposta.length})</div>
-          <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+          <p style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '4px 0 8px' }}>
             O consultor perguntou, ele não achou no conteúdo cadastrado. Cadastra o tema e marca como resolvida.
           </p>
           {semResposta.map(msg => (
             <div key={msg.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{msg.conteudo}</div>
-                <div style={{ fontSize: 11, color: '#888' }}>{nomeConsultor(msg.consultor_id)} · {formatDataHora(msg.criado_em)}</div>
+                <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>{nomeConsultor(msg.consultor_id)} · {formatDataHora(msg.criado_em)}</div>
               </div>
               <button className="btn-filter-light" onClick={() => marcarResolvida(msg)}>Marcar resolvida</button>
             </div>
@@ -367,7 +367,7 @@ export default function AssistenteConteudo({ user }) {
       )}
 
       <div className="dash-section-title">Alimentar Joaozinho (Assistente Virtual)</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
+      <p style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)', margin: '4px 0 16px' }}>
         Cada bloco de conteúdo tem um título — é o que identifica o tema (ex: "Preços Banda
         Larga", "Book de Ofertas Móvel"). Subir de novo com o MESMO título substitui o
         conteúdo anterior daquele tema, pra não conflitar informação antiga com a nova.
@@ -379,7 +379,7 @@ export default function AssistenteConteudo({ user }) {
       {jobs.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <div className="dash-section-title">Uploads pendentes ({jobs.length})</div>
-          <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+          <p style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '4px 0 8px' }}>
             Arquivo já salvo, faltou só a IA terminar de ler — clica em Retomar pra continuar de onde parou.
           </p>
           {jobs.map(job => (
@@ -408,7 +408,7 @@ export default function AssistenteConteudo({ user }) {
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
         <input type="file" accept=".pdf,application/pdf,.xlsx,.xls" onChange={handleArquivo} disabled={lendo} />
         {lendo && <span style={{ fontSize: 12, color: '#660099' }}>{progresso || 'Lendo arquivo...'}</span>}
-        {editandoId && <span style={{ fontSize: 12, color: '#888' }}>Editando conteúdo existente — salvar substitui.</span>}
+        {editandoId && <span style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)' }}>Editando conteúdo existente — salvar substitui.</span>}
       </div>
 
       <textarea className="obs-area" style={{ width: '100%', minHeight: 220 }} placeholder="Cole ou edite o conteúdo aqui..."
@@ -442,7 +442,7 @@ export default function AssistenteConteudo({ user }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
             <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => alternarExpandido(item.id)}>
               <div style={{ fontWeight: 700 }}>{expandidoId === item.id ? '▼' : '▶'} {item.titulo}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>Atualizado em {formatDataHora(item.atualizado_em)} · {item.conteudo.length} caracteres</div>
+              <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Atualizado em {formatDataHora(item.atualizado_em)} · {item.conteudo.length} caracteres</div>
             </div>
             {item.arquivo_original_path && (
               <span style={{ cursor: 'pointer', fontSize: 11, color: '#660099', whiteSpace: 'nowrap' }} title={`Ver ${item.arquivo_original_nome || 'documento original'}`} onClick={() => verOriginal(item)}>📄 Original</span>
@@ -451,7 +451,7 @@ export default function AssistenteConteudo({ user }) {
             <span style={{ cursor: 'pointer' }} title="Excluir" onClick={() => excluir(item)}>🗑</span>
           </div>
           {expandidoId === item.id && (
-            <div style={{ fontSize: 12, color: '#333', background: '#F7F4FC', borderRadius: 8, padding: 10, marginTop: 8, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: 12, color: '#F5F1FA', background: '#F7F4FC', borderRadius: 8, padding: 10, marginTop: 8, maxHeight: 300, overflowY: 'auto', whiteSpace: 'pre-wrap' }}>
               {item.conteudo}
             </div>
           )}

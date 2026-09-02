@@ -164,7 +164,7 @@ export default function UploadStatusAtual() {
   return (
     <div className="main">
       <div className="lm-section-title">Upload Status Atual (migração)</div>
-      <p style={{ fontSize: 12, color: '#888', margin: '4px 0 16px' }}>
+      <p style={{ fontSize: 12, color: 'rgba(245,241,250,0.55)', margin: '4px 0 16px' }}>
         Sobe a planilha que o consultor já usa hoje (CNPJ + Razão Social + Status + Observação). O potencial (Migração,
         BL, TI, Voz, Crédito) vem sempre do Mapa Parque, cruzado por CNPJ. A observação vira a primeira interação
         registrada — só entra se o cliente ainda não tiver nenhuma. Se o arquivo tiver várias abas (uma por consultor),
@@ -209,7 +209,7 @@ export default function UploadStatusAtual() {
         </>
       )}
 
-      {progresso && <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>{progresso}</div>}
+      {progresso && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', marginTop: 8 }}>{progresso}</div>}
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>

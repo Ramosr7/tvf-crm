@@ -195,7 +195,7 @@ export default function UploadMailingDiario() {
         </>
       )}
 
-      {progresso && <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>{progresso}</div>}
+      {progresso && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', marginTop: 8 }}>{progresso}</div>}
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>

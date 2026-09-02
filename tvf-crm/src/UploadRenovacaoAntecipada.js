@@ -176,7 +176,7 @@ export default function UploadRenovacaoAntecipada() {
       </details>
 
       <div className="kanban-toolbar" style={{ marginBottom: 8 }}>
-        <span style={{ fontSize: 11, color: '#888' }}>Distribuir novos entre:</span>
+        <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Distribuir novos entre:</span>
         {staff.map(s => (
           <label key={s.id} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
             <input type="checkbox" checked={participantes.has(s.id)} onChange={() => alternarParticipante(s.id)} />
@@ -197,7 +197,7 @@ export default function UploadRenovacaoAntecipada() {
         </button>
       )}
 
-      {progresso && <div style={{ fontSize: 11, color: '#888', marginTop: 8 }}>{progresso}</div>}
+      {progresso && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', marginTop: 8 }}>{progresso}</div>}
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>

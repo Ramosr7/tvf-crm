@@ -183,7 +183,7 @@ export default function Assistente({ user }) {
             <img src="/assets/joaozinho-avatar.png" alt="Joaozinho" className="assistente-avatar-mini" />
             <div>
               <div style={{ fontWeight: 700, fontSize: 14 }}>Joaozinho</div>
-              <div style={{ fontSize: 11, color: '#888' }}>Assistente comercial · Telecom &amp; TI</div>
+              <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Assistente comercial · Telecom &amp; TI</div>
             </div>
             <button className="lm-close" style={{ marginLeft: 'auto' }} onClick={() => setAberto(false)}>✕</button>
           </div>
@@ -212,7 +212,7 @@ export default function Assistente({ user }) {
 
               <div className="assistente-proposta-secao">
                 <div className="assistente-proposta-secao-titulo">Print do Estruturante</div>
-                <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>
+                <p style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '0 0 8px' }}>
                   Anexa o print da recomendação por linha. Se tiver, manda também o do InfoB2B (consumo/fatura) — até 4 imagens.
                 </p>
                 <input type="file" accept="image/*" multiple

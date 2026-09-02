@@ -401,8 +401,8 @@ export default function Relatorios({ user }) {
         {aba !== 'kanban' && aba !== 'interacoes' && (
           <>
             {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
-            <label style={{ fontSize: 11, color: '#888' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataDe} onChange={e => setDataDe(e.target.value)} /></label>
-            <label style={{ fontSize: 11, color: '#888' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
+            <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataDe} onChange={e => setDataDe(e.target.value)} /></label>
+            <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
           </>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
@@ -455,7 +455,7 @@ export default function Relatorios({ user }) {
       )}
 
       <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
-        <span style={{ fontSize: 11, color: '#888' }}>Incluir no PDF:</span>
+        <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Incluir no PDF:</span>
         {ABAS.map(a => (
           <label key={a.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
             <input type="checkbox" checked={abasPdf.has(a.key)} onChange={() => alternarAbaPdf(a.key)} />
@@ -494,7 +494,7 @@ export default function Relatorios({ user }) {
                     <td>
                       {v.carteira_venda?.status_apuracao === 'ativado' && <span className="tag tag-avancado">Apurado</span>}
                       {v.carteira_venda?.status_apuracao === 'reprovado' && <span className="tag tag-ap">Reprovado</span>}
-                      {(!v.carteira_venda || v.carteira_venda?.status_apuracao === 'pendente') && <span style={{ color: '#999', fontSize: 11 }}>Aguardando</span>}
+                      {(!v.carteira_venda || v.carteira_venda?.status_apuracao === 'pendente') && <span style={{ color: 'rgba(245,241,250,0.48)', fontSize: 11 }}>Aguardando</span>}
                     </td>
                   </tr>
                 ))}
@@ -672,7 +672,7 @@ export default function Relatorios({ user }) {
                   const pct = Math.max(4, Math.round((p.valor / max) * 100))
                   return (
                     <div key={p.subproduto} className="print-chart-linha">
-                      <div className="print-chart-label">{p.subproduto} <span style={{ color: '#999', fontWeight: 400 }}>({LABEL_CATEGORIA[p.categoria]})</span></div>
+                      <div className="print-chart-label">{p.subproduto} <span style={{ color: 'rgba(245,241,250,0.48)', fontWeight: 400 }}>({LABEL_CATEGORIA[p.categoria]})</span></div>
                       <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: pct + '%' }} /></div>
                       <div className="print-chart-valor">{p.qtd} un. · {fmtMoeda(p.valor)}</div>
                     </div>
@@ -778,7 +778,7 @@ export default function Relatorios({ user }) {
                   {itens.map(r => (
                     <div key={r.id} style={{ marginTop: 6 }}>
                       <strong>{r.razao_social || r.cnpj}</strong> — status: {r.status} — {r.qtdInteracoes} interação(ões)
-                      {r.resumoTexto && <div style={{ fontSize: 11, color: '#555' }}>{r.resumoTexto}</div>}
+                      {r.resumoTexto && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.68)' }}>{r.resumoTexto}</div>}
                     </div>
                   ))}
                 </div>
