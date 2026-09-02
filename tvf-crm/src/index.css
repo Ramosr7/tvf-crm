@@ -208,15 +208,55 @@ body {
 .flag-ativo { background: rgba(239,159,39,0.16); border-color: var(--laranja); color: var(--laranja); font-weight: 600; }
 
 .plano-semaforo { display: inline-block; padding: 2px 10px; border-radius: 20px; color: #fff; font-size: 11px; font-weight: 700; }
+
+/* GRÁFICO DE ANÉIS (Meta/Esteira/Projeção) — substitui as 3 barras verticais no Plano
+   Comercial, cada métrica no próprio quadro interno pra ficar fácil de separar visualmente. */
+/* .dash-card-titulo.aneis-card-titulo (composto) em vez de só .aneis-card-titulo — essa regra
+   vem ANTES de .dash-card-titulo no arquivo, e com a mesma especificidade (1 classe) a que
+   vem depois ganha; precisa de mais especificidade pra garantir que valha aqui. */
+.dash-card-titulo.aneis-card-titulo {
+  text-align: center; font-size: 14px; font-weight: 800; letter-spacing: 0.06em;
+  color: var(--text-1); margin-bottom: 14px;
+}
+.aneis-linha { display: flex; align-items: stretch; gap: 12px; }
+.aneis-bloco {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border-soft); border-radius: 14px;
+  padding: 18px 8px;
+}
+.aneis-wrap { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+.aneis-svg { width: 92px; height: 92px; transform: rotate(-90deg); }
+.aneis-fundo { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 6; }
+.aneis-valor { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+.aneis-centro { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.aneis-icone { width: 25px; height: 25px; }
+.aneis-numero { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text-1); }
+.aneis-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.aneis-badge {
+  flex: 0 0 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border-soft); border-radius: 14px; padding: 8px 4px;
+}
+.aneis-badge-pct { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.aneis-badge-sub { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+@media print {
+  .aneis-fundo { stroke: #E0D8EC !important; }
+  .aneis-bloco, .aneis-badge { background: #FAF8FC !important; border-color: #E0D8EC !important; }
+  .aneis-numero, .aneis-label, .aneis-badge-sub { color: #333 !important; }
+}
 .plano-concluido-editavel { cursor: pointer; border-bottom: 1px dashed var(--text-4); color: var(--text-1); }
 .plano-concluido-editavel:hover { border-bottom-color: var(--roxo); color: var(--roxo); }
 .plano-faixa-badge { font-size: 10px; color: var(--verde); font-weight: 700; margin-top: 2px; }
-/* flex em vez de grid: quando sobra card sozinho na última linha (ex: 7 verticais = 3+3+1),
-   justify-content:center deixa ele centralizado em vez de colado à esquerda. Linha cheia não
-   muda visualmente — os cards já preenchem a largura toda, então centralizar não desloca nada. */
-.plano-grafico-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; }
-.plano-grafico-grid > .dash-card { flex: 0 1 calc((100% - 32px) / 3); }
-@media (max-width: 900px) { .plano-grafico-grid > .dash-card { flex-basis: calc((100% - 16px) / 2); } }
+/* Lista (1 por linha) em vez de grid de 3 colunas — card estreito cortava o valor em R$ com
+   reticências ("R$ 354.000..."); em largura total o número cabe inteiro e dá pra ler de
+   relance sem precisar passar o mouse. */
+/* 2 colunas (3 fileiras de 2 + a sobra sozinha na última, ex: 7 verticais) — max-width pra não
+   esticar até a borda em tela larga. */
+.plano-grafico-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 1320px; margin: 0 auto; }
+/* card sozinho na última linha (qtd ímpar de verticais, ex: 7) — em vez de ficar colado na
+   coluna esquerda, ocupa a linha toda só pra poder centralizar dentro dela, do tamanho de
+   uma coluna normal. */
+.plano-grafico-grid > .dash-card:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: calc(50% - 8px); margin: 0 auto; }
+@media (max-width: 760px) { .plano-grafico-grid { grid-template-columns: 1fr; } }
 .plano-time-titulo {
   display: inline-block; font-size: 14px; font-weight: 700; color: #fff; background: var(--roxo-deep);
   padding: 6px 14px; border-radius: 8px; margin-bottom: 10px;
@@ -626,7 +666,7 @@ body {
      .carteira-table da tela, só encolhe o card do gráfico pra caber 3 por linha no A4 */
   .print-plano-secao { break-inside: avoid; page-break-inside: avoid; margin-bottom: 22px; }
   .print-plano-secao .dash-card { padding: 10px 12px; box-shadow: none; border: 1px solid #E0D8EC; }
-  .print-plano-secao .dash-chart-v { height: 70px !important; }
+  .print-plano-secao .aneis-wrap, .print-plano-secao .aneis-svg { width: 48px; height: 48px; }
   .print-plano-secao .carteira-table { font-size: 10.5px; }
   .print-plano-secao .carteira-table th, .print-plano-secao .carteira-table td { padding: 5px 8px; }
 }

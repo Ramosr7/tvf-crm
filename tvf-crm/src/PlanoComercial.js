@@ -92,28 +92,49 @@ function calcularLinha(row, fatorConversao, duTotais, duRestantes) {
   return { realizado, mediaDiaria, metaDiaria, projecao, pctAtingimento }
 }
 
-// gráfico de barras simples (Meta / Esteira / Projeção), igual ao padrão já usado no Dashboard
+// ícones das 3 métricas — alvo (Meta, o que se mira), barras (Esteira, acumulado até agora),
+// seta (Projeção, pra onde a tendência aponta). Mesmo símbolo em toda vertical/time.
+const ICONE_META = <svg className="aneis-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" /></svg>
+const ICONE_ESTEIRA = <svg className="aneis-icone" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="4" y="13" width="4" height="7" rx="1" /><rect x="10" y="9" width="4" height="11" rx="1" /><rect x="16" y="4" width="4" height="16" rx="1" /></svg>
+const ICONE_PROJECAO = <svg className="aneis-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 18L10 12L14 16L20 8" /><path d="M14 8h6v6" /></svg>
+
+// um anel SVG por métrica — círculo de fundo + arco colorido proporcional a valor/meta
+function AnelMetrica({ icone, cor, pctAnel, valorTexto, label }) {
+  const r = 27, c = 2 * Math.PI * r
+  const clamped = Math.max(0, Math.min(1, pctAnel))
+  const offset = c * (1 - clamped)
+  return (
+    <div className="aneis-bloco">
+      <div className="aneis-wrap">
+        <svg className="aneis-svg" viewBox="0 0 62 62">
+          <circle className="aneis-fundo" cx="31" cy="31" r={r} />
+          <circle className="aneis-valor" cx="31" cy="31" r={r} stroke={cor} strokeDasharray={c} strokeDashoffset={offset} />
+        </svg>
+        <div className="aneis-centro" style={{ color: cor }}>{icone}</div>
+      </div>
+      <div className="aneis-numero" title={valorTexto}>{valorTexto}</div>
+      <div className="aneis-label">{label}</div>
+    </div>
+  )
+}
+
+// gráfico de anéis (Meta / Esteira / Projeção) — cada métrica no quadro próprio + badge de %
+// da meta, no lugar das 3 barras verticais antigas.
 function GraficoVertical({ titulo, meta, esteira, projecao, formato, pct }) {
-  const max = Math.max(1, meta, esteira, projecao)
-  const barras = [
-    { label: 'Meta', valor: meta, cor: '#660099' },
-    { label: 'Esteira', valor: esteira, cor: '#378ADD' },
-    { label: 'Projeção', valor: projecao, cor: '#EF9F27' },
-  ]
+  const cor = pct !== undefined ? corSemaforo(pct) : 'var(--roxo)'
   return (
     <div className="dash-card">
-      <div className="dash-card-titulo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {titulo}
-        {pct !== undefined && <span className="plano-semaforo" style={{ background: corSemaforo(pct) }}>{fmtPct(pct)}</span>}
-      </div>
-      <div className="dash-chart-v" style={{ height: 110 }}>
-        {barras.map((b, i) => (
-          <div key={i} className="dash-chart-v-col">
-            <div className="dash-chart-v-num">{fmtValor(b.valor, formato)}</div>
-            <div className="dash-chart-v-bar" style={{ height: `${(b.valor / max) * 100}%`, background: b.cor }} />
-            <div className="dash-chart-v-label">{b.label}</div>
+      <div className="dash-card-titulo aneis-card-titulo">{titulo}</div>
+      <div className="aneis-linha">
+        <AnelMetrica icone={ICONE_META} cor="var(--roxo)" pctAnel={1} valorTexto={fmtValor(meta, formato)} label="Meta" />
+        <AnelMetrica icone={ICONE_ESTEIRA} cor="var(--azul)" pctAnel={meta > 0 ? esteira / meta : 0} valorTexto={fmtValor(esteira, formato)} label="Esteira" />
+        <AnelMetrica icone={ICONE_PROJECAO} cor={cor} pctAnel={pct ?? 0} valorTexto={fmtValor(projecao, formato)} label="Projeção" />
+        {pct !== undefined && (
+          <div className="aneis-badge">
+            <div className="aneis-badge-pct" style={{ color: cor }}>{fmtPct(pct)}</div>
+            <div className="aneis-badge-sub">da meta</div>
           </div>
-        ))}
+        )}
       </div>
     </div>
   )
@@ -372,7 +393,7 @@ export default function PlanoComercial({ refreshSignal }) {
 
       {consolidado.length > 0 && (
         <>
-          <div className="dash-section-title">Projeção Total — Regional São Paulo Capital</div>
+          <div className="dash-section-title" style={{ margin: '26px auto 12px' }}>Projeção Total — Regional São Paulo Capital</div>
           <div className="plano-grafico-grid" style={{ marginBottom: 16 }}>
             {consolidado.map(c => {
               const fator = config[c.vertical] ?? 0.8
