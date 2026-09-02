@@ -22,10 +22,10 @@ const PRESETS_PERIODO = [
 ]
 
 const ABAS = [
-  { key: 'vendas', label: 'Vendas' },
-  { key: 'kanban', label: 'Kanban' },
-  { key: 'rotina', label: 'Rotina' },
-  { key: 'interacoes', label: 'Interações' },
+  { key: 'vendas', label: 'Vendas', icone: '$', descricao: 'Itens vendidos, receita por produto e ranking de consultores no período.' },
+  { key: 'kanban', label: 'Kanban', icone: '▦', descricao: 'Situação atual da carteira em negociação, por temperatura.' },
+  { key: 'rotina', label: 'Rotina', icone: '↻', descricao: 'Atendimentos, retornos e produção diária registrada no período.' },
+  { key: 'interacoes', label: 'Interações', icone: '☎', descricao: 'Última interação e dias sem contato por cliente da carteira.' },
 ]
 
 const DIAS_ATRASO = 5
@@ -59,6 +59,7 @@ function agruparPorConsultor(lista, pegarConsultorId) {
 
 export default function Relatorios({ user }) {
   const [aba, setAba] = useState('vendas')
+  const [formato, setFormato] = useState('tela') // 'tela' | 'pdf'
   const [staff, setStaff] = useState([])
   const [filtroConsultor, setFiltroConsultor] = useState('')
   const [dataDe, setDataDe] = useState('')
@@ -383,37 +384,95 @@ export default function Relatorios({ user }) {
     ? 'Situação atual'
     : `${dataDe ? formatDataBR(dataDe) : 'início'} a ${dataAte ? formatDataBR(dataAte) : 'hoje'}`
 
+  const abaAtual = ABAS.find(a => a.key === aba)
+
   return (
     <div className="main">
-      <div className="tabs">
-        {ABAS.map(a => (
-          <div key={a.key} className={`tab ${aba === a.key ? 'active' : ''}`} onClick={() => setAba(a.key)}>{a.label}</div>
-        ))}
+      <div className="importar-banner">
+        <div className="importar-banner-icon">{abaAtual.icone}</div>
+        <div>
+          <div className="importar-banner-crumb">Relatórios</div>
+          <div className="importar-banner-titulo">{abaAtual.label}</div>
+          <div className="importar-banner-sub">{abaAtual.descricao}</div>
+        </div>
       </div>
 
-      <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
-        {isGestor(user) && (
-          <select className="filter-select" value={filtroConsultor} onChange={e => setFiltroConsultor(e.target.value)}>
-            <option value="">Todos os consultores</option>
-            {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-          </select>
-        )}
-        {aba !== 'kanban' && aba !== 'interacoes' && (
-          <>
-            {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
-            <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>De <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataDe} onChange={e => setDataDe(e.target.value)} /></label>
-            <label style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Até <input className="lm-input" type="date" style={{ width: 130, display: 'inline-block' }} value={dataAte} onChange={e => setDataAte(e.target.value)} /></label>
-          </>
-        )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          {isGestor(user) && (
-            <button className="btn-filter-light" onClick={() => setMostrarConfigAnalise(true)} disabled={gerandoAnalise}>
-              {gerandoAnalise ? 'Analisando...' : 'Analisar com IA'}
-            </button>
+      <div className="importar-shell">
+        <div className="importar-sidebar">
+          <div className="importar-sidebar-titulo">Relatórios</div>
+          <div className="importar-sidebar-sub">Escolha o que exportar</div>
+          {ABAS.map(a => (
+            <div key={a.key} className={`importar-sidebar-item ${aba === a.key ? 'active' : ''}`} onClick={() => setAba(a.key)}>
+              <span className="importar-sidebar-item-icone">{a.icone}</span>{a.label}
+            </div>
+          ))}
+        </div>
+
+        <div className="importar-conteudo">
+          <div className="lm-grid-2">
+            {isGestor(user) && (
+              <div className="lm-field-edit">
+                <label>Consultor</label>
+                <select className="filter-select" style={{ width: '100%' }} value={filtroConsultor} onChange={e => setFiltroConsultor(e.target.value)}>
+                  <option value="">Todos os consultores</option>
+                  {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                </select>
+              </div>
+            )}
+            {aba !== 'kanban' && aba !== 'interacoes' && (
+              <>
+                <div className="lm-field-edit">
+                  <label>Data inicial</label>
+                  <input className="lm-input" type="date" value={dataDe} onChange={e => setDataDe(e.target.value)} />
+                </div>
+                <div className="lm-field-edit">
+                  <label>Data final</label>
+                  <input className="lm-input" type="date" value={dataAte} onChange={e => setDataAte(e.target.value)} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {aba !== 'kanban' && aba !== 'interacoes' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
+            </div>
           )}
-          <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} onClick={gerarPdf} disabled={gerandoPdf}>
-            {gerandoPdf ? 'Gerando...' : '📄 Exportar PDF'}
-          </button>
+
+          <div className="lm-field-edit" style={{ marginTop: 16 }}>
+            <label>Formato</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={`btn-filter-light ${formato === 'tela' ? 'active' : ''}`} onClick={() => setFormato('tela')}>🖥 Tela</button>
+              <button className={`btn-filter-light ${formato === 'pdf' ? 'active' : ''}`} onClick={() => setFormato('pdf')}>📄 PDF</button>
+            </div>
+          </div>
+
+          {formato === 'pdf' && (
+            <div className="lm-field-edit" style={{ marginTop: 12 }}>
+              <label>Incluir no PDF</label>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {ABAS.map(a => (
+                  <label key={a.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={abasPdf.has(a.key)} onChange={() => alternarAbaPdf(a.key)} />
+                    {a.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+            {isGestor(user) && (
+              <button className="btn-filter-light" onClick={() => setMostrarConfigAnalise(true)} disabled={gerandoAnalise}>
+                {gerandoAnalise ? 'Analisando...' : '✨ Analisar com IA'}
+              </button>
+            )}
+            <button className="btn-save-obs" style={{ float: 'none', margin: 0, flex: 1 }}
+              onClick={formato === 'pdf' ? gerarPdf : () => document.getElementById('relatorio-resultado')?.scrollIntoView({ behavior: 'smooth' })}
+              disabled={gerandoPdf}>
+              {gerandoPdf ? 'Gerando...' : formato === 'pdf' ? '📄 Gerar Relatório (PDF)' : '▸ Gerar Relatório'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -454,17 +513,9 @@ export default function Relatorios({ user }) {
         </div>
       )}
 
-      <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
-        <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>Incluir no PDF:</span>
-        {ABAS.map(a => (
-          <label key={a.key} style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-            <input type="checkbox" checked={abasPdf.has(a.key)} onChange={() => alternarAbaPdf(a.key)} />
-            {a.label}
-          </label>
-        ))}
-      </div>
-
-      <div className="tela-relatorio">
+      <div className="tela-relatorio" id="relatorio-resultado" style={{ marginTop: 24 }}>
+      <div className="dash-section-title">Relatório — {abaAtual.label}</div>
+      <div className="lm-resumo" style={{ marginBottom: 16 }}>Período: {periodoTexto}</div>
       {loading && <div className="loading">Carregando...</div>}
 
       {!loading && aba === 'vendas' && (
@@ -501,6 +552,7 @@ export default function Relatorios({ user }) {
               </tbody>
             </table>
           </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginTop: 6 }}>TOTAL: {vendas.length}</div>
 
           <div className="dash-section-title" style={{ marginTop: 24 }}>Vendas por Produto</div>
           {vendasPorProduto.length === 0 && <div className="empty">Nenhuma venda no período</div>}
@@ -578,6 +630,7 @@ export default function Relatorios({ user }) {
               </tbody>
             </table>
           </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginTop: 6 }}>TOTAL: {kanbanClientes.length}</div>
         </>
       )}
 
@@ -610,6 +663,7 @@ export default function Relatorios({ user }) {
               </tbody>
             </table>
           </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginTop: 6 }}>TOTAL: {rotinas.length}</div>
         </>
       )}
       {!loading && aba === 'interacoes' && (
@@ -638,6 +692,7 @@ export default function Relatorios({ user }) {
               </tbody>
             </table>
           </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginTop: 6 }}>TOTAL: {resumoInteracoes.length}</div>
         </>
       )}
       </div>

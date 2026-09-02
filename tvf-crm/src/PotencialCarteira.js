@@ -79,6 +79,9 @@ export default function PotencialCarteira({ user, refreshSignal }) {
   const [consultorDestino, setConsultorDestino] = useState(user.id)
   const [consultorTransferencia, setConsultorTransferencia] = useState('')
   const [transferindo, setTransferindo] = useState(false)
+  const [consultorVolume, setConsultorVolume] = useState('')
+  const [qtdVolume, setQtdVolume] = useState('')
+  const [distribuindoVolume, setDistribuindoVolume] = useState(false)
 
   const fetchClientes = useCallback(async () => {
     setLoading(true)
@@ -315,6 +318,27 @@ export default function PotencialCarteira({ user, refreshSignal }) {
     fetchClientes()
   }
 
+  // Distribui uma QUANTIDADE de clientes pro consultor escolhido, sorteados aleatoriamente
+  // dentro do que já está filtrado na tela (respeita os filtros ativos — "clientes que
+  // estiverem na visão" do supervisor). Sorteio em vez de pegar os N primeiros evita mandar
+  // sempre a sobra (pior potencial) — todo mundo tem chance de pegar cliente bom.
+  async function distribuirPorVolume() {
+    const qtd = Number(qtdVolume)
+    if (!consultorVolume || !qtd || qtd <= 0) return
+    const pool = clientesFiltrados.filter(c => c.consultor_id !== consultorVolume)
+    if (pool.length === 0) { alert('Nenhum cliente elegível na visão atual (fora os que já são desse consultor).'); return }
+    const sorteados = [...pool].sort(() => Math.random() - 0.5).slice(0, qtd)
+    if (!window.confirm(`Distribuir ${sorteados.length} cliente(s) sorteado(s) da visão atual pra ${staff.find(s => s.id === consultorVolume)?.nome}?`)) return
+    setDistribuindoVolume(true)
+    const { error } = await supabase.from('carteira_cliente')
+      .update({ consultor_id: consultorVolume }).in('id', sorteados.map(c => c.id))
+    setDistribuindoVolume(false)
+    if (error) { alert('Erro ao distribuir: ' + error.message); return }
+    setQtdVolume('')
+    setConsultorVolume('')
+    fetchClientes()
+  }
+
   function removerDoKanban(c) {
     atualizarCliente(c.id, { no_kanban: false, temperatura: null, temperatura_atualizada_em: null })
   }
@@ -499,6 +523,15 @@ export default function PotencialCarteira({ user, refreshSignal }) {
             {buscandoCnpj ? 'Adicionando...' : '+ Adicionar Cliente'}
           </button>
           {erroCnpj && <span style={{ fontSize: 11, color: '#C0451A' }}>{erroCnpj}</span>}
+          <input className="lm-input" type="number" min="1" placeholder="Qtd." style={{ width: 64 }}
+            value={qtdVolume} onChange={e => setQtdVolume(e.target.value)} title="Quantos clientes distribuir, sorteados da visão atual" />
+          <select className="filter-select" value={consultorVolume} onChange={e => setConsultorVolume(e.target.value)} title="Consultor que vai receber os clientes sorteados">
+            <option value="">Distribuir p/...</option>
+            {staff.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+          </select>
+          <button className="btn-action" onClick={distribuirPorVolume} disabled={!consultorVolume || !qtdVolume || distribuindoVolume}>
+            {distribuindoVolume ? 'Distribuindo...' : '🎲 Distribuir por volume'}
+          </button>
           <input className="search-input" placeholder="🔍 Filtrar por CNPJ..." value={filtroCnpj} onChange={e => setFiltroCnpj(e.target.value)} />
           {selecionados.size > 0 && (
             <>

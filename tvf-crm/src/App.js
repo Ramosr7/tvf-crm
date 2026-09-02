@@ -598,6 +598,12 @@ export default function App() {
   // (que recarrega a página do zero) sem sentir que "voltou do início" — só reseta se a
   // aba/janela for fechada de vez.
   const [tela, setTela] = useState(() => sessionStorage.getItem('tvf_tela_atual') || 'dashboard')
+  // toda vez que desloga, esquece a última tela — o próximo login (desse ou de outro usuário,
+  // no mesmo navegador) sempre cai no Dashboard, sem herdar onde a sessão anterior tinha parado.
+  function sair() {
+    sessionStorage.removeItem('tvf_tela_atual')
+    signOut()
+  }
 
   // Potencial de Carteira / Importar / Plano Comercial ficam sempre montados (não recarregam
   // sozinhos ao trocar de aba, só mantêm o que já buscaram) — clicar de novo nesses 3 itens do
@@ -624,7 +630,7 @@ export default function App() {
         Usuário autenticado mas sem cadastro em consultores_staff.<br />
         Peça pra adicionar seu ID ({session.user.id}) nessa tabela.
         <div style={{ marginTop: 12 }}>
-          <button className="btn-filter-light" onClick={signOut}>Sair</button>
+          <button className="btn-filter-light" onClick={sair}>Sair</button>
         </div>
       </div>
     )
@@ -660,7 +666,7 @@ export default function App() {
         <div className="topbar-right">
           <NotificacoesSino user={user} />
           <span className="topbar-badge">{user?.nome} · {user?.perfil}</span>
-          <button className="btn-filter" onClick={signOut}>Sair</button>
+          <button className="btn-filter" onClick={sair}>Sair</button>
         </div>
       </div>
 
