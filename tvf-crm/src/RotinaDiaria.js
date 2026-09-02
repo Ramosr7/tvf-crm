@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
+import MinhasTarefas from './MinhasTarefas'
 
 const CAMPOS = [
   { key: 'clientes_recebidos', label: 'Clientes Recebidos', meta: '15 a 20/dia', min: 15, max: 20 },
@@ -125,6 +126,7 @@ export default function RotinaDiaria({ user }) {
 
   return (
     <div className="main">
+      <MinhasTarefas user={user} />
       <div className="kanban-toolbar">
         <button className="btn-filter-light" onClick={() => mudarDia(-1)}>← Dia anterior</button>
         <input className="lm-input" type="date" style={{ width: 150 }} value={dataSelecionada} onChange={e => setDataSelecionada(e.target.value)} />

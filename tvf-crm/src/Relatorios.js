@@ -330,6 +330,9 @@ export default function Relatorios({ user }) {
       const rotinaC = porConsultorRotina[id] || []
       const interacoesC = porConsultorInteracoes[id] || []
       const registro = {
+        // id vai junto só pra IA poder devolver as tarefas do plano de ação já linkadas ao
+        // consultor certo — não faz parte do que a IA usa pra escrever a análise em si.
+        id,
         nome: isGestor(user) ? nomeConsultor(id) : user.nome,
         periodo: `${dataDe || 'início'} a ${dataAte || 'hoje'}`,
       }
@@ -967,7 +970,7 @@ export default function Relatorios({ user }) {
       </div>
 
       {dadosAnalise && (
-        <AnaliseIAModal dados={dadosAnalise} onClose={() => setDadosAnalise(null)} />
+        <AnaliseIAModal dados={dadosAnalise} user={user} onClose={() => setDadosAnalise(null)} />
       )}
     </div>
   )

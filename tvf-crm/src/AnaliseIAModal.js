@@ -85,10 +85,11 @@ function renderizarAnalise(texto) {
   )
 }
 
-export default function AnaliseIAModal({ dados, onClose }) {
+export default function AnaliseIAModal({ dados, user, onClose }) {
   const [texto, setTexto] = useState('')
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState('')
+  const [qtdTarefas, setQtdTarefas] = useState(0)
 
   useEffect(() => {
     async function analisar() {
@@ -107,13 +108,27 @@ export default function AnaliseIAModal({ dados, onClose }) {
         const json = await resp.json()
         if (!resp.ok) throw new Error(json.error || 'Erro ao analisar')
         setTexto(json.analise)
+
+        // plano de ação vira tarefa de verdade pro consultor, não só texto que some quando
+        // fecha o modal — cada item da IA já veio com o consultorId certo (ver api/analisar.js)
+        const tarefas = (json.tarefas || [])
+          .filter(t => t.consultorId && t.descricao)
+          .map(t => ({
+            consultor_id: t.consultorId, descricao: t.descricao,
+            origem: t.origem === 'coletivo' ? 'coletivo' : 'individual',
+            gerado_por: user?.id || null,
+          }))
+        if (tarefas.length > 0) {
+          const { error: erroTarefas } = await supabase.from('tarefa_consultor').insert(tarefas)
+          if (!erroTarefas) setQtdTarefas(tarefas.length)
+        }
       } catch (e) {
         setErro(e.message)
       }
       setLoading(false)
     }
     analisar()
-  }, [dados])
+  }, [dados, user])
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -127,6 +142,9 @@ export default function AnaliseIAModal({ dados, onClose }) {
         <div className="lm-body">
           {loading && <div className="empty">Analisando dados dos consultores...</div>}
           {erro && <div className="login-erro">{erro}</div>}
+          {!loading && qtdTarefas > 0 && (
+            <div className="lm-resumo">✅ {qtdTarefas} tarefa(s) do plano de ação salva(s) — cada consultor já vê a própria lista em Rotina Diária.</div>
+          )}
           {!loading && texto && <div className="analise-corpo">{renderizarAnalise(texto)}</div>}
         </div>
       </div>

@@ -41,7 +41,28 @@ Se o gestor mandar um "Pedido específico", ele é a prioridade — responda ele
 forma direta, antes do resto da estrutura acima. Se os dados enviados não derem pra responder
 esse pedido (ex: perguntou algo de um escopo que não foi marcado, tipo vendas sem os dados de
 vendas terem vindo), diga isso claramente e sugira marcar o escopo certo — não generalize nem
-responda com base em suposição.`
+responda com base em suposição.
+
+RESPONDA SEMPRE em JSON válido, um único objeto, nesse formato exato:
+{
+  "analise": "<o texto completo da análise, no formato de sempre: ### Nome do Consultor por
+    seção, sub-itens numerados 1. **Rótulo:** texto, bullets com '- ', terminando com a seção
+    ### Plano de Ação Coletivo>",
+  "tarefas": [
+    { "consultorId": "<o campo id do consultor, copiado exatamente do dado recebido>",
+      "descricao": "<uma ação concreta do plano de ação individual desse consultor, texto
+        curto e direto, sem numeração>",
+      "origem": "individual" },
+    ... (repita pra cada ação do plano individual de cada consultor)
+    { "consultorId": "<id de cada consultor que participou da análise>",
+      "descricao": "<uma ação do Plano de Ação Coletivo>",
+      "origem": "coletivo" }
+    ... (o plano coletivo se repete pra TODOS os consultores da análise, uma linha por
+        consultor por ação — mesma descrição, consultorId diferente)
+  ]
+}
+Não invente consultorId — use só os que vierem no payload recebido. Se não tiver nenhum
+consultor nos dados (análise sem escopo de consultor específico), devolva "tarefas": [].`
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -79,13 +100,22 @@ module.exports = async function handler(req, res) {
     const sistema = dados.foco ? `${SYSTEM_PROMPT}\n\nFoco pedido pelo gestor: ${dados.foco}` : SYSTEM_PROMPT
     const completion = await client.chat.completions.create({
       model: 'gpt-4o',
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: sistema },
         { role: 'user', content: `Analise os dados abaixo:\n\n${JSON.stringify(dados, null, 2)}` },
       ],
     })
-    const texto = completion.choices[0]?.message?.content || ''
-    res.status(200).json({ analise: texto })
+    const bruto = completion.choices[0]?.message?.content || '{}'
+    let parsed
+    try {
+      parsed = JSON.parse(bruto)
+    } catch {
+      // se por algum motivo vier fora do formato pedido, ainda mostra o texto cru na análise
+      // em vez de quebrar a tela — só não gera tarefa nenhuma
+      parsed = { analise: bruto, tarefas: [] }
+    }
+    res.status(200).json({ analise: parsed.analise || '', tarefas: Array.isArray(parsed.tarefas) ? parsed.tarefas : [] })
   } catch (err) {
     res.status(500).json({ error: err.message || 'Erro ao chamar a IA' })
   }
