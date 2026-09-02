@@ -40,83 +40,76 @@ body {
 .btn-filter-light:hover { background: #F4F2F8; }
 .btn-filter-light.active { background: #660099; color: #fff; border-color: #660099; }
 
-/* LOGIN */
-.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F4F2F8; padding: 24px; }
-.login-card {
-  display: flex; width: 920px; max-width: 100%; min-height: 560px; border-radius: 24px; overflow: hidden;
-  box-shadow: 0 30px 80px rgba(74,0,114,0.25);
+/* LOGIN — full-bleed, sem quadrante/card central. login-hero.jpg é só a ARTE (árvore+TVF+
+   rede), recortada do arquivo original SEM o formulário desenhado nele — usar o arquivo
+   inteiro (com form desenhado) faria duplicar visualmente com o form de verdade por cima.
+   Ancora a arte na direita, na altura toda, sem esticar — a esquerda fica só a cor de fundo,
+   onde o formulário real entra. */
+.login-wrap {
+  min-height: 100vh; width: 100%; display: flex; align-items: center;
+  background-color: #1c0a30; background-position: right center; background-size: auto 100%; background-repeat: no-repeat;
 }
 
-.login-hero {
-  flex: 1.1; background: linear-gradient(135deg, #4A0072 0%, #660099 55%, #8B3FD1 100%);
-  padding: 48px 40px; display: flex; flex-direction: column; justify-content: center; color: #fff;
-  position: relative; overflow: hidden;
+.login-esquerda {
+  width: 460px; max-width: 100%; flex-shrink: 0;
+  padding: 48px 56px; display: flex; flex-direction: column; justify-content: center;
 }
-.login-hero-marca {
-  position: absolute; right: -18px; bottom: -50px; font-size: 220px; font-weight: 900;
-  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: rgba(255,255,255,0.06);
-  line-height: 1; letter-spacing: -10px; pointer-events: none; user-select: none;
-}
-.login-hero-grid {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(180deg, transparent, rgba(0,0,0,0.6) 60%, transparent);
-}
-.login-hero-conteudo { position: relative; z-index: 1; }
-.login-hero-produto {
-  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 26px; font-weight: 800;
-  letter-spacing: 0.04em; color: #fff; margin-bottom: 14px; text-transform: uppercase;
-}
-.login-hero-produto span {
-  background: linear-gradient(90deg, #EF9F27, #FFD08A); -webkit-background-clip: text; background-clip: text;
-  color: transparent; text-shadow: 0 0 24px rgba(239,159,39,0.5);
-}
-.login-hero-badge {
-  display: inline-block; width: fit-content; font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
-  padding: 6px 14px; border-radius: 4px; margin-bottom: 24px;
-}
-.login-hero-titulo { font-size: 32px; font-weight: 800; line-height: 1.15; margin-bottom: 16px; letter-spacing: -0.5px; }
-.login-hero-texto { font-size: 13px; line-height: 1.6; color: rgba(255,255,255,0.82); max-width: 380px; margin-bottom: 32px; }
-.login-hero-lista { list-style: none; display: flex; flex-direction: column; gap: 14px; }
-.login-hero-lista li {
-  display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.92);
-}
-.login-hero-lista-icone {
-  display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0;
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-  font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; color: #EF9F27;
-}
+.login-topo-logo { height: 64px; width: auto; object-fit: contain; margin-bottom: 20px; }
+.login-titulo { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.3px; margin-bottom: 4px; }
+.login-titulo span { color: #EF9F27; }
+.login-subtitulo { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
 
-.login-box {
-  flex: 1; background: #fff; padding: 48px 40px; display: flex; flex-direction: column;
-  justify-content: center; align-items: center; text-align: center;
+.login-form { display: flex; flex-direction: column; gap: 14px; max-width: 380px; }
+.login-input-wrap {
+  display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 0 14px; height: 50px;
+  transition: border-color 0.15s;
 }
-.login-box form { width: 100%; max-width: 320px; }
-.login-box .lm-field-edit { width: 100%; }
-.login-logo-wrap { margin-bottom: 20px; display: flex; justify-content: center; }
-.login-box-badge {
-  display: inline-block; width: fit-content; font-family: 'Avenir Next', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
-  color: #660099; background: #F0E6FA; padding: 5px 12px; border-radius: 4px; margin-bottom: 12px;
+.login-input-wrap:focus-within { border-color: #A855D9; }
+.login-input-icone { width: 18px; height: 18px; flex-shrink: 0; color: rgba(255,255,255,0.45); }
+.login-input-wrap input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #fff;
+  font-size: 14px; height: 100%; font-family: inherit;
 }
-.login-box-titulo { font-size: 24px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
-.login-box .lm-field-edit { text-align: left; }
-.login-box-rodape { font-size: 11px; color: #999; text-align: center; margin-top: 16px; }
-.login-box-rodape-icone { color: #660099; }
-.login-erro { font-size: 12px; color: #C0451A; margin-top: 10px; }
-.login-logo { font-size: 16px; font-weight: 700; color: #1a1a1a; letter-spacing: -0.3px; margin-bottom: 20px; }
-.login-logo span { color: #FF6B00; }
-.login-logo-img { height: 80px; width: auto; max-width: 360px; object-fit: contain; display: block; }
+.login-input-wrap input::placeholder { color: rgba(255,255,255,0.4); }
+.login-olho { background: none; border: none; padding: 0; cursor: pointer; color: rgba(255,255,255,0.45); flex-shrink: 0; }
+.login-olho svg { width: 18px; height: 18px; display: block; }
+.login-olho:hover { color: rgba(255,255,255,0.75); }
 
-@media (max-width: 760px) {
-  .login-card { flex-direction: column; min-height: 0; }
-  .login-hero { padding: 32px 28px; }
-  .login-hero-titulo { font-size: 26px; }
-  .login-hero-marca { font-size: 140px; }
-  .login-box { padding: 32px 28px; }
+.login-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px;
+  height: 52px; border: none; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(90deg, #8B3FD1, #EF9F27); color: #fff; font-size: 15px; font-weight: 700;
+  box-shadow: 0 10px 30px rgba(139,63,209,0.35); transition: filter 0.15s;
+}
+.login-btn:hover { filter: brightness(1.08); }
+.login-btn:disabled { opacity: 0.6; cursor: default; }
+.login-btn svg { width: 18px; height: 18px; }
+
+.login-erro { font-size: 12px; color: #FF8A8A; }
+
+.login-seguro {
+  display: flex; align-items: center; gap: 10px; justify-content: center; max-width: 380px;
+  font-size: 11px; color: rgba(255,255,255,0.45); margin: 22px 0; white-space: nowrap;
+}
+.login-seguro span { flex: 1; height: 1px; background: rgba(255,255,255,0.14); }
+.login-seguro svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.login-features { display: flex; gap: 16px; max-width: 400px; }
+.login-feature { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 7px; }
+.login-feature-icone {
+  width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  background: rgba(168,85,217,0.15); border: 1px solid rgba(168,85,217,0.3); color: #C583EC;
+}
+.login-feature-icone svg { width: 15px; height: 15px; }
+.login-feature-titulo { font-size: 11px; font-weight: 700; color: #fff; }
+.login-feature-texto { font-size: 10px; color: rgba(255,255,255,0.45); line-height: 1.3; }
+
+.login-rodape { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 28px; }
+
+@media (max-width: 640px) {
+  .login-esquerda { width: 100%; padding: 32px 24px; background: rgba(12,5,22,0.55); }
+  .login-features { flex-wrap: wrap; }
 }
 
 /* CARTEIRA TABLE */
