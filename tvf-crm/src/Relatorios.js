@@ -144,13 +144,18 @@ export default function Relatorios({ user }) {
 
   const carregarKanban = useCallback(async () => {
     setLoading(true)
-    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('*')
-      .eq('no_kanban', true).is('excluido_em', null).order('temperatura').range(de, ate))
+    const { data } = await fetchPaginado((de, ate) => {
+      let q = supabase.from('carteira_cliente').select('*')
+        .eq('no_kanban', true).is('excluido_em', null).order('temperatura').range(de, ate)
+      if (dataDe) q = q.gte('data_adicao', dataDe)
+      if (dataAte) q = q.lte('data_adicao', dataAte)
+      return q
+    })
     let linhas = data || []
     if (isGestor(user) && filtroConsultor) linhas = linhas.filter(c => c.consultor_id === filtroConsultor)
     setKanbanClientes(linhas)
     setLoading(false)
-  }, [filtroConsultor, user])
+  }, [dataDe, dataAte, filtroConsultor, user])
 
   const carregarRotina = useCallback(async () => {
     setLoading(true)
@@ -175,10 +180,15 @@ export default function Relatorios({ user }) {
     if (!isGestor(user)) linhasClientes = linhasClientes.filter(c => c.consultor_id === user.id)
 
     const ids = linhasClientes.map(c => c.id)
-    const { data: interacoes } = ids.length
-      ? await supabase.from('carteira_interacao').select('carteira_cliente_id, criado_em, descricao')
-          .in('carteira_cliente_id', ids).order('criado_em', { ascending: true })
-      : { data: [] }
+    let interacoes = []
+    if (ids.length) {
+      let qInt = supabase.from('carteira_interacao').select('carteira_cliente_id, criado_em, descricao')
+        .in('carteira_cliente_id', ids).order('criado_em', { ascending: true })
+      if (dataDe) qInt = qInt.gte('criado_em', dataDe)
+      if (dataAte) qInt = qInt.lte('criado_em', dataAte + 'T23:59:59')
+      const { data } = await qInt
+      interacoes = data || []
+    }
 
     const mapa = {}
     for (const it of (interacoes || [])) {
@@ -205,7 +215,7 @@ export default function Relatorios({ user }) {
     setResumoInteracoes(resumo)
     setLoading(false)
     return resumo
-  }, [filtroConsultor, user])
+  }, [dataDe, dataAte, filtroConsultor, user])
 
   useEffect(() => {
     if (aba === 'vendas') { carregarVendas(); carregarDistribuidos() }
@@ -380,9 +390,7 @@ export default function Relatorios({ user }) {
   const tituloAba = abasPdf.size > 1
     ? ABAS.filter(a => abasPdf.has(a.key)).map(a => a.label).join(' + ')
     : ABAS.find(a => a.key === aba)?.label || ''
-  const periodoTexto = (aba === 'kanban')
-    ? 'Situação atual'
-    : `${dataDe ? formatDataBR(dataDe) : 'início'} a ${dataAte ? formatDataBR(dataAte) : 'hoje'}`
+  const periodoTexto = `${dataDe ? formatDataBR(dataDe) : 'início'} a ${dataAte ? formatDataBR(dataAte) : 'hoje'}`
 
   const abaAtual = ABAS.find(a => a.key === aba)
 
@@ -419,25 +427,19 @@ export default function Relatorios({ user }) {
                 </select>
               </div>
             )}
-            {aba !== 'kanban' && aba !== 'interacoes' && (
-              <>
-                <div className="lm-field-edit">
-                  <label>Data inicial</label>
-                  <input className="lm-input" type="date" value={dataDe} onChange={e => setDataDe(e.target.value)} />
-                </div>
-                <div className="lm-field-edit">
-                  <label>Data final</label>
-                  <input className="lm-input" type="date" value={dataAte} onChange={e => setDataAte(e.target.value)} />
-                </div>
-              </>
-            )}
+            <div className="lm-field-edit">
+              <label>Data inicial</label>
+              <input className="lm-input" type="date" value={dataDe} onChange={e => setDataDe(e.target.value)} />
+            </div>
+            <div className="lm-field-edit">
+              <label>Data final</label>
+              <input className="lm-input" type="date" value={dataAte} onChange={e => setDataAte(e.target.value)} />
+            </div>
           </div>
 
-          {aba !== 'kanban' && aba !== 'interacoes' && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            {PRESETS_PERIODO.map(p => <button key={p.label} className="btn-filter-light" onClick={() => aplicarPreset(p)}>{p.label}</button>)}
+          </div>
 
           <div className="lm-field-edit" style={{ marginTop: 16 }}>
             <label>Formato</label>
