@@ -78,10 +78,10 @@ body {
   width: 460px; max-width: 100%; flex-shrink: 0;
   padding: 48px 56px; display: flex; flex-direction: column; justify-content: center;
 }
-.login-topo-logo { height: 64px; width: auto; object-fit: contain; margin-bottom: 20px; }
-.login-titulo { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.3px; margin-bottom: 4px; }
+.login-topo-logo { height: 80px; width: auto; object-fit: contain; margin-bottom: 20px; align-self: center; }
+.login-titulo { font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -0.3px; margin-bottom: 4px; align-self: center; text-align: center; }
 .login-titulo span { color: #EF9F27; }
-.login-subtitulo { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 28px; }
+.login-subtitulo { font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 28px; align-self: center; text-align: center; }
 
 .login-form { display: flex; flex-direction: column; gap: 14px; max-width: 380px; }
 .login-input-wrap {
