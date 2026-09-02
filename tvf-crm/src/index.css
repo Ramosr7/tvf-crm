@@ -376,6 +376,8 @@ body {
 .dash-funil-bar-0 { background: linear-gradient(90deg, #8B3FD1, #B372E8); }
 .dash-funil-bar-1 { background: linear-gradient(90deg, #EF9F27, #F5BE6B); }
 .dash-funil-bar-2 { background: linear-gradient(90deg, #1D9E75, #4FC79C); }
+.dash-funil-bar-3 { background: linear-gradient(90deg, #5DADE2, #8FCBEF); }
+.dash-funil-perda { font-size: 10.5px; color: var(--vermelho); margin: -6px 0 0 122px; }
 .dash-funil-valor { width: 100px; flex-shrink: 0; font-size: 13px; font-weight: 700; color: var(--text-1); text-align: right; }
 .dash-funil-valor span { font-size: 11px; font-weight: 500; color: var(--text-3); }
 

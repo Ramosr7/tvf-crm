@@ -26,6 +26,17 @@ const ABAS = [
   { key: 'kanban', label: 'Kanban', icone: '▦', descricao: 'Situação atual da carteira em negociação, por temperatura.' },
   { key: 'rotina', label: 'Rotina', icone: '↻', descricao: 'Atendimentos, retornos e produção diária registrada no período.' },
   { key: 'interacoes', label: 'Interações', icone: '☎', descricao: 'Última interação e dias sem contato por cliente da carteira.' },
+  { key: 'funil', label: 'Funil', icone: '▽', descricao: 'Conversão por etapa: entrou na carteira, teve interação, tem retorno agendado, fechou venda.' },
+]
+
+// etapas do funil, na ordem — cada uma é um marco independente sobre o cliente que entrou no
+// período (não é estritamente aninhado: dá pra vender sem ter lembrete registrado, por
+// exemplo), mas mostrar como funil dá a leitura certa de "onde a maioria trava".
+const ETAPAS_FUNIL = [
+  { key: 'entrou', label: 'Entrou na carteira' },
+  { key: 'interagiu', label: 'Teve 1ª interação' },
+  { key: 'agendou', label: 'Tem retorno agendado' },
+  { key: 'vendeu', label: 'Fechou venda' },
 ]
 
 const DIAS_ATRASO = 5
@@ -71,6 +82,7 @@ export default function Relatorios({ user }) {
   const [kanbanClientes, setKanbanClientes] = useState([])
   const [rotinas, setRotinas] = useState([])
   const [resumoInteracoes, setResumoInteracoes] = useState([])
+  const [funilDados, setFunilDados] = useState(null)
   const [abasPdf, setAbasPdf] = useState(new Set(['vendas']))
   const [gerandoPdf, setGerandoPdf] = useState(false)
   const [dadosAnalise, setDadosAnalise] = useState(null)
@@ -180,14 +192,21 @@ export default function Relatorios({ user }) {
     if (!isGestor(user)) linhasClientes = linhasClientes.filter(c => c.consultor_id === user.id)
 
     const ids = linhasClientes.map(c => c.id)
-    let interacoes = []
+    let interacoes = [], lembretes = []
     if (ids.length) {
       let qInt = supabase.from('carteira_interacao').select('carteira_cliente_id, criado_em, descricao')
         .in('carteira_cliente_id', ids).order('criado_em', { ascending: true })
       if (dataDe) qInt = qInt.gte('criado_em', dataDe)
       if (dataAte) qInt = qInt.lte('criado_em', dataAte + 'T23:59:59')
-      const { data } = await qInt
-      interacoes = data || []
+      const [{ data: dataInt }, { data: dataLemb }] = await Promise.all([
+        qInt,
+        // lembrete (retorno agendado) pendente e com data já vencida — "atrasado" não é só
+        // falta de interação, é também compromisso assumido (retorno marcado) que passou.
+        supabase.from('carteira_lembrete').select('carteira_cliente_id, data_hora')
+          .in('carteira_cliente_id', ids).eq('concluido', false),
+      ])
+      interacoes = dataInt || []
+      lembretes = dataLemb || []
     }
 
     const mapa = {}
@@ -195,18 +214,27 @@ export default function Relatorios({ user }) {
       if (!mapa[it.carteira_cliente_id]) mapa[it.carteira_cliente_id] = []
       mapa[it.carteira_cliente_id].push(it)
     }
-
     const hoje = new Date()
+    const mapaRetornoVencido = {}
+    for (const l of lembretes) {
+      if (new Date(l.data_hora) < hoje) mapaRetornoVencido[l.carteira_cliente_id] = true
+    }
+
     const resumo = linhasClientes.map(c => {
       const itens = mapa[c.id] || []
       const ultimaInteracao = itens[itens.length - 1] || null
       const ultima = ultimaInteracao?.criado_em || null
       const diasSemInteracao = ultima ? Math.floor((hoje - new Date(ultima)) / 86400000) : null
-      const atrasado = diasSemInteracao === null || diasSemInteracao > DIAS_ATRASO
+      const semInteracaoRecente = diasSemInteracao === null || diasSemInteracao > DIAS_ATRASO
+      const retornoAtrasado = !!mapaRetornoVencido[c.id]
+      // atrasado = passou o retorno agendado (compromisso assumido) OU ficou tempo demais sem
+      // nenhuma interação — o que vier primeiro, não precisa dos dois juntos
+      const atrasado = semInteracaoRecente || retornoAtrasado
       // resumo textual das interações, pensado como insumo pra análise por IA depois
       const resumoTexto = itens.map(it => it.descricao).join(' // ')
       return {
         ...c, qtdInteracoes: itens.length, ultima, diasSemInteracao, atrasado,
+        semInteracaoRecente, retornoAtrasado,
         ultimaDescricao: ultimaInteracao?.descricao || '',
         resumoTexto,
       }
@@ -217,18 +245,53 @@ export default function Relatorios({ user }) {
     return resumo
   }, [dataDe, dataAte, filtroConsultor, user])
 
+  // funil de conversão — pega o mesmo lote de "entrou no período" (data_adicao) já usado na
+  // conversão de Vendas, e cruza com interação/lembrete/venda pra saber em que etapa cada
+  // cliente parou. Cada marco é checado de forma independente (ver comentário em ETAPAS_FUNIL).
+  const carregarFunil = useCallback(async () => {
+    setLoading(true)
+    const entrados = await carregarDistribuidos()
+    const ids = entrados.map(c => c.id)
+
+    // .in() com muitos ids estoura o tamanho da URL — quebra em lotes de 60, igual o resto do
+    // app já faz (ex: UploadRenovacaoAntecipada.js)
+    const CHUNK = 60
+    const idsComInteracao = new Set(), idsComLembrete = new Set()
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const lote = ids.slice(i, i + CHUNK)
+      const [{ data: interacoes }, { data: lembretes }] = await Promise.all([
+        supabase.from('carteira_interacao').select('carteira_cliente_id').in('carteira_cliente_id', lote),
+        supabase.from('carteira_lembrete').select('carteira_cliente_id').in('carteira_cliente_id', lote),
+      ])
+      for (const i2 of (interacoes || [])) idsComInteracao.add(i2.carteira_cliente_id)
+      for (const l of (lembretes || [])) idsComLembrete.add(l.carteira_cliente_id)
+    }
+
+    const etapas = ETAPAS_FUNIL.map(e => {
+      let qtd
+      if (e.key === 'entrou') qtd = entrados.length
+      else if (e.key === 'interagiu') qtd = entrados.filter(c => idsComInteracao.has(c.id)).length
+      else if (e.key === 'agendou') qtd = entrados.filter(c => idsComLembrete.has(c.id)).length
+      else qtd = entrados.filter(c => STATUS_VENDA.includes(c.status)).length
+      return { ...e, qtd }
+    })
+    setFunilDados({ etapas, total: entrados.length })
+    setLoading(false)
+  }, [carregarDistribuidos])
+
   useEffect(() => {
     if (aba === 'vendas') { carregarVendas(); carregarDistribuidos() }
     if (aba === 'kanban') carregarKanban()
     if (aba === 'rotina') carregarRotina()
     if (aba === 'interacoes') carregarInteracoes()
+    if (aba === 'funil') carregarFunil()
   }, [aba, carregarVendas, carregarDistribuidos, carregarKanban, carregarRotina, carregarInteracoes])
 
   async function gerarPdf() {
     setGerandoPdf(true)
     const carregadores = {
       vendas: () => Promise.all([carregarVendas(), carregarDistribuidos()]),
-      kanban: carregarKanban, rotina: carregarRotina, interacoes: carregarInteracoes,
+      kanban: carregarKanban, rotina: carregarRotina, interacoes: carregarInteracoes, funil: carregarFunil,
     }
     await Promise.all(Array.from(abasPdf).map(k => carregadores[k]()))
     setGerandoPdf(false)
@@ -304,6 +367,10 @@ export default function Relatorios({ user }) {
         registro.interacoes = {
           clientes: interacoesC.length,
           atrasados: interacoesC.filter(r => r.atrasado).length,
+          // atrasado se separa em dois motivos, pra IA distinguir "esqueceu o compromisso"
+          // (retorno agendado venceu) de "simplesmente sumiu sem marcar nada"
+          retornoAgendadoVencido: interacoesC.filter(r => r.retornoAtrasado).length,
+          semContatoRecente: interacoesC.filter(r => r.semInteracaoRecente).length,
           nuncaContatados: interacoesC.filter(r => !r.ultima).length,
           amostra: interacoesC.filter(r => r.resumoTexto).slice(0, 10)
             .map(r => ({ cliente: r.razao_social || r.cnpj, status: r.status, resumo: r.resumoTexto })),
@@ -672,7 +739,8 @@ export default function Relatorios({ user }) {
         <>
           <div className="diag-stats">
             <div className="diag-stat diag-stat-neutro"><div className="diag-stat-valor">{resumoInteracoes.length}</div><div className="diag-stat-label">Clientes</div></div>
-            <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{resumoInteracoes.filter(r => r.atrasado).length}</div><div className="diag-stat-label">Atrasados (&gt;{DIAS_ATRASO}d sem contato)</div></div>
+            <div className="diag-stat diag-stat-migracao"><div className="diag-stat-valor">{resumoInteracoes.filter(r => r.atrasado).length}</div><div className="diag-stat-label">Atrasados (retorno vencido ou &gt;{DIAS_ATRASO}d sem contato)</div></div>
+            <div className="diag-stat diag-stat-voz"><div className="diag-stat-valor">{resumoInteracoes.filter(r => r.retornoAtrasado).length}</div><div className="diag-stat-label">Com retorno agendado vencido</div></div>
             <div className="diag-stat diag-stat-bl"><div className="diag-stat-valor">{resumoInteracoes.filter(r => !r.ultima).length}</div><div className="diag-stat-label">Nunca contatados</div></div>
           </div>
           <div className="carteira-table-wrap">
@@ -688,13 +756,48 @@ export default function Relatorios({ user }) {
                     <td>{r.ultima ? formatDataBR(r.ultima.slice(0, 10)) : '—'}</td>
                     <td style={{ maxWidth: 260, whiteSpace: 'normal' }} title={r.resumoTexto}>{r.ultimaDescricao || '—'}</td>
                     <td>{r.diasSemInteracao ?? '—'}</td>
-                    <td>{r.atrasado ? '🔴 Atrasado' : '✅ Em dia'}</td>
+                    <td>
+                      {!r.atrasado && '✅ Em dia'}
+                      {r.atrasado && r.retornoAtrasado && '⏰ Retorno vencido'}
+                      {r.atrasado && !r.retornoAtrasado && '🔴 Sem contato'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginTop: 6 }}>TOTAL: {resumoInteracoes.length}</div>
+        </>
+      )}
+
+      {!loading && aba === 'funil' && funilDados && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Cada etapa é um marco independente sobre quem entrou na carteira no período — não é
+            estritamente sequencial (dá pra vender sem lembrete registrado, por exemplo), mas
+            mostra onde a maioria trava.
+          </div>
+          <div className="dash-funil">
+            {funilDados.etapas.map((e, i) => {
+              const pct = funilDados.total > 0 ? Math.round((e.qtd / funilDados.total) * 100) : 0
+              const anterior = i > 0 ? funilDados.etapas[i - 1] : null
+              const perda = anterior && anterior.qtd > 0 ? Math.round(((anterior.qtd - e.qtd) / anterior.qtd) * 100) : null
+              return (
+                <React.Fragment key={e.key}>
+                  <div className="dash-funil-row">
+                    <div className="dash-funil-label">{e.label}</div>
+                    <div className="dash-funil-track">
+                      <div className={`dash-funil-bar dash-funil-bar-${i}`} style={{ width: `${Math.max(pct, 3)}%` }} />
+                    </div>
+                    <div className="dash-funil-valor">{e.qtd} <span>({pct}%)</span></div>
+                  </div>
+                  {perda !== null && perda > 0 && (
+                    <div className="dash-funil-perda">▼ {perda}% de perda vindo de "{anterior.label}"</div>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
         </>
       )}
       </div>
@@ -840,6 +943,24 @@ export default function Relatorios({ user }) {
                   ))}
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {abasPdf.has('funil') && funilDados && (
+          <>
+            {abasPdf.size > 1 && <div className="print-secao-titulo">Funil</div>}
+            <div className="print-chart">
+              {funilDados.etapas.map(e => {
+                const pct = funilDados.total > 0 ? Math.round((e.qtd / funilDados.total) * 100) : 0
+                return (
+                  <div key={e.key} className="print-chart-linha">
+                    <div className="print-chart-label">{e.label}</div>
+                    <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: Math.max(pct, 3) + '%' }} /></div>
+                    <div className="print-chart-valor">{e.qtd} ({pct}%)</div>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}

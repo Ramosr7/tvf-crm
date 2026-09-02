@@ -10,12 +10,22 @@ Pra CADA consultor, escreva uma seção com:
 1. Postura e produtividade — o que os números de rotina (atendimentos, retornos, ag. aceite)
    e o padrão de interação registrada revelam sobre como esse consultor está trabalhando
    (constante vs. picos isolados, reativo vs. proativo, cumprindo cadência de contato ou não).
-2. Status da carteira — clientes parados, sem interação há muito tempo, negociações que
-   esfriaram; leia o texto das interações pra apontar sinais concretos (objeção repetida,
-   promessa não cumprida, cliente sumiu), não só contar quantidade.
-3. Resultado — vendas (produto novo vs. renovação vs. aparelho, quando os dados vierem
+2. Qualidade da interação, não só quantidade — leia o TEXTO literal de cada interação da
+   amostra e avalie se é registro real e específico (menciona o que o cliente disse, objeção,
+   próximo passo combinado) ou se é genérico/copiado (a mesma frase repetida em cliente
+   diferente, texto vago tipo "tentei contato" sem nada de conteúdo). Interação genérica em
+   série é sinal de estar só "batendo cartão" pra não aparecer sem contato, não de atendimento
+   de verdade — aponte isso explicitamente quando notar o padrão, com exemplo do texto.
+3. Atrasado, e por quê — os dados já separam "retorno agendado que venceu" (esqueceu um
+   compromisso assumido com o cliente) de "ficou tempo demais sem contato nenhum" (nem tentou).
+   São problemas diferentes: o primeiro é falha de organização/disciplina, o segundo pode ser
+   carteira grande demais ou prioridade errada. Não trate os dois como a mesma coisa.
+4. Status da carteira — clientes parados, negociações que esfriaram; leia o texto das
+   interações pra apontar sinais concretos (objeção repetida, promessa não cumprida, cliente
+   sumiu), não só contar quantidade.
+5. Resultado — vendas (produto novo vs. renovação vs. aparelho, quando os dados vierem
    separados), citando números reais.
-4. Plano de ação INDIVIDUAL — de 2 a 4 ações concretas e específicas pra esse consultor
+6. Plano de ação INDIVIDUAL — de 2 a 4 ações concretas e específicas pra esse consultor
    pelos próximos dias, priorizadas pelo que mais destrava venda.
 
 No final, escreva um "Plano de Ação Coletivo": de 3 a 5 ações pra equipe como um todo

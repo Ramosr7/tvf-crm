@@ -605,6 +605,25 @@ export default function App() {
     signOut()
   }
 
+  // Timer de inatividade — 15 minutos sem nenhuma movimentação (clique, tecla, scroll, mouse)
+  // desloga sozinho e volta pra tela de login. Qualquer interação reseta a contagem do zero.
+  const TIMEOUT_INATIVIDADE = 15 * 60 * 1000
+  useEffect(() => {
+    if (!session) return
+    let timer
+    function resetarTimer() {
+      clearTimeout(timer)
+      timer = setTimeout(sair, TIMEOUT_INATIVIDADE)
+    }
+    const eventos = ['mousedown', 'mousemove', 'keydown', 'wheel', 'scroll', 'touchstart', 'click']
+    eventos.forEach(ev => window.addEventListener(ev, resetarTimer, { passive: true }))
+    resetarTimer()
+    return () => {
+      clearTimeout(timer)
+      eventos.forEach(ev => window.removeEventListener(ev, resetarTimer))
+    }
+  }, [session])
+
   // Potencial de Carteira / Importar / Plano Comercial ficam sempre montados (não recarregam
   // sozinhos ao trocar de aba, só mantêm o que já buscaram) — clicar de novo nesses 3 itens do
   // menu incrementa o contador da tela, que essas telas usam como dependência extra pra
