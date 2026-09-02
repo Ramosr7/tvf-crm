@@ -599,6 +599,16 @@ export default function App() {
   // aba/janela for fechada de vez.
   const [tela, setTela] = useState(() => sessionStorage.getItem('tvf_tela_atual') || 'dashboard')
 
+  // Potencial de Carteira / Importar / Plano Comercial ficam sempre montados (não recarregam
+  // sozinhos ao trocar de aba, só mantêm o que já buscaram) — clicar de novo nesses 3 itens do
+  // menu incrementa o contador da tela, que essas telas usam como dependência extra pra
+  // rebuscar os dados no Supabase na hora, dando a sensação de "página nova" sem perder filtro.
+  const [refreshTick, setRefreshTick] = useState({ carteira: 0, importar: 0, plano_comercial: 0 })
+  function irPara(t) {
+    setTela(t)
+    setRefreshTick(prev => ({ ...prev, [t]: prev[t] + 1 }))
+  }
+
   useEffect(() => {
     if (tela === 'leads') setTela('carteira')
     if (user?.perfil === 'Consultor' && tela === 'relatorios') setTela('carteira')
@@ -630,17 +640,17 @@ export default function App() {
           </div>
           <div className="topbar-nav">
             <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => setTela('dashboard')}>Início</span>
-            <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => setTela('carteira')}>Potencial de Carteira</span>
+            <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => irPara('carteira')}>Potencial de Carteira</span>
             <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
             <span className={`topbar-nav-item ${tela === 'rotina' ? 'active' : ''}`} onClick={() => setTela('rotina')}>Rotina Diária</span>
             {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-              <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => setTela('importar')}>Importar</span>
+              <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => irPara('importar')}>Importar</span>
             )}
             {user.perfil !== 'Consultor' && (
               <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
             )}
             {user.perfil === 'Gestor' && (
-              <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => setTela('plano_comercial')}>Plano Comercial</span>
+              <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => irPara('plano_comercial')}>Plano Comercial</span>
             )}
             {user.id === JOAO_ID && (
               <span className={`topbar-nav-item ${tela === 'minha_comissao' ? 'active' : ''}`} onClick={() => setTela('minha_comissao')}>Variável</span>
@@ -657,17 +667,17 @@ export default function App() {
       {/* Cada tela fica sempre montada (só escondida) pra manter filtro/estado ao trocar de
           aba sem reload — só um F5 de verdade (recarrega o app) reseta pro padrão. */}
       <div style={{ display: tela === 'dashboard' ? 'block' : 'none' }}><Dashboard user={user} /></div>
-      <div style={{ display: tela === 'carteira' ? 'block' : 'none' }}><PotencialCarteira user={user} /></div>
+      <div style={{ display: tela === 'carteira' ? 'block' : 'none' }}><PotencialCarteira user={user} refreshSignal={refreshTick.carteira} /></div>
       <div style={{ display: tela === 'kanban_temp' ? 'block' : 'none' }}><KanbanTemperatura user={user} /></div>
       <div style={{ display: tela === 'rotina' ? 'block' : 'none' }}><RotinaDiaria user={user} /></div>
       {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-        <div style={{ display: tela === 'importar' ? 'block' : 'none' }}><Importar user={user} /></div>
+        <div style={{ display: tela === 'importar' ? 'block' : 'none' }}><Importar user={user} refreshSignal={refreshTick.importar} /></div>
       )}
       {user.perfil !== 'Consultor' && (
         <div style={{ display: tela === 'relatorios' ? 'block' : 'none' }}><Relatorios user={user} /></div>
       )}
       {user.perfil === 'Gestor' && (
-        <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial /></div>
+        <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial refreshSignal={refreshTick.plano_comercial} /></div>
       )}
       {user.id === JOAO_ID && (
         <div style={{ display: tela === 'minha_comissao' ? 'block' : 'none' }}><MinhaComissao /></div>

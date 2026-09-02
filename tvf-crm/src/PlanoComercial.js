@@ -119,7 +119,10 @@ function GraficoVertical({ titulo, meta, esteira, projecao, formato, pct }) {
   )
 }
 
-export default function PlanoComercial() {
+// refreshSignal vem do App.js — incrementa toda vez que clica "Plano Comercial" no menu,
+// mesmo já estando nessa tela (fica sempre montada) — refaz a busca sem mexer no mês
+// selecionado nem em nenhum outro filtro.
+export default function PlanoComercial({ refreshSignal }) {
   const [mesReferencia, setMesReferencia] = useState(mesAtualISO())
   const [planos, setPlanos] = useState([])
   const [staff, setStaff] = useState([])
@@ -152,7 +155,7 @@ export default function PlanoComercial() {
     setLoading(false)
   }, [mesReferencia])
 
-  useEffect(() => { fetchDados() }, [fetchDados])
+  useEffect(() => { fetchDados() }, [fetchDados, refreshSignal])
 
   // Meta agora é preenchida direto na tela, por time e por vertical — sem regra fixa de quem
   // tem ou não cada pilar (ex: time consultivo pode não ter meta de Alta, mas o gestor pode

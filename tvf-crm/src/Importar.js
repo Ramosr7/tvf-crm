@@ -37,10 +37,14 @@ const OPCOES = [
   },
 ]
 
-export default function Importar({ user }) {
+// refreshSignal vem do App.js (incrementa toda vez que clica "Importar" no menu, mesmo já
+// estando nessa tela) — usado como key pra forçar remontar a importação ativa do zero, já que
+// cada uma tem sua própria busca (ex: consultores_staff) que só roda no mount.
+export default function Importar({ user, refreshSignal }) {
   const opcoes = OPCOES.filter(o => !o.restrito || user.perfil === 'Gestor')
   const [aba, setAba] = useState(opcoes[0].key)
   const ativa = opcoes.find(o => o.key === aba) || opcoes[0]
+  const remountKey = `${aba}-${refreshSignal}`
 
   return (
     <div className="main">
@@ -65,13 +69,13 @@ export default function Importar({ user }) {
         </div>
 
         <div className="importar-conteudo">
-          {aba === 'mailing' && <UploadMailingDiario />}
-          {aba === 'mapa_parque' && user.perfil === 'Gestor' && <UploadMapaParque />}
-          {aba === 'renovacao_antecipada' && user.perfil === 'Gestor' && <UploadRenovacaoAntecipada />}
-          {aba === 'backlog_pc' && user.perfil === 'Gestor' && <UploadRadarPdf modo="backlog" />}
-          {aba === 'radar_pdf' && user.perfil === 'Gestor' && <UploadRadarPdf modo="esteira" />}
-          {aba === 'apuracao_vendas' && user.perfil === 'Gestor' && <UploadApuracaoVendas />}
-          {aba === 'assistente' && user.perfil === 'Gestor' && <AssistenteConteudo user={user} />}
+          {aba === 'mailing' && <UploadMailingDiario key={remountKey} />}
+          {aba === 'mapa_parque' && user.perfil === 'Gestor' && <UploadMapaParque key={remountKey} />}
+          {aba === 'renovacao_antecipada' && user.perfil === 'Gestor' && <UploadRenovacaoAntecipada key={remountKey} />}
+          {aba === 'backlog_pc' && user.perfil === 'Gestor' && <UploadRadarPdf key={remountKey} modo="backlog" />}
+          {aba === 'radar_pdf' && user.perfil === 'Gestor' && <UploadRadarPdf key={remountKey} modo="esteira" />}
+          {aba === 'apuracao_vendas' && user.perfil === 'Gestor' && <UploadApuracaoVendas key={remountKey} />}
+          {aba === 'assistente' && user.perfil === 'Gestor' && <AssistenteConteudo key={remountKey} user={user} />}
         </div>
       </div>
     </div>

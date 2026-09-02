@@ -23,12 +23,10 @@ function dataISO(d) {
   return d.toISOString().slice(0, 10)
 }
 
+// Só "Hoje" como atalho — Ontem/7 dias/Este mês/3 meses tiravam muito espaço e o De/Até ao
+// lado já cobre qualquer período específico via calendário.
 const PRESETS_PERIODO = [
   { label: 'Hoje', dias: 0 },
-  { label: 'Ontem', dias: 1, apenasUmDia: true },
-  { label: '7 dias', dias: 7 },
-  { label: 'Este mês', inicioMes: true },
-  { label: '3 meses', dias: 90 },
 ]
 
 const isGestor = (user) => user.perfil === 'Gestor'
@@ -46,7 +44,10 @@ function carregarFiltrosSalvos(user) {
   }
 }
 
-export default function PotencialCarteira({ user }) {
+// refreshSignal vem do App.js — incrementa toda vez que clica "Potencial de Carteira" no
+// menu, mesmo já estando nessa tela (ela fica sempre montada, então sem isso o clique não
+// refazia a busca). Só entra na dependência do fetch, não muda nenhum filtro.
+export default function PotencialCarteira({ user, refreshSignal }) {
   const filtrosSalvos = carregarFiltrosSalvos(user)
   const [clientes, setClientes] = useState([])
   const [staff, setStaff] = useState([])
@@ -123,7 +124,7 @@ export default function PotencialCarteira({ user }) {
     setChecklistPorCliente(mapa)
   }, [])
 
-  useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists])
+  useEffect(() => { fetchClientes(); fetchVendaItens(); fetchInteracoes(); fetchChecklists() }, [fetchClientes, fetchVendaItens, fetchInteracoes, fetchChecklists, refreshSignal])
 
   useEffect(() => {
     sessionStorage.setItem(`tvf_filtros_carteira_${user.id}`, JSON.stringify({
