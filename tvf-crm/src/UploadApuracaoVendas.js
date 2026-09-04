@@ -261,11 +261,11 @@ export default function UploadApuracaoVendas() {
               <thead><tr><th>CNPJ</th><th>ID Pedido</th><th>Status no arquivo</th><th>Classificação</th></tr></thead>
               <tbody>
                 {linhas.slice(0, 50).map((l, i) => (
-                  <tr key={i} style={!l.statusClasse ? { background: '#FFF5EE' } : {}}>
+                  <tr key={i} style={!l.statusClasse ? { background: 'rgba(255,107,107,0.12)' } : {}}>
                     <td>{l.cnpj}</td>
                     <td>{l.numeroPedido || '—'}</td>
                     <td>{l.statusOriginal || '—'}</td>
-                    <td>{l.statusClasse === 'ativado' ? '✅ Ativado' : l.statusClasse === 'reprovado' ? '❌ Reprovado' : <span style={{ color: '#C0451A' }}>em andamento</span>}</td>
+                    <td>{l.statusClasse === 'ativado' ? '✅ Ativado' : l.statusClasse === 'reprovado' ? '❌ Reprovado' : <span style={{ color: 'var(--vermelho)' }}>em andamento</span>}</td>
                   </tr>
                 ))}
               </tbody>

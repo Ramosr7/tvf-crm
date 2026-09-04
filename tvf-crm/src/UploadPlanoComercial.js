@@ -198,7 +198,7 @@ export default function UploadPlanoComercial() {
         {arquivo && <span style={{ fontSize: 12, color: '#660099' }}>{arquivo.name} — {linhas.length} linha(s) reconhecida(s)</span>}
       </div>
       {naoReconhecidas.length > 0 && (
-        <div style={{ fontSize: 11, color: '#C0451A', marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: 'var(--vermelho)', marginTop: 8 }}>
           Rótulo(s) de vertical não reconhecido(s), ignorado(s): {naoReconhecidas.join(', ')}
         </div>
       )}

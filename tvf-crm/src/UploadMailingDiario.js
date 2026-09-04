@@ -163,6 +163,9 @@ export default function UploadMailingDiario() {
           if (transferindo) {
             transferidos++
             const nomeDonoAntigo = staff.find(s => s.id === l.donoAtual)?.nome || 'outro consultor'
+            // Cliente muda de mão: histórico de interações do dono antigo não interessa pro
+            // novo consultor, só a nota de transferência abaixo.
+            await supabase.from('carteira_interacao').delete().eq('carteira_cliente_id', existente.id)
             await supabase.from('carteira_interacao').insert({
               carteira_cliente_id: existente.id, autor_id: consultorId,
               descricao: `Cliente transferido de ${nomeDonoAntigo} via importação (motivo: ${STATUS_LIBERA_TRANSFERENCIA.includes(l.statusAtual) ? l.statusAtual : `retorno vencido há ${DIAS_RETORNO_VENCIDO_LIBERA}+ dias`}).`,
@@ -216,7 +219,7 @@ export default function UploadMailingDiario() {
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleArquivo} disabled={!consultorId} />
         {nomeArquivo && <span style={{ fontSize: 12, color: '#660099' }}>{nomeArquivo} — {linhas.length} linhas com CNPJ válido</span>}
       </div>
-      {!consultorId && <div style={{ fontSize: 11, color: '#C0451A', marginTop: -8, marginBottom: 12 }}>Escolha o consultor antes de subir o arquivo.</div>}
+      {!consultorId && <div style={{ fontSize: 11, color: 'var(--vermelho)', marginTop: -8, marginBottom: 12 }}>Escolha o consultor antes de subir o arquivo.</div>}
 
       {linhas.length > 0 && (
         <>
@@ -227,9 +230,9 @@ export default function UploadMailingDiario() {
                 {linhas.slice(0, 30).map((l, i) => {
                   const st = statusLinha(l)
                   return (
-                    <tr key={i} style={st.bloqueado ? { background: '#FFF5EE' } : st.transferindo ? { background: 'rgba(240,166,58,0.08)' } : {}}>
+                    <tr key={i} style={st.bloqueado ? { background: 'rgba(255,107,107,0.12)' } : st.transferindo ? { background: 'rgba(239,159,39,0.12)' } : {}}>
                       <td>{l.cnpj}</td><td>{l.razao_social}</td><td>{l.contato}</td><td>{l.colaborador}</td>
-                      <td style={st.bloqueado ? { color: '#C0451A', fontWeight: 600 } : st.transferindo ? { color: 'var(--laranja)', fontWeight: 600 } : {}}>{st.texto}</td>
+                      <td style={st.bloqueado ? { color: 'var(--vermelho)', fontWeight: 600 } : st.transferindo ? { color: 'var(--laranja)', fontWeight: 600 } : {}}>{st.texto}</td>
                     </tr>
                   )
                 })}

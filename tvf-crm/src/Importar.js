@@ -8,7 +8,7 @@ import UploadApuracaoVendas from './UploadApuracaoVendas'
 
 const OPCOES = [
   {
-    key: 'mailing', label: 'Recarga Carteira (Diária)', restrito: false, icone: '↻',
+    key: 'mailing', label: 'Recarga Carteira (Diária)', restrito: 'supervisor', icone: '↻',
     descricao: 'Sobe a lista de clientes do dia e distribui pro consultor escolhido.',
   },
   {
@@ -40,8 +40,15 @@ const OPCOES = [
 // refreshSignal vem do App.js (incrementa toda vez que clica "Importar" no menu, mesmo já
 // estando nessa tela) — usado como key pra forçar remontar a importação ativa do zero, já que
 // cada uma tem sua própria busca (ex: consultores_staff) que só roda no mount.
+// restrito: false = todo mundo; 'supervisor' = Gestor + Supervisor; true = só Gestor
+function podeVer(opcao, perfil) {
+  if (!opcao.restrito) return true
+  if (opcao.restrito === 'supervisor') return perfil === 'Gestor' || perfil === 'Supervisor'
+  return perfil === 'Gestor'
+}
+
 export default function Importar({ user, refreshSignal }) {
-  const opcoes = OPCOES.filter(o => !o.restrito || user.perfil === 'Gestor')
+  const opcoes = OPCOES.filter(o => podeVer(o, user.perfil))
   const [aba, setAba] = useState(opcoes[0].key)
   const ativa = opcoes.find(o => o.key === aba) || opcoes[0]
   const remountKey = `${aba}-${refreshSignal}`
@@ -69,7 +76,7 @@ export default function Importar({ user, refreshSignal }) {
         </div>
 
         <div className="importar-conteudo">
-          {aba === 'mailing' && <UploadMailingDiario key={remountKey} />}
+          {aba === 'mailing' && podeVer(ativa, user.perfil) && <UploadMailingDiario key={remountKey} />}
           {aba === 'mapa_parque' && user.perfil === 'Gestor' && <UploadMapaParque key={remountKey} />}
           {aba === 'renovacao_antecipada' && user.perfil === 'Gestor' && <UploadRenovacaoAntecipada key={remountKey} />}
           {aba === 'backlog_pc' && user.perfil === 'Gestor' && <UploadRadarPdf key={remountKey} modo="backlog" />}

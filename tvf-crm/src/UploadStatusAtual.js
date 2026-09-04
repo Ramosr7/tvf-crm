@@ -185,7 +185,7 @@ export default function UploadStatusAtual() {
         )}
         {linhas.length > 0 && <span style={{ fontSize: 12, color: '#660099' }}>{linhas.length} linhas com CNPJ válido</span>}
       </div>
-      {!consultorId && <div style={{ fontSize: 11, color: '#C0451A', marginTop: -8, marginBottom: 12 }}>Escolha o consultor antes de subir o arquivo.</div>}
+      {!consultorId && <div style={{ fontSize: 11, color: 'var(--vermelho)', marginTop: -8, marginBottom: 12 }}>Escolha o consultor antes de subir o arquivo.</div>}
 
       {linhas.length > 0 && (
         <>
@@ -194,9 +194,9 @@ export default function UploadStatusAtual() {
               <thead><tr><th>CNPJ</th><th>Razão Social</th><th>Status</th><th>Observação</th></tr></thead>
               <tbody>
                 {linhas.slice(0, 30).map((l, i) => (
-                  <tr key={i} style={!l.statusMapeado ? { background: '#FFF5EE' } : {}}>
+                  <tr key={i} style={!l.statusMapeado ? { background: 'rgba(255,107,107,0.12)' } : {}}>
                     <td>{l.cnpj}</td><td>{l.razao_social}</td>
-                    <td>{l.statusMapeado || <span style={{ color: '#C0451A' }}>{l.statusOriginal || '—'} → Aguardando Atendimento</span>}</td>
+                    <td>{l.statusMapeado || <span style={{ color: 'var(--vermelho)' }}>{l.statusOriginal || '—'} → Aguardando Atendimento</span>}</td>
                     <td>{l.observacao || '—'}</td>
                   </tr>
                 ))}

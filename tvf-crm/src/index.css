@@ -4,10 +4,10 @@
    (verde/vermelho/azul) ficou um tom mais claro que a versão antiga pra manter contraste
    AA em cima do fundo escuro — testado visualmente em tabela densa, card e badge. */
 :root {
-  --bg-page: #170a24;
-  --bg-card: #24123a;
-  --bg-card-2: #2d1848;
-  --bg-card-hover: #341d54;
+  --bg-page: #291240;
+  --bg-card: #351a55;
+  --bg-card-2: #3e2163;
+  --bg-card-hover: #44266f;
   --border: rgba(255,255,255,0.12);
   --border-soft: rgba(255,255,255,0.07);
   --text-1: #F5F1FA;

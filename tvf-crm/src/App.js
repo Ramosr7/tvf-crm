@@ -265,7 +265,7 @@ function LeadModal({ lead, onClose, onRefresh, colunas, coresCol }) {
                 {salvando ? 'Salvando...' : saved ? '✓ Salvo!' : 'Salvar alterações'}
               </button>
               <button className="btn-action fechar" onClick={fechar}>✓ Fechar</button>
-              <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={deletar}>🗑</button>
+              <button className="btn-action" style={{ color: 'var(--vermelho)', borderColor: 'rgba(255,107,107,0.4)' }} onClick={deletar}>🗑</button>
             </div>
           </div>
         )}

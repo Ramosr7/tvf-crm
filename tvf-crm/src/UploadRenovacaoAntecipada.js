@@ -167,6 +167,9 @@ export default function UploadRenovacaoAntecipada() {
           transferidos++
           const nomeDonoAntigo = staff.find(s => s.id === l.donoAntigo)?.nome || 'outro consultor'
           const motivo = STATUS_LIBERA_TRANSFERENCIA.includes(l.statusAntigo) ? l.statusAntigo : `retorno vencido há ${DIAS_RETORNO_VENCIDO_LIBERA}+ dias`
+          // Cliente muda de mão: histórico de interações do dono antigo não interessa pro
+          // novo consultor, só a nota de transferência abaixo.
+          await supabase.from('carteira_interacao').delete().eq('carteira_cliente_id', l.existenteId)
           await supabase.from('carteira_interacao').insert({
             carteira_cliente_id: l.existenteId, autor_id: menorId,
             descricao: `Cliente transferido de ${nomeDonoAntigo} via importação M16 (motivo: ${motivo}).`,
@@ -240,7 +243,7 @@ export default function UploadRenovacaoAntecipada() {
           </label>
         ))}
       </div>
-      {participantes.size === 0 && <div style={{ fontSize: 11, color: '#C0451A', marginBottom: 12 }}>Marca pelo menos um consultor antes de subir o arquivo.</div>}
+      {participantes.size === 0 && <div style={{ fontSize: 11, color: 'var(--vermelho)', marginBottom: 12 }}>Marca pelo menos um consultor antes de subir o arquivo.</div>}
 
       <div className="kanban-toolbar">
         <input type="file" accept=".csv,.xlsx,.xls" onChange={handleArquivo} disabled={participantes.size === 0} />

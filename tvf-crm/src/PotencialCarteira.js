@@ -522,7 +522,7 @@ export default function PotencialCarteira({ user, refreshSignal }) {
           <button className="btn-save-obs" style={{ float: 'none' }} onClick={adicionarCliente} disabled={buscandoCnpj || !novoCnpj.trim()}>
             {buscandoCnpj ? 'Adicionando...' : '+ Adicionar Cliente'}
           </button>
-          {erroCnpj && <span style={{ fontSize: 11, color: '#C0451A' }}>{erroCnpj}</span>}
+          {erroCnpj && <span style={{ fontSize: 11, color: 'var(--vermelho)' }}>{erroCnpj}</span>}
           <input className="lm-input" type="number" min="1" placeholder="Qtd." style={{ width: 64 }}
             value={qtdVolume} onChange={e => setQtdVolume(e.target.value)} title="Quantos clientes distribuir, sorteados da visão atual" />
           <select className="filter-select" value={consultorVolume} onChange={e => setConsultorVolume(e.target.value)} title="Consultor que vai receber os clientes sorteados">
@@ -544,7 +544,7 @@ export default function PotencialCarteira({ user, refreshSignal }) {
               <button className="btn-action" onClick={transferirSelecionados} disabled={!consultorTransferencia || transferindo}>
                 {transferindo ? 'Transferindo...' : `↔ Transferir ${selecionados.size}`}
               </button>
-              <button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={removerSelecionados} disabled={removendo}>
+              <button className="btn-action" style={{ color: 'var(--vermelho)', borderColor: 'rgba(255,107,107,0.4)' }} onClick={removerSelecionados} disabled={removendo}>
                 {removendo ? 'Removendo...' : `🗑 Remover ${selecionados.size} selecionado(s)`}
               </button>
             </>
@@ -676,7 +676,7 @@ export default function PotencialCarteira({ user, refreshSignal }) {
                     onBlur={e => atualizarCliente(c.id, { data_venda: e.target.value || null })} />
                 </td>
                 {podeAdicionarCliente(user) && (
-                  <td><button className="btn-action" style={{ color: '#C0451A', borderColor: '#F5C6C6' }} onClick={() => removerCliente(c.id)}>🗑</button></td>
+                  <td><button className="btn-action" style={{ color: 'var(--vermelho)', borderColor: 'rgba(255,107,107,0.4)' }} onClick={() => removerCliente(c.id)}>🗑</button></td>
                 )}
               </tr>
             ))}

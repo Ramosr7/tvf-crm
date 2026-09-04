@@ -386,7 +386,7 @@ export default function AssistenteConteudo({ user }) {
             <div key={job.id} className="sino-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700 }}>{job.titulo}</div>
-                <div style={{ fontSize: 11, color: job.status === 'erro' ? '#C0451A' : '#888' }}>
+                <div style={{ fontSize: 11, color: job.status === 'erro' ? 'var(--vermelho)' : 'var(--text-3)' }}>
                   {job.status === 'erro' ? `Erro: ${job.erro_msg}` : job.total_paginas ? `Status: ${job.status} — página ${job.paginas_processadas}/${job.total_paginas}` : `Status: ${job.status}`}
                 </div>
               </div>

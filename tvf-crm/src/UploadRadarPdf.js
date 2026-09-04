@@ -246,8 +246,8 @@ export default function UploadRadarPdf({ modo }) {
                   const consultor = acharConsultor(s.nome, staff)
                   const v = calcularVerticais(s, consultor?.id)
                   return (
-                    <tr key={i} style={!consultor ? { background: '#FFF5EE' } : {}}>
-                      <td>{s.nome}{!consultor && <span style={{ color: '#C0451A', fontWeight: 600 }}> (sem match)</span>}</td>
+                    <tr key={i} style={!consultor ? { background: 'rgba(255,107,107,0.12)' } : {}}>
+                      <td>{s.nome}{!consultor && <span style={{ color: 'var(--vermelho)', fontWeight: 600 }}> (sem match)</span>}</td>
                       <td>{fmtMoeda(v.APARELHO)}</td>
                       <td>{v.HA}</td>
                       <td>{v.BL}</td>
