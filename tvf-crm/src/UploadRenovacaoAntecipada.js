@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase, fetchPaginado } from './supabaseClient'
 import { parseArquivo, mapearCampos, extrairCnpj } from './xlsxParse'
 import { calcularPotencial } from './potencialLogic'
+
+// Mesma regra do Mailing Diário: cliente de outro consultor com esses status, ou com retorno
+// agendado vencido, libera transferência em vez de só manter o dono atual.
+const STATUS_LIBERA_TRANSFERENCIA = ['Sem Contato Efetivo', 'Sem Interesse']
+const DIAS_RETORNO_VENCIDO_LIBERA = 3
 
 const ALIASES = {
   cnpj: ['cnpj'],
@@ -68,14 +73,31 @@ export default function UploadRenovacaoAntecipada() {
     setProcessando(true)
     setResultado(null)
 
-    // 1) Quem já existe na carteira (ativo) só ganha o flag — mantém o consultor que já tem.
+    // 1) Quem já existe na carteira (ativo): por padrão só ganha o flag e mantém o consultor.
+    // Exceção — mesma regra do Mailing Diário: se o dono atual está com "Sem Contato Efetivo",
+    // "Sem Interesse" ou tem retorno agendado vencido há DIAS_RETORNO_VENCIDO_LIBERA+ dias sem
+    // atendimento, o cliente entra na distribuição como se fosse novo (transferível).
     const todosCnpjs = linhas.map(l => l.cnpj)
-    const existentesSet = new Set()
+    const existentesPorCnpj = new Map()
     for (let i = 0; i < todosCnpjs.length; i += CHUNK_CONSULTA) {
       const lote = todosCnpjs.slice(i, i + CHUNK_CONSULTA)
       setProgresso(`Conferindo clientes já existentes (${Math.min(i + CHUNK_CONSULTA, todosCnpjs.length)} de ${todosCnpjs.length})...`)
-      const { data } = await supabase.from('carteira_cliente').select('cnpj').in('cnpj', lote).is('excluido_em', null)
-      for (const row of (data || [])) existentesSet.add(row.cnpj)
+      const { data } = await supabase.from('carteira_cliente').select('id, cnpj, consultor_id, status').in('cnpj', lote).is('excluido_em', null)
+      for (const row of (data || [])) existentesPorCnpj.set(row.cnpj, row)
+    }
+
+    const limite = new Date()
+    limite.setDate(limite.getDate() - DIAS_RETORNO_VENCIDO_LIBERA)
+    const idsExistentes = Array.from(existentesPorCnpj.values()).map(r => r.id)
+    let idsComRetornoVencido = new Set()
+    if (idsExistentes.length > 0) {
+      const { data: lembretes } = await fetchPaginado((de, ate) => supabase.from('carteira_lembrete')
+        .select('carteira_cliente_id, data_hora').eq('concluido', false).lt('data_hora', limite.toISOString())
+        .in('carteira_cliente_id', idsExistentes).range(de, ate))
+      idsComRetornoVencido = new Set((lembretes || []).map(l => l.carteira_cliente_id))
+    }
+    function transferivelExistente(row) {
+      return STATUS_LIBERA_TRANSFERENCIA.includes(row.status) || idsComRetornoVencido.has(row.id)
     }
 
     // QT_ELEGIVEIS do próprio arquivo é mais confiável que o rec_movel/movel do Mapa Parque
@@ -84,26 +106,33 @@ export default function UploadRenovacaoAntecipada() {
     const qtElegiveisPorCnpj = new Map(linhas.map(l => [l.cnpj, l.qt_elegiveis]))
 
     let existentesMarcados = 0
-    const existentesCnpjs = todosCnpjs.filter(c => existentesSet.has(c))
-    for (let i = 0; i < existentesCnpjs.length; i++) {
-      const cnpj = existentesCnpjs[i]
-      setProgresso(`Marcando existentes (${i + 1} de ${existentesCnpjs.length})...`)
+    const existentesFixos = []
+    const transferiveis = []
+    for (const [cnpj, row] of existentesPorCnpj) {
+      if (transferivelExistente(row)) transferiveis.push({ ...linhas.find(l => l.cnpj === cnpj), existenteId: row.id, donoAntigo: row.consultor_id, statusAntigo: row.status })
+      else existentesFixos.push(row)
+    }
+    for (let i = 0; i < existentesFixos.length; i++) {
+      const row = existentesFixos[i]
+      setProgresso(`Marcando existentes (${i + 1} de ${existentesFixos.length})...`)
       const { error } = await supabase.from('carteira_cliente')
-        .update({ alerta_renovacao: true, potencial_migracao: qtElegiveisPorCnpj.get(cnpj) || 0, atualizado_em: new Date().toISOString() })
-        .eq('cnpj', cnpj).is('excluido_em', null)
+        .update({ alerta_renovacao: true, potencial_migracao: qtElegiveisPorCnpj.get(row.cnpj) || 0, atualizado_em: new Date().toISOString() })
+        .eq('id', row.id)
       if (!error) existentesMarcados++
     }
 
-    // 2) Quem ainda não existe entra novo, distribuído pelos participantes escolhidos —
-    // maior QT_PLANTA primeiro, sempre pro consultor com menos linhas acumuladas até agora (LPT).
-    const novos = linhas.filter(l => !existentesSet.has(l.cnpj)).sort((a, b) => b.qt_planta - a.qt_planta)
+    // 2) Quem ainda não existe, mais quem foi liberado pra transferência acima, entra na
+    // distribuição pelos participantes escolhidos — maior QT_PLANTA primeiro, sempre pro
+    // consultor com menos linhas acumuladas até agora (LPT).
+    const novos = linhas.filter(l => !existentesPorCnpj.has(l.cnpj))
+    const paraDistribuir = [...transferiveis, ...novos].sort((a, b) => b.qt_planta - a.qt_planta)
 
-    // Cruza com o Mapa Parque em lote (não um por um) pra pegar o potencial de cada CNPJ novo.
+    // Cruza com o Mapa Parque em lote (não um por um) pra pegar o potencial de cada CNPJ.
     const potencialPorCnpj = new Map()
-    const novosCnpjs = novos.map(l => l.cnpj)
-    for (let i = 0; i < novosCnpjs.length; i += CHUNK_CONSULTA) {
-      const lote = novosCnpjs.slice(i, i + CHUNK_CONSULTA)
-      setProgresso(`Cruzando com o Mapa Parque (${Math.min(i + CHUNK_CONSULTA, novosCnpjs.length)} de ${novosCnpjs.length})...`)
+    const cnpjsParaPotencial = paraDistribuir.map(l => l.cnpj)
+    for (let i = 0; i < cnpjsParaPotencial.length; i += CHUNK_CONSULTA) {
+      const lote = cnpjsParaPotencial.slice(i, i + CHUNK_CONSULTA)
+      setProgresso(`Cruzando com o Mapa Parque (${Math.min(i + CHUNK_CONSULTA, cnpjsParaPotencial.length)} de ${cnpjsParaPotencial.length})...`)
       const { data } = await supabase.from('mapa_parque_import').select('*').in('nr_cnpj', lote)
       for (const row of (data || [])) {
         const atual = potencialPorCnpj.get(row.nr_cnpj)
@@ -112,32 +141,57 @@ export default function UploadRenovacaoAntecipada() {
     }
 
     const somaPorConsultor = new Map(Array.from(participantes).map(id => [id, 0]))
-    let comPotencial = 0
-    const registrosNovos = novos.map(l => {
+    const qtdPorConsultor = new Map(Array.from(participantes).map(id => [id, 0]))
+    let comPotencial = 0, transferidos = 0, falhasTransferencia = 0
+    const registrosNovos = []
+    for (const l of paraDistribuir) {
       let menorId = null, menorSoma = Infinity
       for (const [id, soma] of somaPorConsultor) if (soma < menorSoma) { menorSoma = soma; menorId = id }
       somaPorConsultor.set(menorId, menorSoma + l.qt_planta)
-      const observacoes = [
-        l.plano && `Plano: ${l.plano}`,
-        `QT_PLANTA (linhas): ${l.qt_planta}`,
-        (l.cidade || l.uf) && `Cidade: ${[l.cidade, l.uf].filter(Boolean).join(' - ')}`,
-      ].filter(Boolean).join(' | ')
+      qtdPorConsultor.set(menorId, (qtdPorConsultor.get(menorId) || 0) + 1)
       const parque = potencialPorCnpj.get(l.cnpj)
       const potencial = parque ? calcularPotencial(parque) : null
       if (potencial) comPotencial++
-      return {
-        cnpj: l.cnpj, razao_social: l.razao_social, consultor_id: menorId,
-        status: 'Aguardando Atendimento', origem: 'Renovação Antecipada (M16)',
-        alerta_renovacao: true, observacoes: observacoes || null,
-        potencial_migracao: l.qt_elegiveis || 0,
-        potencial_bl: potencial?.potencial_bl || 0,
-        potencial_ti: potencial?.potencial_ti || 0,
-        potencial_voz: potencial?.potencial_voz || 0,
-        credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
-      }
-    })
 
-    let novosCriados = 0, falhas = 0
+      if (l.existenteId) {
+        // Transferível: move a linha existente pro consultor sorteado pelo LPT, reabre status
+        // e loga o motivo em Interações — não mexe em observações/razão social/contato antigos.
+        const { error } = await supabase.from('carteira_cliente').update({
+          consultor_id: menorId, status: 'Aguardando Atendimento', alerta_renovacao: true,
+          potencial_migracao: l.qt_elegiveis || 0,
+          potencial_bl: potencial?.potencial_bl || 0, potencial_ti: potencial?.potencial_ti || 0,
+          potencial_voz: potencial?.potencial_voz || 0, credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
+          atualizado_em: new Date().toISOString(),
+        }).eq('id', l.existenteId)
+        if (error) { falhasTransferencia++ } else {
+          transferidos++
+          const nomeDonoAntigo = staff.find(s => s.id === l.donoAntigo)?.nome || 'outro consultor'
+          const motivo = STATUS_LIBERA_TRANSFERENCIA.includes(l.statusAntigo) ? l.statusAntigo : `retorno vencido há ${DIAS_RETORNO_VENCIDO_LIBERA}+ dias`
+          await supabase.from('carteira_interacao').insert({
+            carteira_cliente_id: l.existenteId, autor_id: menorId,
+            descricao: `Cliente transferido de ${nomeDonoAntigo} via importação M16 (motivo: ${motivo}).`,
+          })
+        }
+      } else {
+        const observacoes = [
+          l.plano && `Plano: ${l.plano}`,
+          `QT_PLANTA (linhas): ${l.qt_planta}`,
+          (l.cidade || l.uf) && `Cidade: ${[l.cidade, l.uf].filter(Boolean).join(' - ')}`,
+        ].filter(Boolean).join(' | ')
+        registrosNovos.push({
+          cnpj: l.cnpj, razao_social: l.razao_social, consultor_id: menorId,
+          status: 'Aguardando Atendimento', origem: 'Renovação Antecipada (M16)',
+          alerta_renovacao: true, observacoes: observacoes || null,
+          potencial_migracao: l.qt_elegiveis || 0,
+          potencial_bl: potencial?.potencial_bl || 0,
+          potencial_ti: potencial?.potencial_ti || 0,
+          potencial_voz: potencial?.potencial_voz || 0,
+          credito_pre_aprovado: potencial?.credito_pre_aprovado || 0,
+        })
+      }
+    }
+
+    let novosCriados = 0, falhas = falhasTransferencia
     const errosAmostra = []
     for (let i = 0; i < registrosNovos.length; i += CHUNK_INSERT) {
       const lote = registrosNovos.slice(i, i + CHUNK_INSERT)
@@ -149,13 +203,13 @@ export default function UploadRenovacaoAntecipada() {
 
     const porConsultor = Array.from(somaPorConsultor.entries()).map(([id, soma]) => ({
       nome: staff.find(s => s.id === id)?.nome || '—',
-      qtd: registrosNovos.filter(r => r.consultor_id === id).length,
+      qtd: qtdPorConsultor.get(id) || 0,
       somaLinhas: soma,
     }))
 
     setProcessando(false)
     setProgresso('')
-    setResultado({ existentesMarcados, novosCriados, comPotencial, semPotencial: registrosNovos.length - comPotencial, falhas, errosAmostra, porConsultor })
+    setResultado({ existentesMarcados, novosCriados, transferidos, comPotencial, semPotencial: paraDistribuir.length - comPotencial, falhas, errosAmostra, porConsultor })
     setLinhas([])
     setArquivo(null)
   }
@@ -167,11 +221,13 @@ export default function UploadRenovacaoAntecipada() {
         <summary>Ver regras dessa importação</summary>
         <div className="regras-toggle-corpo">
           Sobe o export do Parque Móvel filtrado em M16. Cliente que já existe na carteira só ganha o flag de
-          renovação antecipada (mantém o consultor atual). Cliente novo é distribuído entre os consultores marcados
-          abaixo, do maior pro menor QT_PLANTA (linhas), sempre pro que tiver menos linhas acumuladas até agora —
-          fica balanceado por volume, não só por quantidade de clientes. Potencial de migração vem do QT_ELEGIVEIS
-          do próprio arquivo (mais confiável que o Mapa Parque oficial pra esses clientes); BL/TI/Voz/Crédito
-          continuam cruzando com o Mapa Parque por CNPJ.
+          renovação antecipada (mantém o consultor atual) — exceto se o dono atual estiver com status "Sem Contato
+          Efetivo", "Sem Interesse" ou com retorno agendado vencido há {DIAS_RETORNO_VENCIDO_LIBERA}+ dias: nesse
+          caso o cliente entra na distribuição como se fosse novo. Cliente novo (ou transferido) é distribuído entre
+          os consultores marcados abaixo, do maior pro menor QT_PLANTA (linhas), sempre pro que tiver menos linhas
+          acumuladas até agora — fica balanceado por volume, não só por quantidade de clientes. Potencial de migração
+          vem do QT_ELEGIVEIS do próprio arquivo (mais confiável que o Mapa Parque oficial pra esses clientes);
+          BL/TI/Voz/Crédito continuam cruzando com o Mapa Parque por CNPJ.
         </div>
       </details>
 
@@ -201,7 +257,7 @@ export default function UploadRenovacaoAntecipada() {
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>
-          {resultado.existentesMarcados} cliente(s) já existente(s) marcado(s) com o flag. {resultado.novosCriados} cliente(s) novo(s) criado(s) e distribuído(s).
+          {resultado.existentesMarcados} cliente(s) já existente(s) marcado(s) com o flag. {resultado.novosCriados} cliente(s) novo(s) criado(s) e distribuído(s){resultado.transferidos > 0 && `, ${resultado.transferidos} transferido(s) de outro consultor`}.
           {' '}{resultado.comPotencial} tiveram potencial encontrado no Mapa Parque, {resultado.semPotencial} entraram com potencial zerado (CNPJ ainda não está no Mapa Parque).
           <div style={{ marginTop: 8 }}>
             {resultado.porConsultor.map(p => (
