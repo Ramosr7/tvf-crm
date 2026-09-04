@@ -21,6 +21,13 @@ function paraValorReal(str) {
   return isNaN(n) ? null : n
 }
 
+// Status onde o consultor dono já demonstrou não estar conseguindo avançar o cliente — nesses
+// casos a importação pode transferir pra outro consultor em vez de bloquear.
+const STATUS_LIBERA_TRANSFERENCIA = ['Sem Contato Efetivo', 'Sem Interesse']
+// Retorno agendado (carteira_lembrete) vencido há pelo menos esse tanto de dias também libera
+// transferência — cliente ficou pendente de atendimento e ninguém retornou.
+const DIAS_RETORNO_VENCIDO_LIBERA = 3
+
 export default function UploadMailingDiario() {
   const [staff, setStaff] = useState([])
   const [consultorId, setConsultorId] = useState('')
@@ -36,9 +43,27 @@ export default function UploadMailingDiario() {
   }, [])
 
   async function carregarDonos() {
-    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('cnpj, consultor_id').range(de, ate))
+    const { data } = await fetchPaginado((de, ate) => supabase.from('carteira_cliente').select('id, cnpj, consultor_id, status').range(de, ate))
+    const linhasCarteira = data || []
+
+    // Retorno pendente vencido: busca lembretes não concluídos com data_hora vencida há pelo
+    // menos DIAS_RETORNO_VENCIDO_LIBERA dias, só pros clientes carregados acima.
+    const limite = new Date()
+    limite.setDate(limite.getDate() - DIAS_RETORNO_VENCIDO_LIBERA)
+    const idsCarteira = linhasCarteira.map(l => l.id)
+    let idsComRetornoVencido = new Set()
+    if (idsCarteira.length > 0) {
+      const { data: lembretes } = await fetchPaginado((de, ate) => supabase.from('carteira_lembrete')
+        .select('carteira_cliente_id, data_hora').eq('concluido', false).lt('data_hora', limite.toISOString())
+        .in('carteira_cliente_id', idsCarteira).range(de, ate))
+      idsComRetornoVencido = new Set((lembretes || []).map(l => l.carteira_cliente_id))
+    }
+
     const mapa = {}
-    for (const row of (data || [])) mapa[row.cnpj] = row.consultor_id
+    for (const row of linhasCarteira) {
+      const transferivel = STATUS_LIBERA_TRANSFERENCIA.includes(row.status) || idsComRetornoVencido.has(row.id)
+      mapa[row.cnpj] = { consultorId: row.consultor_id, status: row.status, transferivel }
+    }
     setDonoPorCnpj(mapa)
     return mapa
   }
@@ -58,14 +83,16 @@ export default function UploadMailingDiario() {
       const contato_email = extrairEmail(m.contato_bloco)
       const contato_telefone = extrairTelefone(m.contato_bloco)
       const movelM17 = m.movel_m17 !== '' ? parseInt(m.movel_m17, 10) : null
-      const donoAtual = donos[cnpj]
+      const dono = donos[cnpj]
       return {
         ...m,
         cnpj,
         razao_social,
         contato: [contato_nome, contato_email, contato_telefone].filter(Boolean).join(' · '),
         movel_m17: isNaN(movelM17) ? null : movelM17,
-        donoAtual,
+        donoAtual: dono?.consultorId || null,
+        statusAtual: dono?.status || null,
+        transferivel: dono?.transferivel || false,
       }
     }).filter(l => l.cnpj)
     setLinhas(mapeadas)
@@ -75,6 +102,10 @@ export default function UploadMailingDiario() {
     if (!l.donoAtual) return { texto: 'Novo', bloqueado: false }
     if (l.donoAtual === consultorId) return { texto: 'Já é deste consultor (atualiza)', bloqueado: false }
     const nomeDono = staff.find(s => s.id === l.donoAtual)?.nome || 'outro consultor'
+    if (l.transferivel) {
+      const motivo = STATUS_LIBERA_TRANSFERENCIA.includes(l.statusAtual) ? l.statusAtual : `retorno vencido há ${DIAS_RETORNO_VENCIDO_LIBERA}+ dias`
+      return { texto: `Transferível — era de ${nomeDono} (${motivo})`, bloqueado: false, transferindo: true }
+    }
     return { texto: `Bloqueado — já é de ${nomeDono}`, bloqueado: true }
   }
 
@@ -82,14 +113,15 @@ export default function UploadMailingDiario() {
     if (!consultorId) return
     setImportando(true)
     setResultado(null)
-    let criados = 0, atualizados = 0, comPotencial = 0, falhas = 0, bloqueados = 0
+    let criados = 0, atualizados = 0, transferidos = 0, comPotencial = 0, falhas = 0, bloqueados = 0
     const errosAmostra = []
 
     for (let i = 0; i < linhas.length; i++) {
       const l = linhas[i]
       setProgresso(`Importando ${i + 1} de ${linhas.length}...`)
 
-      if (l.donoAtual && l.donoAtual !== consultorId) { bloqueados++; continue }
+      const transferindo = l.donoAtual && l.donoAtual !== consultorId && l.transferivel
+      if (l.donoAtual && l.donoAtual !== consultorId && !transferindo) { bloqueados++; continue }
 
       const observacoes = [
         l.trilha_produtos,
@@ -109,21 +141,34 @@ export default function UploadMailingDiario() {
       const valorAparelho = paraValorReal(l.valores_aparelhos)
       const creditoFinal = valorAparelho !== null ? valorAparelho : (potencial?.credito_pre_aprovado || 0)
 
+      // Se está transferindo, a linha existente está sob o dono antigo, não sob o novo consultor
       const { data: existente } = await supabase.from('carteira_cliente').select('id')
-        .eq('cnpj', l.cnpj).eq('consultor_id', consultorId).maybeSingle()
+        .eq('cnpj', l.cnpj).eq('consultor_id', transferindo ? l.donoAtual : consultorId).maybeSingle()
 
       if (existente) {
-        // Cliente já existe na carteira desse consultor: não mexe em status, observações,
-        // razão social nem contato (o que o consultor já registrou fica como está) — só
-        // atualiza o potencial, que é o dado que o Mapa Parque traz de mais novo.
-        const { error } = await supabase.from('carteira_cliente').update({
+        // Cliente já existe na carteira: não mexe em observações, razão social nem contato (o
+        // que já foi registrado fica como está) — só atualiza o potencial, que é o dado que o
+        // Mapa Parque traz de mais novo. Se está transferindo, muda o dono e reabre o status.
+        const update = {
           ...(potencial || {}),
           potencial_migracao: potencialMigracao,
           credito_pre_aprovado: creditoFinal,
           excluido_em: null, excluido_por: null,
           atualizado_em: new Date().toISOString(),
-        }).eq('id', existente.id)
-        if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else atualizados++
+        }
+        if (transferindo) { update.consultor_id = consultorId; update.status = 'Aguardando Atendimento' }
+        const { error } = await supabase.from('carteira_cliente').update(update).eq('id', existente.id)
+        if (error) { falhas++; if (errosAmostra.length < 3) errosAmostra.push(error.message) } else {
+          atualizados++
+          if (transferindo) {
+            transferidos++
+            const nomeDonoAntigo = staff.find(s => s.id === l.donoAtual)?.nome || 'outro consultor'
+            await supabase.from('carteira_interacao').insert({
+              carteira_cliente_id: existente.id, autor_id: consultorId,
+              descricao: `Cliente transferido de ${nomeDonoAntigo} via importação (motivo: ${STATUS_LIBERA_TRANSFERENCIA.includes(l.statusAtual) ? l.statusAtual : `retorno vencido há ${DIAS_RETORNO_VENCIDO_LIBERA}+ dias`}).`,
+            })
+          }
+        }
       } else {
         const { error } = await supabase.from('carteira_cliente').insert({
           cnpj: l.cnpj,
@@ -145,7 +190,7 @@ export default function UploadMailingDiario() {
 
     setImportando(false)
     setProgresso('')
-    setResultado({ criados, atualizados, comPotencial, semPotencial: linhas.length - comPotencial, falhas, errosAmostra, bloqueados })
+    setResultado({ criados, atualizados, transferidos, comPotencial, semPotencial: linhas.length - comPotencial, falhas, errosAmostra, bloqueados })
     setLinhas([])
     setNomeArquivo('')
   }
@@ -158,6 +203,8 @@ export default function UploadMailingDiario() {
         <div className="regras-toggle-corpo">
           Sobe a lista de clientes do dia (export do CRM5) e atribui pro consultor escolhido abaixo. O potencial de cada cliente
           é cruzado direto com o Mapa Parque pelo CNPJ; se o CNPJ ainda não estiver no Mapa Parque, entra com potencial zerado.
+          Cliente já na carteira de outro consultor fica bloqueado, exceto se estiver com status "Sem Contato Efetivo",
+          "Sem Interesse" ou com retorno agendado vencido há {DIAS_RETORNO_VENCIDO_LIBERA}+ dias — nesses casos a transferência é liberada.
         </div>
       </details>
 
@@ -180,9 +227,9 @@ export default function UploadMailingDiario() {
                 {linhas.slice(0, 30).map((l, i) => {
                   const st = statusLinha(l)
                   return (
-                    <tr key={i} style={st.bloqueado ? { background: '#FFF5EE' } : {}}>
+                    <tr key={i} style={st.bloqueado ? { background: '#FFF5EE' } : st.transferindo ? { background: 'rgba(240,166,58,0.08)' } : {}}>
                       <td>{l.cnpj}</td><td>{l.razao_social}</td><td>{l.contato}</td><td>{l.colaborador}</td>
-                      <td style={st.bloqueado ? { color: '#C0451A', fontWeight: 600 } : {}}>{st.texto}</td>
+                      <td style={st.bloqueado ? { color: '#C0451A', fontWeight: 600 } : st.transferindo ? { color: 'var(--laranja)', fontWeight: 600 } : {}}>{st.texto}</td>
                     </tr>
                   )
                 })}
@@ -199,7 +246,7 @@ export default function UploadMailingDiario() {
 
       {resultado && (
         <div className="lm-resumo" style={{ marginTop: 16 }}>
-          {resultado.criados} clientes novos, {resultado.atualizados} atualizados{resultado.bloqueados > 0 && `, ${resultado.bloqueados} bloqueados (já pertencem a outro consultor)`}. {resultado.comPotencial} já tinham dado do Mapa Parque, {resultado.semPotencial} entraram com potencial zerado (CNPJ ainda não está no Mapa Parque).
+          {resultado.criados} clientes novos, {resultado.atualizados} atualizados{resultado.transferidos > 0 && ` (${resultado.transferidos} transferidos de outro consultor)`}{resultado.bloqueados > 0 && `, ${resultado.bloqueados} bloqueados (já pertencem a outro consultor)`}. {resultado.comPotencial} já tinham dado do Mapa Parque, {resultado.semPotencial} entraram com potencial zerado (CNPJ ainda não está no Mapa Parque).
           {resultado.falhas > 0 && (
             <div className="login-erro" style={{ marginTop: 8 }}>
               {resultado.falhas} linha(s) falharam ao gravar. Exemplo(s): {resultado.errosAmostra.join(' | ')}
