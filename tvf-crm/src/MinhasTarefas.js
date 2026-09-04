@@ -1,21 +1,52 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 
-// Plano de ação gerado pela Análise com IA (Relatórios) vira tarefa persistida aqui — cada
-// consultor vê e conclui as próprias (RLS trava isso: só enxerga onde consultor_id = ele
-// mesmo), sem depender de reabrir o modal de análise que já fechou.
+const PRIORIDADE_COR = { alta: 'var(--vermelho)', media: 'var(--laranja)', baixa: 'var(--azul)' }
+
+function fmtDataBR(iso) {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}`
+}
+
+// Tarefa aqui vem de dois lugares: plano de ação gerado pela Análise com IA (Relatórios), ou
+// atribuída na mão por gestor/supervisor (tela Tarefas). Cada consultor vê e conclui as
+// próprias (RLS trava isso: só enxerga onde consultor_id = ele mesmo).
 export default function MinhasTarefas({ user }) {
   const [tarefas, setTarefas] = useState([])
   const [loading, setLoading] = useState(true)
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
 
+  // Gera a instância de hoje de cada tarefa recorrente ativa que bate com o dia da semana,
+  // se ainda não existir (índice único recorrente_id+data_referencia evita duplicar mesmo
+  // com duas abas abertas). Roda sempre que a tela abre — é o "cron" possível sem infra de
+  // servidor: dispara no gatilho natural de o consultor abrir a Rotina Diária.
+  const gerarTarefasRecorrentesDoDia = useCallback(async () => {
+    const hoje = new Date()
+    const diaSemana = hoje.getDay()
+    const dataRef = hoje.toISOString().slice(0, 10)
+    const { data: modelos } = await supabase.from('tarefa_recorrente').select('*')
+      .eq('consultor_id', user.id).eq('ativo', true)
+    if (!modelos || modelos.length === 0) return
+    const doDia = modelos.filter(m => m.dias_semana.includes(diaSemana))
+    if (doDia.length === 0) return
+    const novas = doDia.map(m => ({
+      consultor_id: user.id, descricao: m.descricao, origem: 'recorrente',
+      prioridade: m.prioridade, recorrente_id: m.id, data_referencia: dataRef,
+    }))
+    // insere uma por uma: índice único derruba só a duplicada, não o resto do lote
+    await Promise.all(novas.map(n => supabase.from('tarefa_consultor').insert(n)))
+  }, [user.id])
+
   const carregar = useCallback(async () => {
     setLoading(true)
+    await gerarTarefasRecorrentesDoDia()
     const { data } = await supabase.from('tarefa_consultor').select('*')
-      .eq('consultor_id', user.id).order('gerado_em', { ascending: false })
+      .eq('consultor_id', user.id)
+      .order('prazo', { ascending: true, nullsFirst: false }).order('gerado_em', { ascending: false })
     setTarefas(data || [])
     setLoading(false)
-  }, [user.id])
+  }, [user.id, gerarTarefasRecorrentesDoDia])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -47,15 +78,22 @@ export default function MinhasTarefas({ user }) {
         <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Tudo em dia — nenhuma tarefa pendente. 🎉</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {pendentes.map(t => (
-          <label key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={false} onChange={() => concluir(t.id, true)} style={{ marginTop: 2 }} />
-            <span>
-              {t.descricao}
-              {t.origem === 'coletivo' && <span className="tab-pill" style={{ marginLeft: 6 }}>equipe</span>}
-            </span>
-          </label>
-        ))}
+        {pendentes.map(t => {
+          const hoje = new Date().toISOString().slice(0, 10)
+          const vencido = t.prazo && t.prazo < hoje
+          return (
+            <label key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={false} onChange={() => concluir(t.id, true)} style={{ marginTop: 2 }} />
+              <span>
+                <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: PRIORIDADE_COR[t.prioridade] || 'var(--text-3)', marginRight: 6 }} />
+                {t.descricao}
+                {t.origem === 'coletivo' && <span className="tab-pill" style={{ marginLeft: 6 }}>equipe</span>}
+                {t.origem === 'recorrente' && <span className="tab-pill" style={{ marginLeft: 6 }}>recorrente</span>}
+                {t.prazo && <span style={{ marginLeft: 6, fontSize: 11, color: vencido ? 'var(--vermelho)' : 'var(--text-3)' }}>{vencido ? '⏰ venceu em' : 'prazo'} {fmtDataBR(t.prazo)}</span>}
+              </span>
+            </label>
+          )
+        })}
         {mostrarConcluidas && concluidas.map(t => (
           <label key={t.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer', opacity: 0.5, textDecoration: 'line-through' }}>
             <input type="checkbox" checked={true} onChange={() => concluir(t.id, false)} style={{ marginTop: 2 }} />

@@ -6,6 +6,7 @@ import PotencialCarteira from './PotencialCarteira'
 import RotinaDiaria from './RotinaDiaria'
 import KanbanTemperatura from './KanbanTemperatura'
 import Importar from './Importar'
+import Tarefas from './Tarefas'
 import Relatorios from './Relatorios'
 import PlanoComercial from './PlanoComercial'
 import MinhaComissao, { JOAO_ID } from './MinhaComissao'
@@ -671,6 +672,9 @@ export default function App() {
             {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
               <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => irPara('importar')}>Importar</span>
             )}
+            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
+              <span className={`topbar-nav-item ${tela === 'tarefas' ? 'active' : ''}`} onClick={() => setTela('tarefas')}>Tarefas</span>
+            )}
             {user.perfil !== 'Consultor' && (
               <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
             )}
@@ -697,6 +701,9 @@ export default function App() {
       <div style={{ display: tela === 'rotina' ? 'block' : 'none' }}><RotinaDiaria user={user} /></div>
       {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
         <div style={{ display: tela === 'importar' ? 'block' : 'none' }}><Importar user={user} refreshSignal={refreshTick.importar} /></div>
+      )}
+      {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
+        <div style={{ display: tela === 'tarefas' ? 'block' : 'none' }}><Tarefas user={user} /></div>
       )}
       {user.perfil !== 'Consultor' && (
         <div style={{ display: tela === 'relatorios' ? 'block' : 'none' }}><Relatorios user={user} /></div>
