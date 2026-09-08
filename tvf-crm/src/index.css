@@ -1,26 +1,26 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* PALETA — mesmo clima escuro roxo/laranja do login, aplicado no CRM inteiro. Cor de status
-   (verde/vermelho/azul) ficou um tom mais claro que a versão antiga pra manter contraste
-   AA em cima do fundo escuro — testado visualmente em tabela densa, card e badge. */
+/* PALETA OFICIAL TVF — tokens definidos pelo gestor (roxo=estrutura, laranja=ação,
+   verde=conquista, vermelho=intervenção, azul=contexto). bg-card-2 = "fundo secundário" da
+   paleta (seções dentro de um card); bg-card-hover = "card elevado" (hover/estado ativo). */
 :root {
-  --bg-page: #291240;
-  --bg-card: #351a55;
-  --bg-card-2: #3e2163;
-  --bg-card-hover: #44266f;
+  --bg-page: #160D24;
+  --bg-card: #2D194A;
+  --bg-card-2: #211238;
+  --bg-card-hover: #38205A;
   --border: rgba(255,255,255,0.12);
   --border-soft: rgba(255,255,255,0.07);
-  --text-1: #F5F1FA;
-  --text-2: rgba(245,241,250,0.68);
-  --text-3: rgba(245,241,250,0.48);
-  --text-4: rgba(245,241,250,0.32);
-  --roxo: #A855D9;
-  --roxo-deep: #8B3FD1;
-  --roxo-escuro: #660099;
-  --laranja: #EF9F27;
+  --text-1: #F8FAFC;
+  --text-2: #A8A0B8;
+  --text-3: rgba(168,160,184,0.65);
+  --text-4: rgba(168,160,184,0.45);
+  --roxo: #8B5CF6;
+  --roxo-deep: #6D28D9;
+  --roxo-escuro: #6D28D9;
+  --laranja: #F97316;
   --verde: #34D399;
-  --vermelho: #FF6B6B;
-  --azul: #5DADE2;
+  --vermelho: #F87171;
+  --azul: #38BDF8;
 }
 
 body {
@@ -711,6 +711,18 @@ body {
 }
 .assistente-header .lm-close { color: #fff; }
 .assistente-avatar-mini { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; }
+.assistente-contexto-cliente {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 12px; background: rgba(239,159,39,0.12); border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--text-1);
+}
+.assistente-contexto-cliente .lm-close { font-size: 12px; }
+.assistente-sugestoes { display: flex; flex-direction: column; gap: 6px; padding: 0 10px 8px; }
+.assistente-sugestao-chip {
+  text-align: left; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-1);
+  border-radius: 10px; padding: 7px 10px; font-size: 12px; cursor: pointer;
+}
+.assistente-sugestao-chip:hover { background: var(--bg-card-hover); }
 .assistente-corpo { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--bg-page); }
 .assistente-msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
 .assistente-msg-bot { align-self: flex-start; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-1); border-bottom-left-radius: 2px; }
