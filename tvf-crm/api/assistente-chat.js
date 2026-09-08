@@ -33,6 +33,38 @@ Regras:
   espaço e o resto da resposta normal. Isso é usado internamente pra sinalizar pro gestor
   o que falta cadastrar — o consultor nunca vê esse marcador.`
 
+// Quando o consultor abre o Joaozinho de dentro de um cliente (Kanban, Potencial de Carteira),
+// esse bloco entra no prompt com os dados reais do cliente — o modelo usa isso pra dar
+// abordagem/pitch concreto em vez de pergunta genérica de preço/plano.
+const SISTEMA_CONTEXTO_CLIENTE = `
+Além de tirar dúvida geral, quando houver um bloco "CLIENTE EM DISCUSSÃO AGORA" abaixo, o
+consultor está pedindo ajuda especificamente sobre ESSE cliente (ex: "como abordar", "que
+oferta encaixa", "rascunha uma mensagem"). Regras pra esse modo:
+- Use SOMENTE os dados do bloco pra falar do cliente — nunca invente histórico, necessidade
+  ou dado que não está ali. Se faltar dado importante (ex: não sabe a operadora atual), diga
+  que não tem essa informação em vez de supor.
+- Cruze o perfil do cliente (potencial de migração/BL/TI/Voz, status atual, observações,
+  últimas interações) com o conteúdo de referência (preços/planos/ofertas) pra sugerir algo
+  específico pra ele, não um pitch genérico que serviria pra qualquer cliente.
+- Se pedir mensagem de WhatsApp, escreva pronta pra copiar e colar, tom profissional e
+  próximo, sem jargão interno (nunca menciona "potencial de migração", "score" ou nome de
+  campo do CRM pro cliente — traduz em benefício).
+- Continua valendo a regra de nunca inventar preço/condição fora do conteúdo de referência.`
+
+// quebra de objeção — pergunta vem prefixada com 'Objeção do cliente:' pelo painel (botão
+// dedicado), mas o modelo tem que reconhecer o padrão mesmo se o consultor digitar direto
+const SISTEMA_OBJECAO = `
+Quando o consultor relatar o que o cliente respondeu/objetou (ex: "achei caro", "já tenho com
+outra operadora", "vou pensar", "não preciso disso agora"), sua tarefa é ajudar a CONTORNAR
+essa objeção especifica, não repetir o pitch genérico. Estrutura da resposta:
+1. Nomeie em 1 frase qual é o tipo de objeção (preço, concorrência, timing, necessidade).
+2. Dê 1-2 contra-argumentos curtos, concretos, ancorados no conteúdo de referência (nunca
+   invente comparação com concorrente que não está documentada — se não tiver dado pra
+   comparar, foque no valor da oferta em vez de atacar o concorrente às cegas).
+3. Termine com uma frase pronta que o consultor pode falar/mandar pro cliente.
+Se não tiver informação suficiente pra rebater com segurança, diga isso e sugira perguntar ao
+gestor, em vez de inventar argumento.`
+
 // regras de negócio da simulação de renovação móvel (Estruturante) — fixas aqui, não no
 // cadastro de conteúdo, porque são poucas, não mudam toda hora, e não podem sofrer o mesmo
 // corte por tamanho que o book de ofertas sofria
@@ -214,7 +246,7 @@ module.exports = async function handler(req, res) {
     return
   }
 
-  const { mensagens, imagens } = req.body || {}
+  const { mensagens, imagens, clienteContext } = req.body || {}
   if (!Array.isArray(mensagens) || mensagens.length === 0) {
     res.status(400).json({ error: 'mensagens obrigatório' })
     return
@@ -235,6 +267,20 @@ module.exports = async function handler(req, res) {
     const blocoConteudo = relevantes.length > 0
       ? relevantes.map(c => `### ${c.titulo}\n${c.conteudo}`).join('\n\n')
       : '(nenhum conteúdo cadastrado ainda pelo gestor, ou nada bateu com essa pergunta)'
+
+    const blocoCliente = clienteContext ? `\n\n--- CLIENTE EM DISCUSSÃO AGORA ---\n`
+      + `Razão Social: ${clienteContext.razaoSocial || 'não informado'}\n`
+      + `CNPJ: ${clienteContext.cnpj || 'não informado'}\n`
+      + `Status atual no CRM: ${clienteContext.status || 'não informado'}\n`
+      + (clienteContext.temperatura ? `Temperatura: ${clienteContext.temperatura}\n` : '')
+      + `Potencial de migração: ${clienteContext.potencialMigracao || 0} linha(s)\n`
+      + `Potencial BL: ${clienteContext.potencialBl || 0} · Potencial TI: ${clienteContext.potencialTi || 0} · Potencial Voz: ${clienteContext.potencialVoz || 0}\n`
+      + `Crédito pré-aprovado: R$ ${Number(clienteContext.creditoPreAprovado || 0).toFixed(2)}\n`
+      + (clienteContext.observacoes ? `Observações do consultor: ${clienteContext.observacoes}\n` : '')
+      + (clienteContext.ultimasInteracoes?.length
+          ? `Últimas interações registradas:\n${clienteContext.ultimasInteracoes.map(i => `- ${i}`).join('\n')}\n`
+          : 'Nenhuma interação registrada ainda.\n')
+      : ''
 
     // a imagem (print do Estruturante/InfoB2B) sempre vai junto da ÚLTIMA mensagem do usuário —
     // não fica persistida pra sempre na conversa, só usada nessa chamada
@@ -261,7 +307,7 @@ module.exports = async function handler(req, res) {
       model: 'gpt-4o',
       temperature: 0.2, // menos "criativo", mais literal ao conteúdo de referência — reduz invenção
       messages: [
-        { role: 'system', content: `${SYSTEM_BASE}\n\n${SISTEMA_RENOVACAO_MOVEL}\n\n--- CONTEÚDO DE REFERÊNCIA ---\n\n${blocoConteudo}` },
+        { role: 'system', content: `${SYSTEM_BASE}\n\n${SISTEMA_RENOVACAO_MOVEL}\n\n${SISTEMA_CONTEXTO_CLIENTE}\n\n${SISTEMA_OBJECAO}\n\n--- CONTEÚDO DE REFERÊNCIA ---\n\n${blocoConteudo}${blocoCliente}` },
         ...historico,
       ],
     })

@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './supabaseClient'
+import { ouvirAberturaComCliente } from './joaozinhoBus'
+
+const SUGESTOES_COM_CLIENTE = [
+  'Como abordar esse cliente agora?',
+  'Que oferta encaixa melhor pra esse perfil?',
+  'Rascunha uma mensagem de WhatsApp pra ele',
+]
 
 const FRASES_BALAO = [
   'Posso te ajudar?', 'Posso te ajudar a vender mais?', 'Dúvida de preço ou plano? Pergunta pra mim!',
@@ -70,6 +77,68 @@ async function montarResumoDia(user) {
   return `Bom te ver! Resumo rápido: ${partes.join('; ')}. 💪`
 }
 
+// "O que eu foco hoje" — lista 100% calculada aqui, a IA nunca decide quem entra: retorno
+// vencido (carteira_lembrete), cliente quente parado (Kanban) e M16 ainda não trabalhado
+// (alerta_renovacao). Zero chance de invenção porque não passa pela IA — é o mesmo princípio
+// de montarResumoDia, só que detalhado por cliente em vez de só contagem.
+const LIMITE_POR_CATEGORIA = 5
+function diasDesde(str) {
+  return Math.floor((new Date() - new Date(str)) / 86400000)
+}
+async function montarPlanoDoDia(user) {
+  const agoraISO = new Date().toISOString()
+  const [{ data: lembretes }, { data: quentes }, { data: m16 }] = await Promise.all([
+    supabase.from('carteira_lembrete').select('id, data_hora, carteira_cliente_id')
+      .eq('autor_id', user.id).eq('concluido', false).lte('data_hora', agoraISO)
+      .order('data_hora', { ascending: true }).limit(LIMITE_POR_CATEGORIA),
+    supabase.from('carteira_cliente').select('id, razao_social, cnpj, temperatura_atualizada_em')
+      .eq('consultor_id', user.id).eq('no_kanban', true).eq('temperatura', 'Quente').is('excluido_em', null)
+      .order('temperatura_atualizada_em', { ascending: true }).limit(LIMITE_POR_CATEGORIA),
+    supabase.from('carteira_cliente').select('id, razao_social, cnpj')
+      .eq('consultor_id', user.id).eq('alerta_renovacao', true).eq('status', 'Aguardando Atendimento').is('excluido_em', null)
+      .limit(LIMITE_POR_CATEGORIA),
+  ])
+
+  let clientesLembrete = []
+  if ((lembretes || []).length > 0) {
+    const ids = lembretes.map(l => l.carteira_cliente_id)
+    const { data } = await supabase.from('carteira_cliente').select('id, razao_social, cnpj').in('id', ids)
+    const porId = {}
+    for (const c of (data || [])) porId[c.id] = c
+    clientesLembrete = lembretes.map(l => ({ ...porId[l.carteira_cliente_id], dataHora: l.data_hora })).filter(c => c.id)
+  }
+
+  const secoes = []
+  if (clientesLembrete.length > 0) {
+    secoes.push({
+      titulo: `⏰ Retorno vencido (${clientesLembrete.length})`,
+      linhas: clientesLembrete.map(c => {
+        const d = diasDesde(c.dataHora)
+        const quando = d <= 0 ? 'hoje' : `há ${d}d`
+        return `${c.razao_social || c.cnpj} — venceu ${quando}`
+      }),
+    })
+  }
+  if ((quentes || []).length > 0) {
+    secoes.push({
+      titulo: `🔥 Quente parado (${quentes.length})`,
+      linhas: quentes.map(c => c.razao_social || c.cnpj),
+    })
+  }
+  if ((m16 || []).length > 0) {
+    secoes.push({
+      titulo: `📶 Renovação Antecipada — M16 ainda não trabalhado (${m16.length})`,
+      linhas: m16.map(c => c.razao_social || c.cnpj),
+    })
+  }
+
+  if (secoes.length === 0) {
+    return 'Tudo em dia! Nenhum retorno vencido, cliente quente parado ou M16 pendente agora. 🎉'
+  }
+  const corpo = secoes.map(s => `${s.titulo}\n${s.linhas.map((l, i) => `${i + 1}. ${l}`).join('\n')}`).join('\n\n')
+  return `📋 Seu foco pra hoje:\n\n${corpo}\n\nAbre o cliente no Kanban ou Potencial de Carteira e clica em "Perguntar ao Joaozinho" que eu te ajudo com a abordagem de cada um.`
+}
+
 export default function Assistente({ user }) {
   const [aberto, setAberto] = useState(false)
   const [balaoVisivel, setBalaoVisivel] = useState(true)
@@ -82,7 +151,20 @@ export default function Assistente({ user }) {
   const [arquivosSimulacao, setArquivosSimulacao] = useState([])
   const [notaSimulacao, setNotaSimulacao] = useState('')
   const [consumoForm, setConsumoForm] = useState({ pacote: '', mes1: '', mes2: '', mes3: '' })
+  const [clienteAtivo, setClienteAtivo] = useState(null)
+  const [mostrarObjecao, setMostrarObjecao] = useState(false)
+  const [textoObjecao, setTextoObjecao] = useState('')
   const fimRef = useRef(null)
+
+  // Kanban e Potencial de Carteira disparam esse evento com o cliente que o consultor tá
+  // olhando na hora — abre o painel já focado nesse cliente, sem precisar digitar contexto.
+  useEffect(() => {
+    return ouvirAberturaComCliente((contexto) => {
+      setClienteAtivo(contexto)
+      setAberto(true)
+      setBalaoVisivel(false)
+    })
+  }, [])
 
   const carregar = useCallback(async () => {
     const { data } = await supabase.from('assistente_mensagem').select('*')
@@ -130,6 +212,7 @@ export default function Assistente({ user }) {
         body: JSON.stringify({
           mensagens: mensagensParaApi.map(m => ({ role: m.role, conteudo: m.conteudo })),
           ...(imagens && imagens.length ? { imagens } : {}),
+          ...(clienteAtivo ? { clienteContext: clienteAtivo } : {}),
         }),
       })
       const dados = await resp.json()
@@ -148,11 +231,36 @@ export default function Assistente({ user }) {
     }
   }
 
+  // Não passa pela IA — a lista já vem 100% calculada de montarPlanoDoDia, só grava as duas
+  // mensagens (pergunta sintética + plano) igual ao resto da conversa, pra manter no histórico.
+  async function mostrarPlanoDoDia() {
+    if (enviando) return
+    setEnviando(true)
+    const pergunta = '📋 O que eu foco hoje?'
+    const msgUsuario = { consultor_id: user.id, role: 'user', conteudo: pergunta }
+    setMensagens(prev => [...prev, msgUsuario])
+    await supabase.from('assistente_mensagem').insert(msgUsuario)
+    const plano = await montarPlanoDoDia(user)
+    const msgAssistente = { consultor_id: user.id, role: 'assistant', conteudo: plano }
+    setMensagens(prev => [...prev, msgAssistente])
+    await supabase.from('assistente_mensagem').insert(msgAssistente)
+    setEnviando(false)
+  }
+
   function enviar(e) {
     e.preventDefault()
     const pergunta = texto.trim()
     setTexto('')
     enviarTexto(pergunta)
+  }
+
+  function enviarObjecao(e) {
+    e.preventDefault()
+    const texto = textoObjecao.trim()
+    if (!texto) return
+    setMostrarObjecao(false)
+    setTextoObjecao('')
+    enviarTexto(`Objeção do cliente: "${texto}"`)
   }
 
   async function enviarSimulacao(e) {
@@ -187,11 +295,24 @@ export default function Assistente({ user }) {
             </div>
             <button className="lm-close" style={{ marginLeft: 'auto' }} onClick={() => setAberto(false)}>✕</button>
           </div>
+
+          {clienteAtivo && (
+            <div className="assistente-contexto-cliente">
+              <span>🏢 Sobre: <strong>{clienteAtivo.razaoSocial || clienteAtivo.cnpj || 'cliente selecionado'}</strong></span>
+              <button className="lm-close" title="Sair do contexto do cliente" onClick={() => setClienteAtivo(null)}>✕</button>
+            </div>
+          )}
+
           <div className="assistente-corpo">
             {loading && <div className="empty">Carregando...</div>}
-            {!loading && mensagens.length === 0 && (
+            {!loading && mensagens.length === 0 && !clienteAtivo && (
               <div className="assistente-msg assistente-msg-bot">
                 Olá! Eu sou o Joaozinho. Pergunta preço, plano, condição comercial ou pitch de venda que eu te ajudo.
+              </div>
+            )}
+            {!loading && mensagens.length === 0 && clienteAtivo && (
+              <div className="assistente-msg assistente-msg-bot">
+                Beleza, tô vendo o {clienteAtivo.razaoSocial || 'cliente'}. O que você quer resolver com ele agora?
               </div>
             )}
             {mensagens.map((m, i) => (
@@ -203,7 +324,31 @@ export default function Assistente({ user }) {
             <div ref={fimRef} />
           </div>
 
-          {mostrarSimulacao ? (
+          {clienteAtivo && !mostrarSimulacao && (
+            <div className="assistente-sugestoes">
+              {SUGESTOES_COM_CLIENTE.map(s => (
+                <button key={s} type="button" className="assistente-sugestao-chip" disabled={enviando} onClick={() => enviarTexto(s)}>{s}</button>
+              ))}
+            </div>
+          )}
+
+          {mostrarObjecao ? (
+            <form className="assistente-proposta" onSubmit={enviarObjecao}>
+              <div className="assistente-proposta-cabecalho">
+                <span>Quebra de objeção</span>
+                <button type="button" className="lm-close" onClick={() => setMostrarObjecao(false)}>✕</button>
+              </div>
+              <div className="assistente-proposta-secao">
+                <div className="assistente-proposta-secao-titulo">O que o cliente respondeu?</div>
+                <textarea className="obs-area" style={{ width: '100%', minHeight: 60 }}
+                  placeholder='Ex: "achei caro", "já tenho contrato com outra operadora", "vou pensar"'
+                  value={textoObjecao} onChange={e => setTextoObjecao(e.target.value)} autoFocus />
+              </div>
+              <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit" disabled={enviando || !textoObjecao.trim()}>
+                {enviando ? 'Pensando...' : 'Sugerir quebra de objeção'}
+              </button>
+            </form>
+          ) : mostrarSimulacao ? (
             <form className="assistente-proposta" onSubmit={enviarSimulacao}>
               <div className="assistente-proposta-cabecalho">
                 <span>Simular renovação móvel</span>
@@ -263,7 +408,11 @@ export default function Assistente({ user }) {
             </form>
           ) : (
             <>
-              <button type="button" className="btn-filter-light" style={{ margin: '0 10px 6px' }} onClick={() => setMostrarSimulacao(true)}>Simular renovação móvel</button>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 10px 6px' }}>
+                <button type="button" className="btn-filter-light" onClick={mostrarPlanoDoDia} disabled={enviando}>📋 O que eu foco hoje?</button>
+                <button type="button" className="btn-filter-light" onClick={() => setMostrarObjecao(true)}>💬 Quebra de objeção</button>
+                <button type="button" className="btn-filter-light" onClick={() => setMostrarSimulacao(true)}>Simular renovação móvel</button>
+              </div>
               <form className="assistente-form" onSubmit={enviar}>
                 <input className="lm-input" style={{ flex: 1 }} placeholder="Pergunta pro Joaozinho..."
                   value={texto} onChange={e => setTexto(e.target.value)} disabled={enviando} />

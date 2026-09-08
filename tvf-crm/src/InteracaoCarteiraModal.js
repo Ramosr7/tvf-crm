@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import LembreteModal from './LembreteModal'
+import { abrirJoaozinhoComCliente, montarContextoCliente } from './joaozinhoBus'
 
 function formatDataHora(str) {
   const d = new Date(str)
@@ -72,6 +73,7 @@ export default function InteracaoCarteiraModal({ cliente, user, onClose, onSaved
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" className="btn-filter-light" onClick={() => abrirJoaozinhoComCliente(montarContextoCliente(cliente, itens))}>🤖 Perguntar ao Joaozinho</button>
             <button type="button" className="btn-filter" onClick={() => setMostrarLembrete(true)}>🔔 Agendar Retorno</button>
             <button className="lm-close" onClick={onClose}>✕</button>
           </div>

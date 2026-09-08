@@ -332,17 +332,18 @@ export default function AssistenteConteudo({ user }) {
   return (
     <div className="main">
       <div style={{ marginBottom: 20 }}>
-        <div className="dash-section-title">Diagnóstico de Dúvidas (últimos 30 dias)</div>
+        <div className="dash-section-title">Diagnóstico de Dúvidas e Objeções (últimos 30 dias)</div>
         <p style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)', margin: '4px 0 8px' }}>
-          Analisa todas as perguntas feitas ao Joaozinho por toda a equipe (sem identificar quem
-          perguntou) e sugere padrões e plano de ação.
+          Analisa tudo que a equipe mandou pro Joaozinho — dúvida de preço/plano e objeção de
+          cliente relatada (sem identificar quem perguntou) — e separa padrão recorrente,
+          lacuna de conteúdo e plano de ação.
         </p>
         <button className="btn-filter-light" onClick={gerarDiagnostico} disabled={gerandoDiagnostico}>
           {gerandoDiagnostico ? 'Gerando...' : 'Gerar Diagnóstico'}
         </button>
         {erroDiagnostico && <div className="login-erro" style={{ marginTop: 8 }}>{erroDiagnostico}</div>}
         {diagnostico && (
-          <div style={{ fontSize: 12, color: '#F5F1FA', background: '#F7F4FC', borderRadius: 8, padding: 12, marginTop: 10, whiteSpace: 'pre-wrap' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-1)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 10, whiteSpace: 'pre-wrap' }}>
             {diagnostico}
           </div>
         )}

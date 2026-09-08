@@ -4,6 +4,7 @@ import VendaChecklistModal from './VendaChecklistModal'
 import VendaItensModal from './VendaItensModal'
 import LembreteModal from './LembreteModal'
 import { splitReceita } from './vendaUtils'
+import { abrirJoaozinhoComCliente, montarContextoCliente } from './joaozinhoBus'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
 const STATUS_GATILHO_CHECKLIST = STATUS_VENDA
@@ -123,6 +124,10 @@ export default function KanbanClienteModal({ cliente, user, nomeConsultor, onClo
               <div className="lm-phone">{cliente.cnpj}</div>
             </div>
           </div>
+          <button type="button" className="btn-filter-light" style={{ marginLeft: 'auto', marginRight: 8 }}
+            onClick={() => abrirJoaozinhoComCliente(montarContextoCliente(cliente, interacoes))}>
+            🤖 Perguntar ao Joaozinho
+          </button>
           <button className="lm-close" onClick={onClose}>✕</button>
         </div>
 
