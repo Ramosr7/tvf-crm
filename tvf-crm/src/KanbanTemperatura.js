@@ -69,8 +69,15 @@ export default function KanbanTemperatura({ user }) {
     if (!c) return
     if (c.temperatura !== temperatura) {
       const agora = new Date().toISOString()
+      const temperaturaAnterior = c.temperatura
       setClientes(prev => prev.map(x => x.id === c.id ? { ...x, temperatura, temperatura_atualizada_em: agora } : x))
-      await supabase.from('carteira_cliente').update({ temperatura, temperatura_atualizada_em: agora }).eq('id', c.id)
+      const { error } = await supabase.from('carteira_cliente').update({ temperatura, temperatura_atualizada_em: agora }).eq('id', c.id)
+      // sem isso, uma falha (RLS, rede, etc) fica muda: o card já tinha "andado" na tela
+      // (update otimista) e voltava pro lugar certo só no próximo reload, sem avisar ninguém
+      if (error) {
+        setClientes(prev => prev.map(x => x.id === c.id ? { ...x, temperatura: temperaturaAnterior } : x))
+        alert('Não consegui salvar a mudança de temperatura: ' + error.message)
+      }
     }
     handleDragEnd()
   }
@@ -144,7 +151,14 @@ export default function KanbanTemperatura({ user }) {
                       ? { borderColor: '#E03434', boxShadow: '0 0 0 1px rgba(224,52,52,0.3)' }
                       : c.alerta_renovacao ? { borderColor: '#1CA89A', boxShadow: '0 0 0 1px rgba(28,168,154,0.3)' } : {}}
                     draggable
-                    onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; handleDragStart(c) }}
+                    onDragStart={e => {
+                      e.dataTransfer.effectAllowed = 'move'
+                      // Firefox (e alguns outros browsers) só reconhece o drag como válido se
+                      // setData for chamado no dragstart — sem isso o card nem sai do lugar,
+                      // mesmo o resto do handler estando certo (funciona "por acidente" no Chrome).
+                      e.dataTransfer.setData('text/plain', c.id)
+                      handleDragStart(c)
+                    }}
                     onDragEnd={handleDragEnd}
                     onClick={() => { if (!dragMoveu.current) setModalCliente(c) }}>
                     <div className="card-top">
