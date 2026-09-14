@@ -145,6 +145,21 @@ export default function PotencialCarteira({ user, refreshSignal }) {
 
   const nomeConsultor = (id) => staff.find(s => s.id === id)?.nome || '—'
 
+  // Cliente muda de dono: apaga o histórico de interações do consultor anterior (ele não deve
+  // continuar visível pro novo dono, mesma regra já aplicada nas importações que transferem —
+  // ver UploadMailingDiario.js/UploadRenovacaoAntecipada.js) e loga uma nota curta de
+  // transferência no lugar, pra manter rastro de quem veio de onde.
+  async function limparHistoricoTransferencia(clientesTransferidos, motivo) {
+    for (const c of clientesTransferidos) {
+      const nomeDonoAntigo = nomeConsultor(c.consultor_id)
+      await supabase.from('carteira_interacao').delete().eq('carteira_cliente_id', c.id)
+      await supabase.from('carteira_interacao').insert({
+        carteira_cliente_id: c.id, autor_id: user.id,
+        descricao: `Cliente transferido de ${nomeDonoAntigo} (${motivo}).`,
+      })
+    }
+  }
+
   function resumoVenda(clienteId) {
     const itens = vendaItensPorCliente[clienteId] || []
     if (itens.length === 0) return null
@@ -303,14 +318,18 @@ export default function PotencialCarteira({ user, refreshSignal }) {
 
   async function transferirCliente(c, novoConsultorId) {
     if (!novoConsultorId || novoConsultorId === c.consultor_id) return
+    await limparHistoricoTransferencia([c], 'transferência manual')
     atualizarCliente(c.id, { consultor_id: novoConsultorId })
   }
 
   async function transferirSelecionados() {
     if (selecionados.size === 0 || !consultorTransferencia) return
     setTransferindo(true)
+    const idsSelecionados = Array.from(selecionados)
+    const clientesTransferidos = clientes.filter(c => idsSelecionados.includes(c.id))
+    await limparHistoricoTransferencia(clientesTransferidos, 'transferência em lote')
     const { error } = await supabase.from('carteira_cliente')
-      .update({ consultor_id: consultorTransferencia }).in('id', Array.from(selecionados))
+      .update({ consultor_id: consultorTransferencia }).in('id', idsSelecionados)
     setTransferindo(false)
     if (error) { alert('Erro ao transferir: ' + error.message); return }
     setSelecionados(new Set())
@@ -330,6 +349,7 @@ export default function PotencialCarteira({ user, refreshSignal }) {
     const sorteados = [...pool].sort(() => Math.random() - 0.5).slice(0, qtd)
     if (!window.confirm(`Distribuir ${sorteados.length} cliente(s) sorteado(s) da visão atual pra ${staff.find(s => s.id === consultorVolume)?.nome}?`)) return
     setDistribuindoVolume(true)
+    await limparHistoricoTransferencia(sorteados, 'distribuição por volume')
     const { error } = await supabase.from('carteira_cliente')
       .update({ consultor_id: consultorVolume }).in('id', sorteados.map(c => c.id))
     setDistribuindoVolume(false)
