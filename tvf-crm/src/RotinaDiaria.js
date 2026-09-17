@@ -126,7 +126,7 @@ export default function RotinaDiaria({ user }) {
 
   return (
     <div className="main">
-      <MinhasTarefas user={user} />
+      {isGestor(user) && <MinhasTarefas user={user} />}
       <div className="kanban-toolbar">
         <button className="btn-filter-light" onClick={() => mudarDia(-1)}>← Dia anterior</button>
         <input className="lm-input" type="date" style={{ width: 150 }} value={dataSelecionada} onChange={e => setDataSelecionada(e.target.value)} />

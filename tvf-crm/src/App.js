@@ -678,7 +678,7 @@ export default function App() {
             {user.perfil !== 'Consultor' && (
               <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
             )}
-            {user.perfil === 'Gestor' && (
+            {user.id === JOAO_ID && (
               <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => irPara('plano_comercial')}>Plano Comercial</span>
             )}
             {user.id === JOAO_ID && (
@@ -708,7 +708,7 @@ export default function App() {
       {user.perfil !== 'Consultor' && (
         <div style={{ display: tela === 'relatorios' ? 'block' : 'none' }}><Relatorios user={user} /></div>
       )}
-      {user.perfil === 'Gestor' && (
+      {user.id === JOAO_ID && (
         <div style={{ display: tela === 'plano_comercial' ? 'block' : 'none' }}><PlanoComercial refreshSignal={refreshTick.plano_comercial} /></div>
       )}
       {user.id === JOAO_ID && (
