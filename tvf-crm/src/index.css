@@ -33,27 +33,30 @@ body {
 
 /* TOPBAR */
 .topbar {
-  background: linear-gradient(90deg, #f4effb 0%, #ece3fa 60%, #fdf1e6 100%);
+  background: linear-gradient(90deg, #2c0f47 0%, #4A0072 45%, #6d2aa8 100%);
   padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.topbar-left { display: flex; align-items: center; gap: 12px; }
-.topbar-logo { font-size: 16px; font-weight: 700; color: var(--text-1); letter-spacing: -0.3px; }
+.topbar-left { display: flex; align-items: center; gap: 12px; flex-shrink: 1; min-width: 0; }
+.topbar-logo { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: -0.3px; white-space: nowrap; }
 .topbar-logo span { color: var(--laranja); }
-.topbar-logo-wrap { display: flex; align-items: center; gap: 10px; background: rgba(27,16,48,0.05); border-radius: 8px; padding: 4px 10px; }
+.topbar-logo-wrap { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.08); border-radius: 8px; padding: 4px 10px; flex-shrink: 0; }
 .topbar-logo-clicavel { cursor: pointer; transition: opacity 0.15s ease; }
 .topbar-logo-clicavel:hover { opacity: 0.8; }
 .topbar-logo-img { height: 30px; display: block; border-radius: 5px; }
-.topbar-logo-texto { font-size: 13px; font-weight: 700; color: var(--text-1); letter-spacing: 0.02em; }
-.topbar-badge { font-size: 11px; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; color: var(--text-1); font-weight: 600; }
-.topbar-right { display: flex; align-items: center; gap: 8px; }
-.btn-filter { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; transition: all 0.15s; }
-.btn-filter:hover { background: rgba(27,16,48,0.05); color: var(--text-1); }
+.topbar-logo-texto { font-size: 13px; font-weight: 700; color: #fff; letter-spacing: 0.02em; white-space: nowrap; }
+.topbar-badge { font-size: 11px; background: rgba(255,255,255,0.12); border-radius: 20px; padding: 2px 10px; color: rgba(255,255,255,0.9); font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.btn-filter { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.85); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
+.btn-filter:hover { background: rgba(255,255,255,0.15); color: #fff; }
 .btn-filter.active { background: var(--laranja); color: #fff; border-color: var(--laranja); }
-.topbar-nav { display: flex; gap: 4px; margin-left: 8px; }
-.topbar-nav-item { font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; color: var(--text-2); cursor: pointer; transition: all 0.15s; }
-.topbar-nav-item:hover { color: var(--text-1); background: rgba(27,16,48,0.05); }
-.topbar-nav-item.active { background: var(--roxo-deep); color: #fff; font-weight: 700; }
+.topbar-nav { display: flex; gap: 2px; margin-left: 8px; flex-shrink: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.topbar-nav-item {
+  font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 20px; color: rgba(255,255,255,0.75);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+}
+.topbar-nav-item:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.topbar-nav-item.active { background: rgba(255,255,255,0.18); color: #fff; font-weight: 700; }
 .btn-filter-light { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--roxo); cursor: pointer; transition: all 0.15s; }
 .btn-filter-light:hover { background: var(--bg-card-hover); }
 .btn-filter-light.active { background: var(--roxo-deep); color: #fff; border-color: var(--roxo-deep); }
@@ -284,6 +287,19 @@ body {
 .carteira-table-wrap { max-height: 70vh; overflow: auto; }
 
 .main { padding: 20px 24px; flex: 1; }
+
+/* Fundo animado da tela inicial (DashboardBackground.js) — só ali, não mexe em mais nada.
+   dashboard-home vira o contexto de posicionamento; o canvas fica absoluto atrás de tudo
+   (z-index 0) e o conteúdo real sobe pra cima dele (z-index 1). Cards ganham leve
+   transparência só aqui, pra malha aparecer sutilmente por trás — resto do card intacto. */
+.dashboard-home { position: relative; }
+.dashboard-bg-wrap { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.dashboard-bg-canvas { display: block; width: 100%; height: 100%; }
+.dashboard-home-content { position: relative; z-index: 1; }
+.dashboard-home-content .dash-card {
+  background: linear-gradient(160deg, rgba(255,255,255,0.88) 0%, rgba(246,244,251,0.82) 100%);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
 
 /* Texto solto direto em cima da textura de fundo do body fica difícil de ler — todo título de
    seção e parágrafo de instrução que não está dentro de um card próprio ganha um quadro. */

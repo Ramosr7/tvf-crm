@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, fetchPaginado } from './supabaseClient'
 import VendaItensModal from './VendaItensModal'
+import DashboardBackground from './DashboardBackground'
 import { ehAparelho, splitReceita, categoriaItem } from './vendaUtils'
 
 const STATUS_VENDA = ['Venda Realizada', 'Pedido Finalizado']
@@ -476,7 +477,9 @@ export default function Dashboard({ user }) {
   }
 
   return (
-    <div className="main">
+    <div className="main dashboard-home">
+      <DashboardBackground />
+      <div className="dashboard-home-content">
       <div className="dash-section-title">Visão Geral</div>
 
       <div className="dash-grid">
@@ -694,6 +697,7 @@ export default function Dashboard({ user }) {
           onSaved={carregar}
         />
       )}
+      </div>
     </div>
   )
 }
