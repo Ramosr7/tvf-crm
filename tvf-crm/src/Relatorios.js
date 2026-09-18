@@ -617,7 +617,7 @@ export default function Relatorios({ user }) {
                     <td>
                       {v.carteira_venda?.status_apuracao === 'ativado' && <span className="tag tag-avancado">Apurado</span>}
                       {v.carteira_venda?.status_apuracao === 'reprovado' && <span className="tag tag-ap">Reprovado</span>}
-                      {(!v.carteira_venda || v.carteira_venda?.status_apuracao === 'pendente') && <span style={{ color: 'rgba(245,241,250,0.48)', fontSize: 11 }}>Aguardando</span>}
+                      {(!v.carteira_venda || v.carteira_venda?.status_apuracao === 'pendente') && <span style={{ color: 'var(--text-3)', fontSize: 11 }}>Aguardando</span>}
                     </td>
                   </tr>
                 ))}
@@ -835,7 +835,7 @@ export default function Relatorios({ user }) {
                   const pct = Math.max(4, Math.round((p.valor / max) * 100))
                   return (
                     <div key={p.subproduto} className="print-chart-linha">
-                      <div className="print-chart-label">{p.subproduto} <span style={{ color: 'rgba(245,241,250,0.48)', fontWeight: 400 }}>({LABEL_CATEGORIA[p.categoria]})</span></div>
+                      <div className="print-chart-label">{p.subproduto} <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>({LABEL_CATEGORIA[p.categoria]})</span></div>
                       <div className="print-chart-barra-wrap"><div className="print-chart-barra" style={{ width: pct + '%' }} /></div>
                       <div className="print-chart-valor">{p.qtd} un. · {fmtMoeda(p.valor)}</div>
                     </div>
@@ -941,7 +941,7 @@ export default function Relatorios({ user }) {
                   {itens.map(r => (
                     <div key={r.id} style={{ marginTop: 6 }}>
                       <strong>{r.razao_social || r.cnpj}</strong> — status: {r.status} — {r.qtdInteracoes} interação(ões)
-                      {r.resumoTexto && <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.68)' }}>{r.resumoTexto}</div>}
+                      {r.resumoTexto && <div style={{ fontSize: 11, color: 'var(--text-2)' }}>{r.resumoTexto}</div>}
                     </div>
                   ))}
                 </div>

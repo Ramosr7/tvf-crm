@@ -138,7 +138,7 @@ export default function RotinaDiaria({ user }) {
         <>
           <div className="dash-section-title" style={{ marginBottom: 12 }}>Rotina do dia — {formatDataBR(dataSelecionada)}</div>
           {existeRegistro && (
-            <div style={{ fontSize: 12, color: 'rgba(245,241,250,0.68)', margin: '0 0 6px' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-2)', margin: '0 0 6px' }}>
               {campos.validado ? '✅ Validado pelo gestor' : '⏳ Aguardando validação'}
             </div>
           )}

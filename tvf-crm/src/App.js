@@ -480,7 +480,7 @@ function CrmLeads() {
       <div className="main">
         <div className="kanban-toolbar" style={{ marginBottom: 16 }}>
           <button className="btn-filter-light" onClick={fetchLeads}>↻ Atualizar</button>
-          <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.40)', marginLeft: 'auto' }}>{leadsNovos.length + leadsRecontatos.length} ativos</span>
+          <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto' }}>{leadsNovos.length + leadsRecontatos.length} ativos</span>
         </div>
         <div className="stats">
           {[
@@ -520,7 +520,7 @@ function CrmLeads() {
               {(busca || filtroOperadora) && (
                 <button className="btn-filter active" onClick={() => { setBusca(''); setFiltroOperadora('') }}>✕ Limpar filtros</button>
               )}
-              <span style={{ fontSize: 11, color: 'rgba(245,241,250,0.40)', marginLeft: 'auto' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 'auto' }}>
                 {leadsNovosFiltrados.length} lead{leadsNovosFiltrados.length !== 1 ? 's' : ''}
               </span>
             </div>

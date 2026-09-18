@@ -155,7 +155,7 @@ function ModalDetalhe({ titulo, tipo, itens, onClose, onClienteClick }) {
             <div key={c.id} className={`sino-item ${onClienteClick ? 'dash-card-clicavel' : ''}`}
               onClick={() => onClienteClick && onClienteClick(c)}>
               <div style={{ fontWeight: 700 }}>{c.razao_social || c.cnpj}</div>
-              <div style={{ fontSize: 11, color: 'rgba(245,241,250,0.55)' }}>{c.consultorNome} · {c.status}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{c.consultorNome} · {c.status}</div>
               {c.valor > 0 && <div style={{ fontSize: 12, marginTop: 2 }}>{fmtMoeda(c.valor)}</div>}
             </div>
           ))}
