@@ -13,6 +13,7 @@ import MinhaComissao, { JOAO_ID } from './MinhaComissao'
 import NotificacoesSino from './NotificacoesSino'
 import Dashboard from './Dashboard'
 import Assistente from './Assistente'
+import DashboardBackground from './DashboardBackground'
 import './index.css'
 
 
@@ -658,6 +659,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <DashboardBackground />
       <div className="topbar">
         <div className="topbar-left">
           <div className="topbar-logo-wrap topbar-logo-clicavel" onClick={() => setTela('dashboard')} title="Ir para o Início">

@@ -286,17 +286,17 @@ body {
 .carteira-table-sticky thead th.col-sticky { z-index: 3; }
 .carteira-table-wrap { max-height: 70vh; overflow: auto; }
 
-.main { padding: 20px 24px; flex: 1; }
+.main { padding: 20px 24px; flex: 1; position: relative; z-index: 1; }
 
-/* Fundo animado da tela inicial (DashboardBackground.js) — só ali, não mexe em mais nada.
-   dashboard-home vira o contexto de posicionamento; o canvas fica absoluto atrás de tudo
-   (z-index 0) e o conteúdo real sobe pra cima dele (z-index 1). Cards ganham leve
-   transparência só aqui, pra malha aparecer sutilmente por trás — resto do card intacto. */
-.dashboard-home { position: relative; }
-.dashboard-bg-wrap { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+/* Fundo animado (DashboardBackground.js) — fixo no viewport inteiro, atrás de TODAS as telas
+   (montado uma vez em App.js). z-index 0 fica abaixo de .main (z-index 1, acima), que é a
+   classe raiz comum a toda tela do CRM — não precisa repetir isso tela por tela. Topbar é
+   sticky (também positioned) e continua opaca por cima, sem mudar nada nela. Cards do
+   Dashboard ganham leve transparência só ali (dashboard-home), pra malha aparecer sutilmente
+   por trás — resto do card intacto, e outras telas não mudam. */
+.dashboard-bg-wrap { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 .dashboard-bg-canvas { display: block; width: 100%; height: 100%; }
-.dashboard-home-content { position: relative; z-index: 1; }
-.dashboard-home-content .dash-card {
+.dashboard-home .dash-card {
   background: linear-gradient(160deg, rgba(255,255,255,0.88) 0%, rgba(246,244,251,0.82) 100%);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
