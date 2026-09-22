@@ -342,6 +342,24 @@ export default function GestaoComercial({ user }) {
 
       {aba === 'reunioes' && (
         <>
+          {(semanaSel.reuniao_segunda || semanaSel.objetivo) && (
+            <details className="regras-toggle" style={{ marginBottom: 16 }}>
+              <summary>📖 Conteúdo de referência da Semana {semanaSel.numero} — {semanaSel.tema_central}</summary>
+              <div className="regras-toggle-corpo" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {semanaSel.objetivo && <div><strong>Objetivo:</strong> {semanaSel.objetivo}</div>}
+                {semanaSel.reuniao_segunda && <div><strong>Reunião de segunda:</strong> {semanaSel.reuniao_segunda}</div>}
+                {semanaSel.exercicio_pratico && <div><strong>Exercício prático:</strong> {semanaSel.exercicio_pratico}</div>}
+                {semanaSel.tarefa_gestores && <div><strong>Tarefa dos gestores:</strong> {semanaSel.tarefa_gestores}</div>}
+                {semanaSel.aplicacao_consultores && <div><strong>Aplicação com os consultores:</strong> {semanaSel.aplicacao_consultores}</div>}
+                {semanaSel.o_que_observar && <div><strong>O que João deve observar:</strong> {semanaSel.o_que_observar}</div>}
+                {semanaSel.indicador_sugerido && <div><strong>Indicador:</strong> {semanaSel.indicador_sugerido}</div>}
+                {semanaSel.checkpoint_sexta && <div><strong>Checkpoint de sexta:</strong> {semanaSel.checkpoint_sexta}</div>}
+                {semanaSel.entrega_esperada && <div><strong>Entrega esperada:</strong> {semanaSel.entrega_esperada}</div>}
+                {semanaSel.criterio_sucesso && <div><strong>Critério de sucesso:</strong> {semanaSel.criterio_sucesso}</div>}
+                {semanaSel.proximo_passo && <div><strong>Próximo passo:</strong> {semanaSel.proximo_passo}</div>}
+              </div>
+            </details>
+          )}
           {(isGestor(user) ? supervisores : supervisores.filter(s => s.id === meuEscopoId)).map(s => (
             <div key={s.id} style={{ marginBottom: 20 }}>
               {isGestor(user) && <div className="plano-time-titulo">{s.nome}</div>}
