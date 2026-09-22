@@ -5,8 +5,8 @@ import { supabase } from './supabaseClient'
 // acompanhamento executivo do João com os 3 supervisores (Tiago, Felipe, Yves). Tudo aqui
 // vira registro no CRM (data, autor, conteúdo) em vez de slide/planilha solta.
 // Mapeamento de papel: "Gestor" do programa = perfil 'Supervisor' aqui; "João" = perfil
-// 'Gestor' (único admin). Consultor não tem tela própria nesse módulo ainda — feedback 360
-// é lançado pelo supervisor em nome do consultor por enquanto (ver TODO no formulário).
+// 'Gestor' (único admin). Feedback 360 direto do consultor: ver MeuFeedback360.js (embutido
+// na Rotina Diária dele) — aqui o supervisor/João só visualiza os que chegaram.
 
 const ABAS = [
   { key: 'reunioes', label: 'Reuniões' },
@@ -14,8 +14,17 @@ const ABAS = [
   { key: 'indicadores', label: 'Indicadores' },
   { key: 'matriz', label: 'Matriz de Responsabilidade' },
   { key: 'entregaveis', label: 'Entregáveis' },
+  { key: 'performance', label: 'Matriz de Performance (S7)' },
+  { key: 'plano_acao', label: 'Plano Comercial (S8)' },
+  { key: 'processos', label: 'Mapeamento de Processos (S9)' },
+  { key: 'playbook', label: 'Playbook (S12)' },
 ]
 const FASE_LABEL = { fase_1: 'Fase 1 — Fundação', fase_2: 'Fase 2 — Execução', fase_3: 'Fase 3 — Consolidação' }
+const CLASSIFICACAO_LABEL = {
+  precisa_acelerar: 'Precisa acelerar', precisa_desenvolver: 'Precisa desenvolver',
+  precisa_suporte: 'Precisa de suporte', pronto_autonomia: 'Pronto pra autonomia',
+}
+const PROCESSO_LABEL = { manual: 'Manual', automatizavel: 'Automatizável', eliminavel: 'Eliminável', padronizavel: 'Padronizável' }
 
 const isGestor = (user) => user.perfil === 'Gestor'
 const isSupervisor = (user) => user.perfil === 'Supervisor'
@@ -46,6 +55,9 @@ export default function GestaoComercial({ user }) {
   const [indicadores, setIndicadores] = useState([])
   const [matriz, setMatriz] = useState([])
   const [entregaveis, setEntregaveis] = useState([])
+  const [matrizPerformance, setMatrizPerformance] = useState([])
+  const [planosAcao, setPlanosAcao] = useState([])
+  const [processos, setProcessos] = useState([])
 
   const supervisores = staff.filter(s => s.perfil === 'Supervisor')
   // supervisor só mexe no próprio escopo; enxerga o dos outros 2 (transparência, sem editar)
@@ -69,18 +81,24 @@ export default function GestaoComercial({ user }) {
 
   const carregarSemana = useCallback(async () => {
     if (!semanaSel) return
-    const [{ data: r }, { data: t }, { data: f }, { data: ind }, { data: m }] = await Promise.all([
+    const [{ data: r }, { data: t }, { data: f }, { data: ind }, { data: m }, { data: mp }, { data: pa }, { data: proc }] = await Promise.all([
       supabase.from('gc_reuniao').select('*').eq('semana_id', semanaSel.id),
       supabase.from('gc_template_roteiro').select('*').eq('semana_id', semanaSel.id),
       supabase.from('gc_feedback').select('*').eq('semana_id', semanaSel.id).order('data_registro', { ascending: false }),
       supabase.from('gc_indicador').select('*').eq('semana_id', semanaSel.id),
       supabase.from('gc_matriz_responsabilidade').select('*').eq('semana_id', semanaSel.id),
+      supabase.from('gc_matriz_performance').select('*').eq('semana_id', semanaSel.id),
+      supabase.from('gc_plano_acao').select('*').eq('semana_id', semanaSel.id),
+      supabase.from('gc_processo').select('*').eq('semana_id', semanaSel.id),
     ])
     setReunioes(r || [])
     setTemplates(t || [])
     setFeedbacks(f || [])
     setIndicadores(ind || [])
     setMatriz(m || [])
+    setMatrizPerformance(mp || [])
+    setPlanosAcao(pa || [])
+    setProcessos(proc || [])
   }, [semanaSel])
 
   useEffect(() => { carregarSemana() }, [carregarSemana])
@@ -214,6 +232,85 @@ export default function GestaoComercial({ user }) {
   async function mudarStatusEntregavel(item, status) {
     setEntregaveis(prev => prev.map(e => e.id === item.id ? { ...e, status } : e))
     await supabase.from('gc_entregavel').update({ status }).eq('id', item.id)
+  }
+
+  // ── Matriz de Performance (Semana 7) — upsert por (semana, consultor) ────────
+  async function salvarPerformance(consultorId, gestorId, campo, valor) {
+    const existente = matrizPerformance.find(m => m.consultor_id === consultorId)
+    const payload = { [campo]: valor }
+    if (existente) {
+      setMatrizPerformance(prev => prev.map(m => m.id === existente.id ? { ...m, ...payload } : m))
+      await supabase.from('gc_matriz_performance').update(payload).eq('id', existente.id)
+    } else {
+      const { data, error } = await supabase.from('gc_matriz_performance')
+        .insert({ semana_id: semanaSel.id, gestor_id: gestorId, consultor_id: consultorId, ...payload })
+        .select().single()
+      // conflito (semana+consultor já tem registro, ex: dois campos editados rápido demais)
+      // não pode falhar mudo — recarrega do banco pra pegar o registro que já existe
+      if (error) { carregarSemana(); return }
+      if (data) setMatrizPerformance(prev => [...prev, data])
+    }
+  }
+
+  // ── Plano de Ação (Semana 8) — upsert por (semana, gestor) ───────────────────
+  async function salvarPlanoAcao(gestorId, campo, valor) {
+    const existente = planosAcao.find(p => p.gestor_id === gestorId)
+    const payload = { [campo]: valor }
+    if (existente) {
+      setPlanosAcao(prev => prev.map(p => p.id === existente.id ? { ...p, ...payload } : p))
+      await supabase.from('gc_plano_acao').update(payload).eq('id', existente.id)
+    } else {
+      const { data, error } = await supabase.from('gc_plano_acao')
+        .insert({ semana_id: semanaSel.id, gestor_id: gestorId, ...payload })
+        .select().single()
+      if (error) { carregarSemana(); return }
+      if (data) setPlanosAcao(prev => [...prev, data])
+    }
+  }
+
+  // ── Mapeamento de Processos (Semana 9) ────────────────────────────────────
+  const [processoForm, setProcessoForm] = useState({ item: '', classificacao: 'manual' })
+  async function adicionarProcesso(e) {
+    e.preventDefault()
+    if (!processoForm.item.trim() || !meuEscopoId) return
+    const { data, error } = await supabase.from('gc_processo')
+      .insert({ semana_id: semanaSel.id, gestor_id: meuEscopoId, item: processoForm.item.trim(), classificacao: processoForm.classificacao })
+      .select().single()
+    if (error) { alert('Erro: ' + error.message); return }
+    setProcessos(prev => [...prev, data])
+    setProcessoForm({ item: '', classificacao: 'manual' })
+  }
+  async function removerProcesso(id) {
+    setProcessos(prev => prev.filter(p => p.id !== id))
+    await supabase.from('gc_processo').delete().eq('id', id)
+  }
+
+  // ── Playbook (Semana 12) — compila os registros do programa inteiro, não só ──
+  // da semana selecionada. Só busca quando a aba é aberta (não pesa nas outras abas).
+  const [playbookDados, setPlaybookDados] = useState(null)
+  const [carregandoPlaybook, setCarregandoPlaybook] = useState(false)
+  async function carregarPlaybook() {
+    setCarregandoPlaybook(true)
+    const [{ data: r }, { data: f }, { data: ind }, { data: mResp } ] = await Promise.all([
+      supabase.from('gc_reuniao').select('*'),
+      supabase.from('gc_feedback').select('*'),
+      supabase.from('gc_indicador').select('*').order('criado_em'),
+      supabase.from('gc_matriz_responsabilidade').select('*'),
+    ])
+    setPlaybookDados({ reunioes: r || [], feedbacks: f || [], indicadores: ind || [], matriz: mResp || [] })
+    setCarregandoPlaybook(false)
+  }
+  useEffect(() => { if (aba === 'playbook' && !playbookDados) carregarPlaybook() }, [aba])
+
+  function gerarPlaybook() {
+    const pendentes = entregaveis.filter(e => e.status !== 'entregue')
+    if (pendentes.length > 0) {
+      const porFase = {}
+      for (const e of pendentes) porFase[e.fase] = (porFase[e.fase] || 0) + 1
+      const resumo = Object.entries(porFase).map(([f, n]) => `${n} pendente(s) na ${FASE_LABEL[f]}`).join(', ')
+      if (!window.confirm(`Ainda tem entregável pendente: ${resumo}. Gerar o Playbook assim mesmo?`)) return
+    }
+    setTimeout(() => window.print(), 50)
   }
 
   if (loading) return <div className="loading">Carregando Gestão Comercial...</div>
@@ -426,6 +523,178 @@ export default function GestaoComercial({ user }) {
               </div>
             </div>
           ))}
+        </>
+      )}
+
+      {aba === 'performance' && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Semana 7 — posiciona cada consultor em 4 eixos (1 baixo a 5 alto) e classifica. Um registro por consultor, atualizável a qualquer momento.
+          </div>
+          {supervisores.filter(s => isGestor(user) || s.id === meuEscopoId).map(s => (
+            <div key={s.id} style={{ marginBottom: 20 }}>
+              <div className="plano-time-titulo">{s.nome}</div>
+              <div className="carteira-table-wrap">
+                <table className="carteira-table">
+                  <thead><tr><th>Consultor</th><th>Resultado</th><th>Produtividade</th><th>Comportamento</th><th>Evolução</th><th>Classificação</th></tr></thead>
+                  <tbody>
+                    {staff.filter(c => c.perfil === 'Consultor' && c.supervisor_id === s.id).map(c => {
+                      const reg = matrizPerformance.find(m => m.consultor_id === c.id)
+                      const podeEditar = s.id === meuEscopoId || isGestor(user)
+                      const campoNota = (campo) => podeEditar ? (
+                        <select className="filter-select" style={{ width: 60 }} value={reg?.[campo] ?? ''}
+                          onChange={e => salvarPerformance(c.id, s.id, campo, e.target.value ? Number(e.target.value) : null)}>
+                          <option value="">—</option>
+                          {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      ) : (reg?.[campo] ?? '—')
+                      return (
+                        <tr key={c.id}>
+                          <td>{c.nome}</td>
+                          <td>{campoNota('resultado')}</td>
+                          <td>{campoNota('produtividade')}</td>
+                          <td>{campoNota('comportamento')}</td>
+                          <td>{campoNota('evolucao')}</td>
+                          <td>
+                            {podeEditar ? (
+                              <select className="filter-select" value={reg?.classificacao || ''} onChange={e => salvarPerformance(c.id, s.id, 'classificacao', e.target.value || null)}>
+                                <option value="">—</option>
+                                {Object.entries(CLASSIFICACAO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                              </select>
+                            ) : (CLASSIFICACAO_LABEL[reg?.classificacao] || '—')}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {staff.filter(c => c.perfil === 'Consultor' && c.supervisor_id === s.id).length === 0 && (
+                      <tr><td colSpan={6} className="empty">Nenhum consultor nesse time</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {aba === 'plano_acao' && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Semana 8 — um plano por supervisor: Meta → Gap → Oportunidade → Estratégia → Ação → Responsável → Prazo → KPI.
+          </div>
+          {supervisores.filter(s => isGestor(user) || s.id === meuEscopoId).map(s => {
+            const plano = planosAcao.find(p => p.gestor_id === s.id) || {}
+            const podeEditar = s.id === meuEscopoId || isGestor(user)
+            const campo = (label, key, tipo = 'text') => (
+              <div className="lm-field-edit">
+                <label>{label}</label>
+                {podeEditar ? (
+                  <input className="lm-input" type={tipo} defaultValue={plano[key] || ''}
+                    onBlur={e => salvarPlanoAcao(s.id, key, tipo === 'date' ? (e.target.value || null) : e.target.value)} />
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{plano[key] || '—'}</div>
+                )}
+              </div>
+            )
+            return (
+              <div key={s.id} style={{ marginBottom: 20 }}>
+                <div className="plano-time-titulo">{s.nome}</div>
+                <div className="importar-conteudo lm-grid-2">
+                  {campo('Meta', 'meta')}
+                  {campo('Gap', 'gap')}
+                  {campo('Oportunidade', 'oportunidade')}
+                  {campo('Estratégia', 'estrategia')}
+                  {campo('Ação', 'acao')}
+                  {campo('Responsável', 'responsavel')}
+                  {campo('Prazo', 'prazo', 'date')}
+                  {campo('KPI', 'kpi')}
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
+
+      {aba === 'processos' && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Semana 9 — lista tarefas/relatórios/controles do dia a dia e classifica cada um.
+          </div>
+          {meuEscopoId && (
+            <form className="kanban-toolbar" style={{ marginBottom: 16 }} onSubmit={adicionarProcesso}>
+              <input className="lm-input" style={{ flex: 1 }} placeholder="Ex: montar relatório de vendas toda sexta"
+                value={processoForm.item} onChange={e => setProcessoForm(f => ({ ...f, item: e.target.value }))} required />
+              <select className="filter-select" value={processoForm.classificacao} onChange={e => setProcessoForm(f => ({ ...f, classificacao: e.target.value }))}>
+                {Object.entries(PROCESSO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit">+ Adicionar</button>
+            </form>
+          )}
+          {supervisores.filter(s => isGestor(user) || s.id === meuEscopoId).map(s => (
+            <div key={s.id} style={{ marginBottom: 20 }}>
+              <div className="plano-time-titulo">{s.nome}</div>
+              <div className="carteira-table-wrap">
+                <table className="carteira-table">
+                  <thead><tr><th>Item</th><th>Classificação</th><th></th></tr></thead>
+                  <tbody>
+                    {processos.filter(p => p.gestor_id === s.id).length === 0 && <tr><td colSpan={3} className="empty">Nenhum item mapeado</td></tr>}
+                    {processos.filter(p => p.gestor_id === s.id).map(p => (
+                      <tr key={p.id}>
+                        <td>{p.item}</td>
+                        <td>{PROCESSO_LABEL[p.classificacao]}</td>
+                        <td>{(s.id === meuEscopoId || isGestor(user)) && <button className="btn-action" onClick={() => removerProcesso(p.id)}>🗑</button>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {aba === 'playbook' && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Semana 12 — compila rotina validada, indicadores, feedbacks aplicados e entregáveis das 3 fases num documento só. Não digita nada aqui, só junta o que já foi registrado nas outras abas o programa inteiro.
+          </div>
+          {isGestor(user) && (
+            <button className="btn-save-obs" style={{ float: 'none', marginBottom: 16 }} onClick={gerarPlaybook} disabled={carregandoPlaybook || !playbookDados}>
+              📄 Gerar Playbook
+            </button>
+          )}
+          {carregandoPlaybook && <div className="loading">Compilando...</div>}
+          {playbookDados && (
+            <div className="gc-playbook-print">
+              {supervisores.map(s => {
+                const reunioesFeitas = playbookDados.reunioes.filter(r => r.gestor_id === s.id && r.realizada).length
+                const acoesFeitas = playbookDados.matriz.filter(m => m.gestor_id === s.id && m.status === 'feito').length
+                const acoesTotal = playbookDados.matriz.filter(m => m.gestor_id === s.id).length
+                const feedbacksDados = playbookDados.feedbacks.filter(f => f.gestor_id === s.id && f.tipo === 'estruturado').length
+                const feedbacks360 = playbookDados.feedbacks.filter(f => f.gestor_id === s.id && f.tipo === '360').length
+                const indicadoresDoSupervisor = playbookDados.indicadores.filter(i => i.gestor_id === s.id)
+                return (
+                  <div key={s.id} className="carteira-table-wrap" style={{ padding: 16, marginBottom: 16 }}>
+                    <div className="plano-time-titulo" style={{ marginBottom: 8 }}>{s.nome}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span>📅 {reunioesFeitas} reunião(ões) de segunda/sexta realizadas no programa</span>
+                      <span>✅ {acoesFeitas}/{acoesTotal} ações da matriz de responsabilidade concluídas</span>
+                      <span>💬 {feedbacksDados} feedback(s) estruturado(s) aplicado(s) · {feedbacks360} feedback(s) 360 recebido(s)</span>
+                      <span>📈 {indicadoresDoSupervisor.length} indicador(es) lançado(s) ao longo do programa</span>
+                    </div>
+                  </div>
+                )
+              })}
+              <div className="carteira-table-wrap" style={{ padding: 16 }}>
+                <div className="plano-time-titulo" style={{ marginBottom: 8 }}>Entregáveis</div>
+                {['fase_1', 'fase_2', 'fase_3'].map(fase => {
+                  const doFase = entregaveis.filter(e => e.fase === fase)
+                  const entregues = doFase.filter(e => e.status === 'entregue').length
+                  return <div key={fase} style={{ fontSize: 12, color: 'var(--text-2)' }}>{FASE_LABEL[fase]}: {entregues}/{doFase.length} entregues</div>
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
