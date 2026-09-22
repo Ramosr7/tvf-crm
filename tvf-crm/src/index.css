@@ -50,13 +50,29 @@ body {
 .btn-filter { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); background: transparent; color: rgba(255,255,255,0.85); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
 .btn-filter:hover { background: rgba(255,255,255,0.15); color: #fff; }
 .btn-filter.active { background: var(--laranja); color: #fff; border-color: var(--laranja); }
-.topbar-nav { display: flex; gap: 2px; margin-left: 8px; flex-shrink: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+/* overflow visível de propósito (não auto): com os itens agrupados em dropdown, a barra
+   quase nunca estoura de largura, e overflow-x:auto cortaria o menu dropdown pela metade —
+   ele precisa "vazar" pra fora da barra pra abrir por cima do conteúdo da tela. */
+.topbar-nav { display: flex; gap: 2px; margin-left: 8px; flex-shrink: 1; min-width: 0; flex-wrap: wrap; }
 .topbar-nav-item {
   font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 20px; color: rgba(255,255,255,0.75);
   cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 3px;
 }
 .topbar-nav-item:hover { color: #fff; background: rgba(255,255,255,0.1); }
 .topbar-nav-item.active { background: rgba(255,255,255,0.18); color: #fff; font-weight: 700; }
+.topbar-nav-seta { font-size: 9px; opacity: 0.75; }
+.topbar-nav-group { position: relative; }
+.topbar-nav-dropdown {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 300; min-width: 190px;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 34px rgba(27,16,48,0.22);
+  padding: 6px; display: flex; flex-direction: column; gap: 2px; animation: modalIn 0.14s ease;
+}
+.topbar-nav-dropdown span {
+  font-size: 13px; font-weight: 600; color: var(--text-1); padding: 8px 12px; border-radius: 8px; cursor: pointer;
+}
+.topbar-nav-dropdown span:hover { background: var(--bg-card); }
+.topbar-nav-dropdown span.active { background: var(--roxo-deep); color: #fff; }
 .btn-filter-light { font-size: 12px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg-card); color: var(--roxo); cursor: pointer; transition: all 0.15s; }
 .btn-filter-light:hover { background: var(--bg-card-hover); }
 .btn-filter-light.active { background: var(--roxo-deep); color: #fff; border-color: var(--roxo-deep); }

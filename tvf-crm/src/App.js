@@ -601,6 +601,13 @@ export default function App() {
   // (que recarrega a página do zero) sem sentir que "voltou do início" — só reseta se a
   // aba/janela for fechada de vez.
   const [tela, setTela] = useState(() => sessionStorage.getItem('tvf_tela_atual') || 'dashboard')
+  const [menuAberto, setMenuAberto] = useState(null) // qual dropdown da barra tá aberto, ou null
+  const navRef = useRef(null)
+  useEffect(() => {
+    function aoClicarFora(e) { if (navRef.current && !navRef.current.contains(e.target)) setMenuAberto(null) }
+    document.addEventListener('mousedown', aoClicarFora)
+    return () => document.removeEventListener('mousedown', aoClicarFora)
+  }, [])
   // toda vez que desloga, esquece a última tela — o próximo login (desse ou de outro usuário,
   // no mesmo navegador) sempre cai no Dashboard, sem herdar onde a sessão anterior tinha parado.
   function sair() {
@@ -667,28 +674,56 @@ export default function App() {
             <img src="/assets/logo-tvf.png" alt="TVF Telecom" className="topbar-logo-img" />
             <span className="topbar-logo-texto">CRM</span>
           </div>
-          <div className="topbar-nav">
-            <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => setTela('dashboard')}>Início</span>
-            <span className={`topbar-nav-item ${tela === 'carteira' ? 'active' : ''}`} onClick={() => irPara('carteira')}>Potencial de Carteira</span>
-            <span className={`topbar-nav-item ${tela === 'kanban_temp' ? 'active' : ''}`} onClick={() => setTela('kanban_temp')}>Kanban</span>
-            <span className={`topbar-nav-item ${tela === 'rotina' ? 'active' : ''}`} onClick={() => setTela('rotina')}>Rotina Diária</span>
+          <div className="topbar-nav" ref={navRef}>
+            <span className={`topbar-nav-item ${tela === 'dashboard' ? 'active' : ''}`} onClick={() => { setTela('dashboard'); setMenuAberto(null) }}>Início</span>
+
+            <div className="topbar-nav-group">
+              <span className={`topbar-nav-item ${['carteira', 'kanban_temp', 'rotina'].includes(tela) ? 'active' : ''}`}
+                onClick={() => setMenuAberto(m => m === 'carteira' ? null : 'carteira')}>
+                Carteira <span className="topbar-nav-seta">▾</span>
+              </span>
+              {menuAberto === 'carteira' && (
+                <div className="topbar-nav-dropdown">
+                  <span className={tela === 'carteira' ? 'active' : ''} onClick={() => { irPara('carteira'); setMenuAberto(null) }}>Potencial de Carteira</span>
+                  <span className={tela === 'kanban_temp' ? 'active' : ''} onClick={() => { setTela('kanban_temp'); setMenuAberto(null) }}>Kanban</span>
+                  <span className={tela === 'rotina' ? 'active' : ''} onClick={() => { setTela('rotina'); setMenuAberto(null) }}>Rotina Diária</span>
+                </div>
+              )}
+            </div>
+
             {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-              <span className={`topbar-nav-item ${tela === 'importar' ? 'active' : ''}`} onClick={() => irPara('importar')}>Importar</span>
+              <div className="topbar-nav-group">
+                <span className={`topbar-nav-item ${['importar', 'tarefas', 'gestao_comercial'].includes(tela) ? 'active' : ''}`}
+                  onClick={() => setMenuAberto(m => m === 'gestao' ? null : 'gestao')}>
+                  Gestão <span className="topbar-nav-seta">▾</span>
+                </span>
+                {menuAberto === 'gestao' && (
+                  <div className="topbar-nav-dropdown">
+                    <span className={tela === 'importar' ? 'active' : ''} onClick={() => { irPara('importar'); setMenuAberto(null) }}>Importar</span>
+                    <span className={tela === 'tarefas' ? 'active' : ''} onClick={() => { setTela('tarefas'); setMenuAberto(null) }}>Tarefas</span>
+                    <span className={tela === 'gestao_comercial' ? 'active' : ''} onClick={() => { setTela('gestao_comercial'); setMenuAberto(null) }}>Gestão Comercial</span>
+                  </div>
+                )}
+              </div>
             )}
-            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-              <span className={`topbar-nav-item ${tela === 'tarefas' ? 'active' : ''}`} onClick={() => setTela('tarefas')}>Tarefas</span>
-            )}
-            {(user.perfil === 'Gestor' || user.perfil === 'Supervisor') && (
-              <span className={`topbar-nav-item ${tela === 'gestao_comercial' ? 'active' : ''}`} onClick={() => setTela('gestao_comercial')}>Gestão Comercial</span>
-            )}
+
             {user.perfil !== 'Consultor' && (
-              <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => setTela('relatorios')}>Relatórios</span>
+              <span className={`topbar-nav-item ${tela === 'relatorios' ? 'active' : ''}`} onClick={() => { setTela('relatorios'); setMenuAberto(null) }}>Relatórios</span>
             )}
+
             {user.id === JOAO_ID && (
-              <span className={`topbar-nav-item ${tela === 'plano_comercial' ? 'active' : ''}`} onClick={() => irPara('plano_comercial')}>Plano Comercial</span>
-            )}
-            {user.id === JOAO_ID && (
-              <span className={`topbar-nav-item ${tela === 'minha_comissao' ? 'active' : ''}`} onClick={() => setTela('minha_comissao')}>Variável</span>
+              <div className="topbar-nav-group">
+                <span className={`topbar-nav-item ${['plano_comercial', 'minha_comissao'].includes(tela) ? 'active' : ''}`}
+                  onClick={() => setMenuAberto(m => m === 'diretoria' ? null : 'diretoria')}>
+                  Diretoria <span className="topbar-nav-seta">▾</span>
+                </span>
+                {menuAberto === 'diretoria' && (
+                  <div className="topbar-nav-dropdown">
+                    <span className={tela === 'plano_comercial' ? 'active' : ''} onClick={() => { irPara('plano_comercial'); setMenuAberto(null) }}>Plano Comercial</span>
+                    <span className={tela === 'minha_comissao' ? 'active' : ''} onClick={() => { setTela('minha_comissao'); setMenuAberto(null) }}>Variável</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
