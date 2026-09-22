@@ -1,5 +1,36 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { supabase } from './supabaseClient'
+import CampoAjuda from './CampoAjuda'
+
+// Exemplo/dica de preenchimento de cada campo — mostrado no "?" ao lado do rótulo, pra quem
+// tá preenchendo pela primeira vez não travar na hora de escrever.
+const AJUDA = {
+  situacao: 'Ex: "Cliente reclamou 2x essa semana de atraso na resposta do consultor no WhatsApp." Descreve o contexto, sem julgar ainda.',
+  fato: 'Ex: "Nas últimas 3 propostas, o retorno ao cliente demorou mais de 24h." Só o que aconteceu, sem interpretar.',
+  comportamento: 'Ex: "Ele deixa a resposta pro fim do dia mesmo quando o cliente pede urgência." Como isso aparece no dia a dia.',
+  impacto: 'Ex: "2 clientes já comentaram sobre a demora — risco de perder a venda pra concorrência." O efeito real disso.',
+  expectativa: 'Ex: "A partir de agora, responder toda mensagem em até 2h no horário comercial." O que muda daqui pra frente.',
+  acordo: 'Ex: "Combinamos que ele vai checar o WhatsApp 3x ao dia (9h, 13h, 17h) e eu reviso em 15 dias."',
+  indicadorNome: 'Ex: "Propostas paradas há mais de 7 dias", "Matinais realizadas na semana", "Feedbacks aplicados".',
+  indicadorValor: 'O número dessa semana. Ex: se são 4 propostas paradas, digita 4.',
+  indicadorMeta: 'Opcional. Ex: se a meta é ter no máximo 2 propostas paradas, digita 2.',
+  matrizAcao: 'Ex: "Tirar 3 números do CRM toda sexta (propostas abertas, paradas, conversão)." Ação concreta, não intenção.',
+  planoMeta: 'Ex: "Fechar 20 propostas em outubro."',
+  planoGap: 'Ex: "Faltam 6 propostas pra bater a meta do mês."',
+  planoOportunidade: 'Ex: "12 clientes com proposta parada há mais de 15 dias, nunca retomados."',
+  planoEstrategia: 'Ex: "Retomar contato com propostas paradas antes de buscar cliente novo."',
+  planoAcao: 'Ex: "Ligar pros 12 clientes com proposta parada essa semana."',
+  planoResponsavel: 'Ex: "Eu mesmo" ou o nome do consultor responsável por essa ação.',
+  planoPrazo: 'Até quando essa ação precisa estar feita.',
+  planoKpi: 'Ex: "Reduzir de 12 pra 5 propostas paradas até o fim do mês." Como você vai medir se deu certo.',
+  processoItem: 'Ex: "Montar relatório de vendas toda sexta-feira, copiando dado do CRM pra planilha."',
+  processoClassificacao: 'Manual = precisa de uma pessoa fazendo. Automatizável = dá pra automatizar. Eliminável = não precisa mais existir. Padronizável = várias pessoas fazem diferente, precisa virar 1 jeito só.',
+  perfResultado: 'Nota 1 a 5: bateu meta, converteu, trouxe resultado real no período.',
+  perfProdutividade: 'Nota 1 a 5: volume de atividade — atendimentos, propostas, follow-up feito.',
+  perfComportamento: 'Nota 1 a 5: postura, disciplina de rotina, como trabalha com o time.',
+  perfEvolucao: 'Nota 1 a 5: melhorou em relação ao período anterior, mesmo que o resultado ainda não tenha vindo.',
+  perfClassificacao: 'Precisa acelerar = tem potencial, falta ritmo. Precisa desenvolver = falta habilidade/técnica. Precisa de suporte = trava por algo fora do controle dele. Pronto pra autonomia = já entrega sem precisar de acompanhamento de perto.',
+}
 
 // Módulo "Gestão Comercial de Alta Performance" — programa de 90 dias / 12 semanas de
 // acompanhamento executivo do João com os 3 supervisores (Tiago, Felipe, Yves). Tudo aqui
@@ -405,12 +436,12 @@ export default function GestaoComercial({ user }) {
                 </div>
                 <div className="lm-field-edit"><label>Prazo</label><input className="lm-input" type="date" value={fbForm.prazo} onChange={e => setFbForm(f => ({ ...f, prazo: e.target.value }))} /></div>
                 <div className="lm-field-edit"><label>Acompanhamento (revisar em)</label><input className="lm-input" type="date" value={fbForm.acompanhamento} onChange={e => setFbForm(f => ({ ...f, acompanhamento: e.target.value }))} /></div>
-                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Situação</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.situacao} onChange={e => setFbForm(f => ({ ...f, situacao: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Fato</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.fato} onChange={e => setFbForm(f => ({ ...f, fato: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Comportamento</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.comportamento} onChange={e => setFbForm(f => ({ ...f, comportamento: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Impacto</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.impacto} onChange={e => setFbForm(f => ({ ...f, impacto: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Expectativa (o que muda a partir de agora)</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.expectativa} onChange={e => setFbForm(f => ({ ...f, expectativa: e.target.value }))} /></div>
-                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Acordo (o que foi combinado)</label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.acordo} onChange={e => setFbForm(f => ({ ...f, acordo: e.target.value }))} /></div>
+                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Situação<CampoAjuda texto={AJUDA.situacao} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.situacao} onChange={e => setFbForm(f => ({ ...f, situacao: e.target.value }))} /></div>
+                <div className="lm-field-edit"><label>Fato<CampoAjuda texto={AJUDA.fato} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.fato} onChange={e => setFbForm(f => ({ ...f, fato: e.target.value }))} /></div>
+                <div className="lm-field-edit"><label>Comportamento<CampoAjuda texto={AJUDA.comportamento} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.comportamento} onChange={e => setFbForm(f => ({ ...f, comportamento: e.target.value }))} /></div>
+                <div className="lm-field-edit"><label>Impacto<CampoAjuda texto={AJUDA.impacto} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.impacto} onChange={e => setFbForm(f => ({ ...f, impacto: e.target.value }))} /></div>
+                <div className="lm-field-edit"><label>Expectativa (o que muda a partir de agora)<CampoAjuda texto={AJUDA.expectativa} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.expectativa} onChange={e => setFbForm(f => ({ ...f, expectativa: e.target.value }))} /></div>
+                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Acordo (o que foi combinado)<CampoAjuda texto={AJUDA.acordo} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.acordo} onChange={e => setFbForm(f => ({ ...f, acordo: e.target.value }))} /></div>
               </div>
               <button className="btn-save-obs" style={{ float: 'none', margin: '8px 0 0' }} type="submit" disabled={salvandoFb}>{salvandoFb ? 'Salvando...' : '+ Registrar feedback'}</button>
             </form>
@@ -450,8 +481,11 @@ export default function GestaoComercial({ user }) {
           {meuEscopoId && (
             <form className="kanban-toolbar" style={{ marginBottom: 16 }} onSubmit={lancarIndicador}>
               <input className="lm-input" placeholder="Nome do indicador" value={indForm.nome} onChange={e => setIndForm(f => ({ ...f, nome: e.target.value }))} required />
+              <CampoAjuda texto={AJUDA.indicadorNome} />
               <input className="lm-input" style={{ width: 100 }} type="number" placeholder="Valor" value={indForm.valor} onChange={e => setIndForm(f => ({ ...f, valor: e.target.value }))} />
+              <CampoAjuda texto={AJUDA.indicadorValor} />
               <input className="lm-input" style={{ width: 100 }} type="number" placeholder="Meta (opcional)" value={indForm.meta} onChange={e => setIndForm(f => ({ ...f, meta: e.target.value }))} />
+              <CampoAjuda texto={AJUDA.indicadorMeta} />
               <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit">+ Lançar</button>
             </form>
           )}
@@ -483,6 +517,7 @@ export default function GestaoComercial({ user }) {
                 {supervisores.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
               <input className="lm-input" style={{ flex: 1 }} placeholder="Ação específica dessa semana" value={matrizForm.acao} onChange={e => setMatrizForm(f => ({ ...f, acao: e.target.value }))} required />
+              <CampoAjuda texto={AJUDA.matrizAcao} />
               <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit">+ Definir ação</button>
             </form>
           )}
@@ -554,7 +589,14 @@ export default function GestaoComercial({ user }) {
               <div className="plano-time-titulo">{s.nome}</div>
               <div className="carteira-table-wrap">
                 <table className="carteira-table">
-                  <thead><tr><th>Consultor</th><th>Resultado</th><th>Produtividade</th><th>Comportamento</th><th>Evolução</th><th>Classificação</th></tr></thead>
+                  <thead><tr>
+                    <th>Consultor</th>
+                    <th>Resultado<CampoAjuda texto={AJUDA.perfResultado} /></th>
+                    <th>Produtividade<CampoAjuda texto={AJUDA.perfProdutividade} /></th>
+                    <th>Comportamento<CampoAjuda texto={AJUDA.perfComportamento} /></th>
+                    <th>Evolução<CampoAjuda texto={AJUDA.perfEvolucao} /></th>
+                    <th>Classificação<CampoAjuda texto={AJUDA.perfClassificacao} /></th>
+                  </tr></thead>
                   <tbody>
                     {staff.filter(c => c.perfil === 'Consultor' && c.supervisor_id === s.id).map(c => {
                       const reg = matrizPerformance.find(m => m.consultor_id === c.id)
@@ -603,9 +645,9 @@ export default function GestaoComercial({ user }) {
           {supervisores.filter(s => isGestor(user) || s.id === meuEscopoId).map(s => {
             const plano = planosAcao.find(p => p.gestor_id === s.id) || {}
             const podeEditar = s.id === meuEscopoId || isGestor(user)
-            const campo = (label, key, tipo = 'text') => (
+            const campo = (label, key, tipo = 'text', ajuda) => (
               <div className="lm-field-edit">
-                <label>{label}</label>
+                <label>{label}{ajuda && <CampoAjuda texto={ajuda} />}</label>
                 {podeEditar ? (
                   <input className="lm-input" type={tipo} defaultValue={plano[key] || ''}
                     onBlur={e => salvarPlanoAcao(s.id, key, tipo === 'date' ? (e.target.value || null) : e.target.value)} />
@@ -618,14 +660,14 @@ export default function GestaoComercial({ user }) {
               <div key={s.id} style={{ marginBottom: 20 }}>
                 <div className="plano-time-titulo">{s.nome}</div>
                 <div className="importar-conteudo lm-grid-2">
-                  {campo('Meta', 'meta')}
-                  {campo('Gap', 'gap')}
-                  {campo('Oportunidade', 'oportunidade')}
-                  {campo('Estratégia', 'estrategia')}
-                  {campo('Ação', 'acao')}
-                  {campo('Responsável', 'responsavel')}
-                  {campo('Prazo', 'prazo', 'date')}
-                  {campo('KPI', 'kpi')}
+                  {campo('Meta', 'meta', 'text', AJUDA.planoMeta)}
+                  {campo('Gap', 'gap', 'text', AJUDA.planoGap)}
+                  {campo('Oportunidade', 'oportunidade', 'text', AJUDA.planoOportunidade)}
+                  {campo('Estratégia', 'estrategia', 'text', AJUDA.planoEstrategia)}
+                  {campo('Ação', 'acao', 'text', AJUDA.planoAcao)}
+                  {campo('Responsável', 'responsavel', 'text', AJUDA.planoResponsavel)}
+                  {campo('Prazo', 'prazo', 'date', AJUDA.planoPrazo)}
+                  {campo('KPI', 'kpi', 'text', AJUDA.planoKpi)}
                 </div>
               </div>
             )
@@ -642,9 +684,11 @@ export default function GestaoComercial({ user }) {
             <form className="kanban-toolbar" style={{ marginBottom: 16 }} onSubmit={adicionarProcesso}>
               <input className="lm-input" style={{ flex: 1 }} placeholder="Ex: montar relatório de vendas toda sexta"
                 value={processoForm.item} onChange={e => setProcessoForm(f => ({ ...f, item: e.target.value }))} required />
+              <CampoAjuda texto={AJUDA.processoItem} />
               <select className="filter-select" value={processoForm.classificacao} onChange={e => setProcessoForm(f => ({ ...f, classificacao: e.target.value }))}>
                 {Object.entries(PROCESSO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
+              <CampoAjuda texto={AJUDA.processoClassificacao} />
               <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit">+ Adicionar</button>
             </form>
           )}
