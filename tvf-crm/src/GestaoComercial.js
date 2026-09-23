@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import CampoAjuda from './CampoAjuda'
+import MelhorarIA from './MelhorarIA'
 
 // Exemplo/dica de preenchimento de cada campo — mostrado no "?" ao lado do rótulo, pra quem
 // tá preenchendo pela primeira vez não travar na hora de escrever.
@@ -87,6 +88,7 @@ export default function GestaoComercial({ user }) {
   const [matriz, setMatriz] = useState([])
   const [entregaveis, setEntregaveis] = useState([])
   const [matrizPerformance, setMatrizPerformance] = useState([])
+  const refsPlano = useRef({}) // campos do Plano de Ação (não-controlado) — key: `${gestorId}-${campo}`
   const [planosAcao, setPlanosAcao] = useState([])
   const [processos, setProcessos] = useState([])
 
@@ -165,11 +167,12 @@ export default function GestaoComercial({ user }) {
     const reuniao = reunioes.find(r => r.gestor_id === gestorId && r.tipo === tipo)
     const template = templates.find(t => t.tipo === (tipo === 'segunda' ? 'roteiro_segunda' : 'exercicio'))
     const perguntas = template?.perguntas || []
+    const refsPergunta = React.useRef({})
     return (
-      <div className="carteira-table-wrap" style={{ padding: 14, marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>
-            {tipo === 'segunda' ? '📅 Reunião de segunda' : '✅ Checkpoint de sexta'} — {nomeStaff(gestorId)}
+      <div className="gc-card" style={{ marginBottom: 12 }}>
+        <div className="gc-card-cabecalho">
+          <div className="gc-card-titulo">
+            {tipo === 'segunda' ? 'Reunião de segunda' : 'Checkpoint de sexta'} — {nomeStaff(gestorId)}
           </div>
           {podeEditar ? (
             <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -178,19 +181,23 @@ export default function GestaoComercial({ user }) {
               Realizada
             </label>
           ) : (
-            <span style={{ color: reuniao?.realizada ? 'var(--verde)' : 'var(--vermelho)', fontSize: 16 }}>
-              {reuniao?.realizada ? '🟢' : '🔴'}
+            <span className={`gc-status-pill ${reuniao?.realizada ? 'ok' : 'pendente'}`}>
+              <span className="gc-status-dot" />{reuniao?.realizada ? 'Realizada' : 'Pendente'}
             </span>
           )}
         </div>
         {perguntas.length === 0 && <div className="empty" style={{ padding: 8 }}>Sem roteiro cadastrado pra essa semana ainda.</div>}
         {perguntas.map((p, i) => (
-          <div key={i} className="lm-field-edit" style={{ marginBottom: 8 }}>
+          <div key={i} className="lm-field-edit" style={{ marginBottom: 10 }}>
             <label>{p}</label>
             {podeEditar ? (
-              <textarea className="obs-area" style={{ width: '100%', minHeight: 44 }}
-                defaultValue={reuniao?.respostas?.[p] || ''}
-                onBlur={async e => { const r = reuniao || await garantirReuniao(gestorId, tipo); salvarResposta(r, p, e.target.value) }} />
+              <>
+                <textarea ref={el => { refsPergunta.current[p] = el }} className="obs-area" style={{ width: '100%', minHeight: 44 }}
+                  defaultValue={reuniao?.respostas?.[p] || ''}
+                  onBlur={async e => { const r = reuniao || await garantirReuniao(gestorId, tipo); salvarResposta(r, p, e.target.value) }} />
+                <MelhorarIA campoRef={{ current: refsPergunta.current[p] }}
+                  onMelhorado={async texto => { const r = reuniao || await garantirReuniao(gestorId, tipo); salvarResposta(r, p, texto) }} />
+              </>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'pre-wrap' }}>{reuniao?.respostas?.[p] || '—'}</div>
             )}
@@ -348,7 +355,7 @@ export default function GestaoComercial({ user }) {
   if (!semanaSel) return <div className="main"><div className="empty">Nenhuma semana cadastrada ainda — roda a migration de seed.</div></div>
 
   return (
-    <div className="main">
+    <div className="main gc-modulo">
       <div className="dash-section-title">Gestão Comercial de Alta Performance</div>
       <div className="lm-resumo" style={{ marginBottom: 16 }}>
         Programa de 90 dias (12 semanas) — cada resposta, feedback e indicador vira registro aqui,
@@ -365,7 +372,7 @@ export default function GestaoComercial({ user }) {
         {semanaSel.tema_central && <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{semanaSel.tema_central}</span>}
       </div>
 
-      <div className="tabs" style={{ marginBottom: 16 }}>
+      <div className="gc-tabs" style={{ marginBottom: 20 }}>
         {ABAS.map(a => (
           <div key={a.key} className={`tab ${aba === a.key ? 'active' : ''}`} onClick={() => setAba(a.key)}>{a.label}</div>
         ))}
@@ -375,7 +382,7 @@ export default function GestaoComercial({ user }) {
         <>
           {(semanaSel.reuniao_segunda || semanaSel.objetivo) && (
             <details className="regras-toggle" style={{ marginBottom: 16 }}>
-              <summary>📖 Conteúdo de referência da Semana {semanaSel.numero} — {semanaSel.tema_central}</summary>
+              <summary>Conteúdo de referência da Semana {semanaSel.numero} — {semanaSel.tema_central}</summary>
               <div className="regras-toggle-corpo" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {semanaSel.objetivo && <div><strong>Objetivo:</strong> {semanaSel.objetivo}</div>}
                 {semanaSel.reuniao_segunda && <div><strong>Reunião de segunda:</strong> {semanaSel.reuniao_segunda}</div>}
@@ -405,11 +412,11 @@ export default function GestaoComercial({ user }) {
         <>
           {acompanhamentosVencidos.length > 0 && (
             <div className="login-erro" style={{ marginBottom: 16 }}>
-              ⏰ {acompanhamentosVencidos.length} acompanhamento(s) de feedback vencido(s) e ainda não revisado(s).
+              {acompanhamentosVencidos.length} acompanhamento(s) de feedback vencido(s) e ainda não revisado(s).
             </div>
           )}
           {(meuEscopoId || isGestor(user)) && (
-            <form className="importar-conteudo" style={{ marginBottom: 20 }} onSubmit={criarFeedback}>
+            <form className="gc-card" style={{ marginBottom: 20 }} onSubmit={criarFeedback}>
               <div className="lm-grid-2">
                 <div className="lm-field-edit">
                   <label>Tipo</label>
@@ -436,12 +443,12 @@ export default function GestaoComercial({ user }) {
                 </div>
                 <div className="lm-field-edit"><label>Prazo</label><input className="lm-input" type="date" value={fbForm.prazo} onChange={e => setFbForm(f => ({ ...f, prazo: e.target.value }))} /></div>
                 <div className="lm-field-edit"><label>Acompanhamento (revisar em)</label><input className="lm-input" type="date" value={fbForm.acompanhamento} onChange={e => setFbForm(f => ({ ...f, acompanhamento: e.target.value }))} /></div>
-                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Situação<CampoAjuda texto={AJUDA.situacao} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.situacao} onChange={e => setFbForm(f => ({ ...f, situacao: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Fato<CampoAjuda texto={AJUDA.fato} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.fato} onChange={e => setFbForm(f => ({ ...f, fato: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Comportamento<CampoAjuda texto={AJUDA.comportamento} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.comportamento} onChange={e => setFbForm(f => ({ ...f, comportamento: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Impacto<CampoAjuda texto={AJUDA.impacto} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.impacto} onChange={e => setFbForm(f => ({ ...f, impacto: e.target.value }))} /></div>
-                <div className="lm-field-edit"><label>Expectativa (o que muda a partir de agora)<CampoAjuda texto={AJUDA.expectativa} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.expectativa} onChange={e => setFbForm(f => ({ ...f, expectativa: e.target.value }))} /></div>
-                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Acordo (o que foi combinado)<CampoAjuda texto={AJUDA.acordo} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.acordo} onChange={e => setFbForm(f => ({ ...f, acordo: e.target.value }))} /></div>
+                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Situação<CampoAjuda texto={AJUDA.situacao} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.situacao} onChange={e => setFbForm(f => ({ ...f, situacao: e.target.value }))} /><MelhorarIA valor={fbForm.situacao} onMelhorado={t => setFbForm(f => ({ ...f, situacao: t }))} /></div>
+                <div className="lm-field-edit"><label>Fato<CampoAjuda texto={AJUDA.fato} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.fato} onChange={e => setFbForm(f => ({ ...f, fato: e.target.value }))} /><MelhorarIA valor={fbForm.fato} onMelhorado={t => setFbForm(f => ({ ...f, fato: t }))} /></div>
+                <div className="lm-field-edit"><label>Comportamento<CampoAjuda texto={AJUDA.comportamento} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.comportamento} onChange={e => setFbForm(f => ({ ...f, comportamento: e.target.value }))} /><MelhorarIA valor={fbForm.comportamento} onMelhorado={t => setFbForm(f => ({ ...f, comportamento: t }))} /></div>
+                <div className="lm-field-edit"><label>Impacto<CampoAjuda texto={AJUDA.impacto} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.impacto} onChange={e => setFbForm(f => ({ ...f, impacto: e.target.value }))} /><MelhorarIA valor={fbForm.impacto} onMelhorado={t => setFbForm(f => ({ ...f, impacto: t }))} /></div>
+                <div className="lm-field-edit"><label>Expectativa (o que muda a partir de agora)<CampoAjuda texto={AJUDA.expectativa} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.expectativa} onChange={e => setFbForm(f => ({ ...f, expectativa: e.target.value }))} /><MelhorarIA valor={fbForm.expectativa} onMelhorado={t => setFbForm(f => ({ ...f, expectativa: t }))} /></div>
+                <div className="lm-field-edit" style={{ gridColumn: '1 / -1' }}><label>Acordo (o que foi combinado)<CampoAjuda texto={AJUDA.acordo} /></label><textarea className="obs-area" style={{ width: '100%' }} value={fbForm.acordo} onChange={e => setFbForm(f => ({ ...f, acordo: e.target.value }))} /><MelhorarIA valor={fbForm.acordo} onMelhorado={t => setFbForm(f => ({ ...f, acordo: t }))} /></div>
               </div>
               <button className="btn-save-obs" style={{ float: 'none', margin: '8px 0 0' }} type="submit" disabled={salvandoFb}>{salvandoFb ? 'Salvando...' : '+ Registrar feedback'}</button>
             </form>
@@ -460,9 +467,9 @@ export default function GestaoComercial({ user }) {
                       <td>{nomeStaff(f.gestor_id)}</td>
                       <td>{f.tipo === '360' ? '360' : 'Estruturado'}</td>
                       <td>{fmtDataBR(f.prazo) || '—'}</td>
-                      <td>{fmtDataBR(f.acompanhamento) || '—'}{vencido && ' ⏰'}</td>
+                      <td>{fmtDataBR(f.acompanhamento) || '—'}{vencido && <span className="gc-tag-vencido">vencido</span>}</td>
                       <td>
-                        {f.acompanhamento_feito ? <span style={{ color: 'var(--verde)' }}>✅ Revisado</span>
+                        {f.acompanhamento_feito ? <span className="gc-status-pill ok"><span className="gc-status-dot" />Revisado</span>
                           : (f.gestor_id === meuEscopoId || isGestor(user)) && f.acompanhamento
                             ? <button className="btn-action" onClick={() => marcarAcompanhado(f)}>Marcar revisado</button>
                             : <span style={{ color: 'var(--text-3)' }}>—</span>}
@@ -518,6 +525,7 @@ export default function GestaoComercial({ user }) {
               </select>
               <input className="lm-input" style={{ flex: 1 }} placeholder="Ação específica dessa semana" value={matrizForm.acao} onChange={e => setMatrizForm(f => ({ ...f, acao: e.target.value }))} required />
               <CampoAjuda texto={AJUDA.matrizAcao} />
+              <MelhorarIA valor={matrizForm.acao} onMelhorado={t => setMatrizForm(f => ({ ...f, acao: t }))} />
               <button className="btn-save-obs" style={{ float: 'none', margin: 0 }} type="submit">+ Definir ação</button>
             </form>
           )}
@@ -533,9 +541,13 @@ export default function GestaoComercial({ user }) {
                     <td>
                       {(m.gestor_id === meuEscopoId || isGestor(user)) ? (
                         <button className="btn-action" onClick={() => alternarAcaoFeita(m)}>
-                          {m.status === 'feito' ? '✅ Feito' : '⏳ Marcar feito'}
+                          {m.status === 'feito' ? 'Feito' : 'Marcar feito'}
                         </button>
-                      ) : (m.status === 'feito' ? '✅ Feito' : '⏳ Pendente')}
+                      ) : (
+                        <span className={`gc-status-pill ${m.status === 'feito' ? 'ok' : 'pendente'}`}>
+                          <span className="gc-status-dot" />{m.status === 'feito' ? 'Feito' : 'Pendente'}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -566,7 +578,10 @@ export default function GestaoComercial({ user }) {
                               <option value="entregue">Entregue</option>
                             </select>
                           ) : (
-                            e.status === 'entregue' ? '✅ Entregue' : e.status === 'em_andamento' ? '🟡 Em andamento' : '⏳ Pendente'
+                            <span className={`gc-status-pill ${e.status === 'entregue' ? 'ok' : e.status === 'em_andamento' ? 'andamento' : 'pendente'}`}>
+                              <span className="gc-status-dot" />
+                              {e.status === 'entregue' ? 'Entregue' : e.status === 'em_andamento' ? 'Em andamento' : 'Pendente'}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -645,17 +660,26 @@ export default function GestaoComercial({ user }) {
           {supervisores.filter(s => isGestor(user) || s.id === meuEscopoId).map(s => {
             const plano = planosAcao.find(p => p.gestor_id === s.id) || {}
             const podeEditar = s.id === meuEscopoId || isGestor(user)
-            const campo = (label, key, tipo = 'text', ajuda) => (
-              <div className="lm-field-edit">
-                <label>{label}{ajuda && <CampoAjuda texto={ajuda} />}</label>
-                {podeEditar ? (
-                  <input className="lm-input" type={tipo} defaultValue={plano[key] || ''}
-                    onBlur={e => salvarPlanoAcao(s.id, key, tipo === 'date' ? (e.target.value || null) : e.target.value)} />
-                ) : (
-                  <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{plano[key] || '—'}</div>
-                )}
-              </div>
-            )
+            const campo = (label, key, tipo = 'text', ajuda) => {
+              const refKey = `${s.id}-${key}`
+              return (
+                <div className="lm-field-edit">
+                  <label>{label}{ajuda && <CampoAjuda texto={ajuda} />}</label>
+                  {podeEditar ? (
+                    <>
+                      <input ref={el => { refsPlano.current[refKey] = el }} className="lm-input" type={tipo} defaultValue={plano[key] || ''}
+                        onBlur={e => salvarPlanoAcao(s.id, key, tipo === 'date' ? (e.target.value || null) : e.target.value)} />
+                      {tipo !== 'date' && (
+                        <MelhorarIA campoRef={{ current: refsPlano.current[refKey] }}
+                          onMelhorado={texto => salvarPlanoAcao(s.id, key, texto)} />
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--text-2)' }}>{plano[key] || '—'}</div>
+                  )}
+                </div>
+              )
+            }
             return (
               <div key={s.id} style={{ marginBottom: 20 }}>
                 <div className="plano-time-titulo">{s.nome}</div>
@@ -685,6 +709,7 @@ export default function GestaoComercial({ user }) {
               <input className="lm-input" style={{ flex: 1 }} placeholder="Ex: montar relatório de vendas toda sexta"
                 value={processoForm.item} onChange={e => setProcessoForm(f => ({ ...f, item: e.target.value }))} required />
               <CampoAjuda texto={AJUDA.processoItem} />
+              <MelhorarIA valor={processoForm.item} onMelhorado={t => setProcessoForm(f => ({ ...f, item: t }))} />
               <select className="filter-select" value={processoForm.classificacao} onChange={e => setProcessoForm(f => ({ ...f, classificacao: e.target.value }))}>
                 {Object.entries(PROCESSO_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
@@ -704,7 +729,7 @@ export default function GestaoComercial({ user }) {
                       <tr key={p.id}>
                         <td>{p.item}</td>
                         <td>{PROCESSO_LABEL[p.classificacao]}</td>
-                        <td>{(s.id === meuEscopoId || isGestor(user)) && <button className="btn-action" onClick={() => removerProcesso(p.id)}>🗑</button>}</td>
+                        <td>{(s.id === meuEscopoId || isGestor(user)) && <button className="btn-action" onClick={() => removerProcesso(p.id)}>Remover</button>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -722,7 +747,7 @@ export default function GestaoComercial({ user }) {
           </div>
           {isGestor(user) && (
             <button className="btn-save-obs" style={{ float: 'none', marginBottom: 16 }} onClick={gerarPlaybook} disabled={carregandoPlaybook || !playbookDados}>
-              📄 Gerar Playbook
+              Gerar Playbook
             </button>
           )}
           {carregandoPlaybook && <div className="loading">Compilando...</div>}
@@ -736,24 +761,32 @@ export default function GestaoComercial({ user }) {
                 const feedbacks360 = playbookDados.feedbacks.filter(f => f.gestor_id === s.id && f.tipo === '360').length
                 const indicadoresDoSupervisor = playbookDados.indicadores.filter(i => i.gestor_id === s.id)
                 return (
-                  <div key={s.id} className="carteira-table-wrap" style={{ padding: 16, marginBottom: 16 }}>
-                    <div className="plano-time-titulo" style={{ marginBottom: 8 }}>{s.nome}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span>📅 {reunioesFeitas} reunião(ões) de segunda/sexta realizadas no programa</span>
-                      <span>✅ {acoesFeitas}/{acoesTotal} ações da matriz de responsabilidade concluídas</span>
-                      <span>💬 {feedbacksDados} feedback(s) estruturado(s) aplicado(s) · {feedbacks360} feedback(s) 360 recebido(s)</span>
-                      <span>📈 {indicadoresDoSupervisor.length} indicador(es) lançado(s) ao longo do programa</span>
+                  <div key={s.id} className="gc-card" style={{ marginBottom: 16 }}>
+                    <div className="gc-card-titulo" style={{ marginBottom: 10 }}>{s.nome}</div>
+                    <div className="gc-resumo-grid">
+                      <div className="gc-resumo-item"><span className="gc-resumo-label">Reuniões realizadas</span><span className="gc-resumo-valor">{reunioesFeitas}</span></div>
+                      <div className="gc-resumo-item"><span className="gc-resumo-label">Ações concluídas</span><span className="gc-resumo-valor">{acoesFeitas}/{acoesTotal}</span></div>
+                      <div className="gc-resumo-item"><span className="gc-resumo-label">Feedback estruturado</span><span className="gc-resumo-valor">{feedbacksDados}</span></div>
+                      <div className="gc-resumo-item"><span className="gc-resumo-label">Feedback 360 recebido</span><span className="gc-resumo-valor">{feedbacks360}</span></div>
+                      <div className="gc-resumo-item"><span className="gc-resumo-label">Indicadores lançados</span><span className="gc-resumo-valor">{indicadoresDoSupervisor.length}</span></div>
                     </div>
                   </div>
                 )
               })}
-              <div className="carteira-table-wrap" style={{ padding: 16 }}>
-                <div className="plano-time-titulo" style={{ marginBottom: 8 }}>Entregáveis</div>
-                {['fase_1', 'fase_2', 'fase_3'].map(fase => {
-                  const doFase = entregaveis.filter(e => e.fase === fase)
-                  const entregues = doFase.filter(e => e.status === 'entregue').length
-                  return <div key={fase} style={{ fontSize: 12, color: 'var(--text-2)' }}>{FASE_LABEL[fase]}: {entregues}/{doFase.length} entregues</div>
-                })}
+              <div className="gc-card">
+                <div className="gc-card-titulo" style={{ marginBottom: 10 }}>Entregáveis</div>
+                <div className="gc-resumo-grid">
+                  {['fase_1', 'fase_2', 'fase_3'].map(fase => {
+                    const doFase = entregaveis.filter(e => e.fase === fase)
+                    const entregues = doFase.filter(e => e.status === 'entregue').length
+                    return (
+                      <div key={fase} className="gc-resumo-item">
+                        <span className="gc-resumo-label">{FASE_LABEL[fase]}</span>
+                        <span className="gc-resumo-valor">{entregues}/{doFase.length}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           )}
