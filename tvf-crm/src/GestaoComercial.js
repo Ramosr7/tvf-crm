@@ -163,16 +163,50 @@ export default function GestaoComercial({ user }) {
     await supabase.from('gc_reuniao').update({ respostas }).eq('id', reuniao.id)
   }
 
+  const TEMPLATE_TIPO = { segunda: 'roteiro_segunda', sexta: 'exercicio', diagnostico: 'diagnostico' }
+  const CARD_TITULO = { segunda: 'Reunião de segunda', sexta: 'Checkpoint de sexta', diagnostico: 'Diagnóstico Individual' }
+
+  function CardReuniaoGeral() {
+    const template = templates.find(t => t.tipo === 'roteiro_segunda')
+    const perguntas = template?.perguntas || []
+    const refsGeral = React.useRef({})
+    async function salvarGeral(pergunta, texto) {
+      for (const s of supervisores) {
+        const r = reunioes.find(x => x.gestor_id === s.id && x.tipo === 'segunda') || await garantirReuniao(s.id, 'segunda')
+        if (r) salvarResposta(r, pergunta, texto)
+      }
+    }
+    if (perguntas.length === 0) return null
+    return (
+      <div className="gc-card" style={{ marginBottom: 16, borderColor: 'var(--roxo)' }}>
+        <div className="gc-card-cabecalho">
+          <div className="gc-card-titulo">Preencher Geral — Reunião de segunda (aplica pra todo mundo)</div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 10 }}>
+          Discurso de abertura é o mesmo pra toda equipe. Preenche 1x aqui — replica nos registros de {supervisores.map(s => s.nome).join(', ')}. Depois cada um ainda pode ajustar individual.
+        </div>
+        {perguntas.map((p, i) => (
+          <div key={i} className="lm-field-edit" style={{ marginBottom: 10 }}>
+            <label>{p}</label>
+            <textarea ref={el => { refsGeral.current[p] = el }} className="obs-area" style={{ width: '100%', minHeight: 44 }}
+              onBlur={e => { if (e.target.value.trim()) salvarGeral(p, e.target.value) }} />
+            <MelhorarIA campoRef={{ current: refsGeral.current[p] }} onMelhorado={texto => salvarGeral(p, texto)} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   function CardReuniao({ gestorId, tipo, podeEditar }) {
     const reuniao = reunioes.find(r => r.gestor_id === gestorId && r.tipo === tipo)
-    const template = templates.find(t => t.tipo === (tipo === 'segunda' ? 'roteiro_segunda' : 'exercicio'))
+    const template = templates.find(t => t.tipo === TEMPLATE_TIPO[tipo])
     const perguntas = template?.perguntas || []
     const refsPergunta = React.useRef({})
     return (
       <div className="gc-card" style={{ marginBottom: 12 }}>
         <div className="gc-card-cabecalho">
           <div className="gc-card-titulo">
-            {tipo === 'segunda' ? 'Reunião de segunda' : 'Checkpoint de sexta'} — {nomeStaff(gestorId)}
+            {CARD_TITULO[tipo]} — {nomeStaff(gestorId)}
           </div>
           {podeEditar ? (
             <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -398,11 +432,14 @@ export default function GestaoComercial({ user }) {
               </div>
             </details>
           )}
+          {isGestor(user) && <CardReuniaoGeral />}
           {(isGestor(user) ? supervisores : supervisores.filter(s => s.id === meuEscopoId)).map(s => (
             <div key={s.id} style={{ marginBottom: 20 }}>
               {isGestor(user) && <div className="plano-time-titulo">{s.nome}</div>}
               <CardReuniao gestorId={s.id} tipo="segunda" podeEditar={s.id === meuEscopoId || isGestor(user)} />
               <CardReuniao gestorId={s.id} tipo="sexta" podeEditar={s.id === meuEscopoId || isGestor(user)} />
+              {templates.some(t => t.tipo === 'diagnostico') &&
+                <CardReuniao gestorId={s.id} tipo="diagnostico" podeEditar={s.id === meuEscopoId || isGestor(user)} />}
             </div>
           ))}
         </>
