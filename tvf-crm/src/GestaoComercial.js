@@ -31,6 +31,9 @@ const AJUDA = {
   perfComportamento: 'Nota 1 a 5: postura, disciplina de rotina, como trabalha com o time.',
   perfEvolucao: 'Nota 1 a 5: melhorou em relação ao período anterior, mesmo que o resultado ainda não tenha vindo.',
   perfClassificacao: 'Precisa acelerar = tem potencial, falta ritmo. Precisa desenvolver = falta habilidade/técnica. Precisa de suporte = trava por algo fora do controle dele. Pronto pra autonomia = já entrega sem precisar de acompanhamento de perto.',
+  reuniao_segunda: 'Roteiro de abertura da semana com o time. Responde com base na realidade real do gestor/consultor nessa semana específica — nada de resposta genérica que serviria pra qualquer semana.',
+  reuniao_sexta: 'Checkpoint de fechamento da semana. Compara o que foi combinado na segunda com o que de fato aconteceu — trava, avanço ou ajuste pra semana seguinte.',
+  reuniao_diagnostico: 'Autodiagnóstico individual do gestor. Resposta honesta sobre a própria rotina hoje, não como "deveria ser" — é a base de comparação pro fim dos 90 dias.',
 }
 
 // Módulo "Gestão Comercial de Alta Performance" — programa de 90 dias / 12 semanas de
@@ -42,6 +45,7 @@ const AJUDA = {
 
 const ABAS = [
   { key: 'reunioes', label: 'Reuniões' },
+  { key: 'diagnostico', label: 'Diagnóstico' },
   { key: 'feedback', label: 'Feedback' },
   { key: 'indicadores', label: 'Indicadores' },
   { key: 'matriz', label: 'Matriz de Responsabilidade' },
@@ -170,11 +174,16 @@ export default function GestaoComercial({ user }) {
     const template = templates.find(t => t.tipo === 'roteiro_segunda')
     const perguntas = template?.perguntas || []
     const refsGeral = React.useRef({})
+    const timersGeral = React.useRef({})
     async function salvarGeral(pergunta, texto) {
       for (const s of supervisores) {
         const r = reunioes.find(x => x.gestor_id === s.id && x.tipo === 'segunda') || await garantirReuniao(s.id, 'segunda')
         if (r) salvarResposta(r, pergunta, texto)
       }
+    }
+    function agendarSalvarGeral(pergunta, valor) {
+      clearTimeout(timersGeral.current[pergunta])
+      timersGeral.current[pergunta] = setTimeout(() => { if (valor.trim()) salvarGeral(pergunta, valor) }, 1500)
     }
     if (perguntas.length === 0) return null
     return (
@@ -187,9 +196,10 @@ export default function GestaoComercial({ user }) {
         </div>
         {perguntas.map((p, i) => (
           <div key={i} className="lm-field-edit" style={{ marginBottom: 10 }}>
-            <label>{p}</label>
+            <label>{p}<CampoAjuda texto={AJUDA.reuniao_segunda} /></label>
             <textarea ref={el => { refsGeral.current[p] = el }} className="obs-area" style={{ width: '100%', minHeight: 44 }}
-              onBlur={e => { if (e.target.value.trim()) salvarGeral(p, e.target.value) }} />
+              onChange={e => agendarSalvarGeral(p, e.target.value)}
+              onBlur={e => { clearTimeout(timersGeral.current[p]); if (e.target.value.trim()) salvarGeral(p, e.target.value) }} />
             <MelhorarIA campoRef={{ current: refsGeral.current[p] }} onMelhorado={texto => salvarGeral(p, texto)} />
           </div>
         ))}
@@ -201,7 +211,20 @@ export default function GestaoComercial({ user }) {
     const reuniao = reunioes.find(r => r.gestor_id === gestorId && r.tipo === tipo)
     const template = templates.find(t => t.tipo === TEMPLATE_TIPO[tipo])
     const perguntas = template?.perguntas || []
+    const ajudaPergunta = AJUDA[`reuniao_${tipo}`]
     const refsPergunta = React.useRef({})
+    const timersPergunta = React.useRef({})
+    const labelEntrega = tipo === 'diagnostico' ? 'Entregue' : 'Realizada'
+
+    async function salvarComDebounce(pergunta, valor) {
+      const r = reuniao || await garantirReuniao(gestorId, tipo)
+      salvarResposta(r, pergunta, valor)
+    }
+    function agendarSalvar(pergunta, valor) {
+      clearTimeout(timersPergunta.current[pergunta])
+      timersPergunta.current[pergunta] = setTimeout(() => salvarComDebounce(pergunta, valor), 1500)
+    }
+
     return (
       <div className="gc-card" style={{ marginBottom: 12 }}>
         <div className="gc-card-cabecalho">
@@ -212,31 +235,45 @@ export default function GestaoComercial({ user }) {
             <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={reuniao?.realizada || false}
                 onChange={async () => { const r = reuniao || await garantirReuniao(gestorId, tipo); alternarRealizada(r) }} />
-              Realizada
+              {labelEntrega}
             </label>
           ) : (
             <span className={`gc-status-pill ${reuniao?.realizada ? 'ok' : 'pendente'}`}>
-              <span className="gc-status-dot" />{reuniao?.realizada ? 'Realizada' : 'Pendente'}
+              <span className="gc-status-dot" />{reuniao?.realizada ? labelEntrega : 'Pendente'}
             </span>
           )}
         </div>
         {perguntas.length === 0 && <div className="empty" style={{ padding: 8 }}>Sem roteiro cadastrado pra essa semana ainda.</div>}
         {perguntas.map((p, i) => (
           <div key={i} className="lm-field-edit" style={{ marginBottom: 10 }}>
-            <label>{p}</label>
+            <label>{p}<CampoAjuda texto={ajudaPergunta} /></label>
             {podeEditar ? (
               <>
                 <textarea ref={el => { refsPergunta.current[p] = el }} className="obs-area" style={{ width: '100%', minHeight: 44 }}
                   defaultValue={reuniao?.respostas?.[p] || ''}
-                  onBlur={async e => { const r = reuniao || await garantirReuniao(gestorId, tipo); salvarResposta(r, p, e.target.value) }} />
+                  onChange={e => agendarSalvar(p, e.target.value)}
+                  onBlur={async e => { clearTimeout(timersPergunta.current[p]); await salvarComDebounce(p, e.target.value) }} />
                 <MelhorarIA campoRef={{ current: refsPergunta.current[p] }}
-                  onMelhorado={async texto => { const r = reuniao || await garantirReuniao(gestorId, tipo); salvarResposta(r, p, texto) }} />
+                  onMelhorado={async texto => { if (refsPergunta.current[p]) refsPergunta.current[p].value = texto; salvarComDebounce(p, texto) }} />
               </>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'pre-wrap' }}>{reuniao?.respostas?.[p] || '—'}</div>
             )}
           </div>
         ))}
+        {tipo === 'diagnostico' && (
+          <div className="lm-field-edit" style={{ marginTop: 4 }}>
+            <label>Gap principal identificado por João</label>
+            {isGestor(user) ? (
+              <textarea ref={el => { refsPergunta.current.gap_principal = el }} className="obs-area" style={{ width: '100%', minHeight: 44 }}
+                defaultValue={reuniao?.respostas?.gap_principal || ''}
+                onChange={e => agendarSalvar('gap_principal', e.target.value)}
+                onBlur={async e => { clearTimeout(timersPergunta.current.gap_principal); await salvarComDebounce('gap_principal', e.target.value) }} />
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--text-2)', whiteSpace: 'pre-wrap' }}>{reuniao?.respostas?.gap_principal || '—'}</div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -385,6 +422,104 @@ export default function GestaoComercial({ user }) {
     setTimeout(() => window.print(), 50)
   }
 
+  // ── Diário — PDF de atividades do dia (só Gestor), com feedback de desempenho por IA ────
+  const [diarios, setDiarios] = useState([])
+  const [carregandoDiario, setCarregandoDiario] = useState(false)
+  const [dataUpload, setDataUpload] = useState(() => new Date().toISOString().slice(0, 10))
+  const [enviandoDiario, setEnviandoDiario] = useState(false)
+  const [progressoDiario, setProgressoDiario] = useState('')
+  const [erroDiario, setErroDiario] = useState('')
+  const [analisandoId, setAnalisandoId] = useState(null)
+
+  const carregarDiarios = useCallback(async () => {
+    setCarregandoDiario(true)
+    const { data } = await supabase.from('gc_diario_atividade').select('*').order('data', { ascending: false })
+    setDiarios(data || [])
+    setCarregandoDiario(false)
+  }, [])
+  useEffect(() => { if (aba === 'diario' && isGestor(user)) carregarDiarios() }, [aba])
+
+  async function chamarApi(caminho, corpo) {
+    const { data: sessao } = await supabase.auth.getSession()
+    const resp = await fetch(caminho, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessao?.session?.access_token}` },
+      body: JSON.stringify(corpo),
+    })
+    const dados = await resp.json()
+    if (!resp.ok) throw new Error(dados.error || `Erro ${resp.status}`)
+    return dados
+  }
+
+  async function analisarTexto(id, texto) {
+    setAnalisandoId(id)
+    try {
+      const { feedback } = await chamarApi('/api/analisar-diario-atividade', { texto })
+      await supabase.from('gc_diario_atividade').update({ feedback_ia: feedback }).eq('id', id)
+      carregarDiarios()
+    } catch (err) {
+      alert('Erro ao gerar feedback: ' + err.message)
+    } finally {
+      setAnalisandoId(null)
+    }
+  }
+
+  async function subirDiario(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setErroDiario('')
+    setEnviandoDiario(true)
+    setProgressoDiario('Subindo PDF...')
+    try {
+      const nomeSanitizado = file.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      const path = `diario/${user.id}/${Date.now()}-${nomeSanitizado}`
+      const { error: upError } = await supabase.storage.from('assistente-uploads').upload(path, file)
+      if (upError) throw upError
+
+      const { data: job, error: jobError } = await supabase.from('assistente_upload_job')
+        .insert({ titulo: `Diário GC — ${dataUpload}`, filename: file.name, storage_path: path, criado_por: user.id })
+        .select().single()
+      if (jobError) throw jobError
+
+      setProgressoDiario('Lendo PDF...')
+      let texto = ''
+      while (true) {
+        const dados = await chamarApi('/api/processar-upload-job', { jobId: job.id })
+        texto = dados.conteudo || ''
+        if (dados.status === 'concluido') break
+        setProgressoDiario(`Lendo PDF... ${dados.progresso || ''}`)
+      }
+
+      const { data: registro, error: regError } = await supabase.from('gc_diario_atividade')
+        .insert({ data: dataUpload, filename: file.name, storage_path: path, upload_job_id: job.id, texto_extraido: texto })
+        .select().single()
+      if (regError) throw regError
+      carregarDiarios()
+
+      setProgressoDiario('Gerando feedback com IA...')
+      await analisarTexto(registro.id, texto)
+    } catch (err) {
+      setErroDiario(err.message)
+    } finally {
+      setEnviandoDiario(false)
+      setProgressoDiario('')
+      e.target.value = ''
+    }
+  }
+
+  async function verPdfDiario(item) {
+    const { data, error } = await supabase.storage.from('assistente-uploads').createSignedUrl(item.storage_path, 60 * 10)
+    if (error || !data?.signedUrl) { alert('Não consegui abrir o PDF: ' + (error?.message || 'erro desconhecido')); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
+  async function excluirDiario(item) {
+    if (!window.confirm(`Excluir o diário de ${fmtDataBR(item.data)}?`)) return
+    await supabase.storage.from('assistente-uploads').remove([item.storage_path])
+    await supabase.from('gc_diario_atividade').delete().eq('id', item.id)
+    carregarDiarios()
+  }
+
   if (loading) return <div className="loading">Carregando Gestão Comercial...</div>
   if (!semanaSel) return <div className="main"><div className="empty">Nenhuma semana cadastrada ainda — roda a migration de seed.</div></div>
 
@@ -410,6 +545,9 @@ export default function GestaoComercial({ user }) {
         {ABAS.map(a => (
           <div key={a.key} className={`tab ${aba === a.key ? 'active' : ''}`} onClick={() => setAba(a.key)}>{a.label}</div>
         ))}
+        {isGestor(user) && (
+          <div className={`tab ${aba === 'diario' ? 'active' : ''}`} onClick={() => setAba('diario')}>Diário</div>
+        )}
       </div>
 
       {aba === 'reunioes' && (
@@ -438,10 +576,28 @@ export default function GestaoComercial({ user }) {
               {isGestor(user) && <div className="plano-time-titulo">{s.nome}</div>}
               <CardReuniao gestorId={s.id} tipo="segunda" podeEditar={s.id === meuEscopoId || isGestor(user)} />
               <CardReuniao gestorId={s.id} tipo="sexta" podeEditar={s.id === meuEscopoId || isGestor(user)} />
-              {templates.some(t => t.tipo === 'diagnostico') &&
-                <CardReuniao gestorId={s.id} tipo="diagnostico" podeEditar={s.id === meuEscopoId || isGestor(user)} />}
             </div>
           ))}
+        </>
+      )}
+
+      {aba === 'diagnostico' && (
+        <>
+          {!templates.some(t => t.tipo === 'diagnostico') ? (
+            <div className="empty">Sem roteiro de diagnóstico cadastrado pra essa semana.</div>
+          ) : (
+            <>
+              <div className="lm-resumo" style={{ marginBottom: 16 }}>
+                Diagnósticos entregues: {supervisores.filter(s => reunioes.find(r => r.gestor_id === s.id && r.tipo === 'diagnostico')?.realizada).length} de {supervisores.length}
+              </div>
+              {(isGestor(user) ? supervisores : supervisores.filter(s => s.id === meuEscopoId)).map(s => (
+                <div key={s.id} style={{ marginBottom: 20 }}>
+                  {isGestor(user) && <div className="plano-time-titulo">{s.nome}</div>}
+                  <CardReuniao gestorId={s.id} tipo="diagnostico" podeEditar={s.id === meuEscopoId || isGestor(user)} />
+                </div>
+              ))}
+            </>
+          )}
         </>
       )}
 
@@ -827,6 +983,49 @@ export default function GestaoComercial({ user }) {
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {aba === 'diario' && isGestor(user) && (
+        <>
+          <div className="lm-resumo" style={{ marginBottom: 16 }}>
+            Sobe o PDF de atividades do dia — a IA lê o conteúdo e devolve feedback de desempenho (pontos fortes, lacuna, prioridade pro dia seguinte). Uso pessoal, só você vê.
+          </div>
+          <div className="gc-card" style={{ marginBottom: 20 }}>
+            <div className="gc-card-cabecalho"><div className="gc-card-titulo">Novo registro</div></div>
+            <div className="lm-field-edit" style={{ marginBottom: 10 }}>
+              <label>Data</label>
+              <input className="lm-input" type="date" value={dataUpload} onChange={e => setDataUpload(e.target.value)} disabled={enviandoDiario} />
+            </div>
+            <div className="lm-field-edit">
+              <label>PDF de atividades</label>
+              <input type="file" accept="application/pdf" onChange={subirDiario} disabled={enviandoDiario} />
+            </div>
+            {progressoDiario && <div style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 8 }}>{progressoDiario}</div>}
+            {erroDiario && <div className="login-erro" style={{ marginTop: 8 }}>{erroDiario}</div>}
+          </div>
+
+          {carregandoDiario && <div className="loading">Carregando...</div>}
+          {!carregandoDiario && diarios.length === 0 && <div className="empty">Nenhum diário registrado ainda.</div>}
+          {diarios.map(item => (
+            <div key={item.id} className="gc-card" style={{ marginBottom: 16 }}>
+              <div className="gc-card-cabecalho">
+                <div className="gc-card-titulo">{fmtDataBR(item.data)} — {item.filename}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn-filter-light" onClick={() => verPdfDiario(item)}>Ver PDF</button>
+                  <button className="btn-filter-light" onClick={() => excluirDiario(item)}>Excluir</button>
+                </div>
+              </div>
+              {item.feedback_ia ? (
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--text-1)' }}>{item.feedback_ia}</div>
+              ) : (
+                <button className="btn-save-obs" style={{ float: 'none' }} disabled={analisandoId === item.id || !item.texto_extraido}
+                  onClick={() => analisarTexto(item.id, item.texto_extraido)}>
+                  {analisandoId === item.id ? 'Analisando...' : 'Analisar com IA'}
+                </button>
+              )}
+            </div>
+          ))}
         </>
       )}
     </div>
