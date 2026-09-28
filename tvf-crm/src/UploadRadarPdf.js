@@ -134,12 +134,21 @@ export default function UploadRadarPdf({ modo }) {
     const mesData = `${mesReferencia}-01`
     let atualizadas = 0, criadas = 0, falhas = 0
     const semMatch = new Set()
+    const avulsoSoma = {} // soma dos supervisores sem match — ainda entra no Total Geral
 
     const consultoresMatched = []
 
     for (const s of listaFinal) {
       const consultor = acharConsultor(s.nome, staffAtual)
-      if (!consultor) { semMatch.add(s.nome); continue }
+      if (!consultor) {
+        semMatch.add(s.nome)
+        const verticaisAvulso = calcularVerticais(s, null)
+        for (const [vertical, valor] of Object.entries(verticaisAvulso)) {
+          if (vertical === 'AVANCADO') continue // plano_comercial_avulso não tem essa vertical
+          avulsoSoma[vertical] = (avulsoSoma[vertical] || 0) + valor
+        }
+        continue
+      }
       consultoresMatched.push(consultor.id)
       const verticais = calcularVerticais(s, consultor.id)
 
@@ -159,6 +168,22 @@ export default function UploadRadarPdf({ modo }) {
             .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: 0, backlog: 0, esteira: 0, ...campos })
           if (error) falhas++; else criadas++
         }
+      }
+    }
+
+    // supervisor(es) sem match no radar — não têm consultor_id, mas o valor é produção real
+    // e precisa contar no Total Geral (que soma toda plano_comercial sem filtrar por time)
+    for (const [vertical, valor] of Object.entries(avulsoSoma)) {
+      const { data: existenteAvulso } = await supabase.from('plano_comercial_avulso').select('id')
+        .eq('mes_referencia', mesData).eq('vertical', vertical).eq('origem', 'radar_sem_match').maybeSingle()
+      const camposAvulso = modo === 'backlog'
+        ? { backlog: valor, atualizado_em: new Date().toISOString() }
+        : { esteira: valor, atualizado_em: new Date().toISOString() }
+      if (existenteAvulso) {
+        await supabase.from('plano_comercial_avulso').update(camposAvulso).eq('id', existenteAvulso.id)
+      } else {
+        await supabase.from('plano_comercial_avulso')
+          .insert({ mes_referencia: mesData, vertical, origem: 'radar_sem_match', backlog: 0, esteira: 0, ...camposAvulso })
       }
     }
 

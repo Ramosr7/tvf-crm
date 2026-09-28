@@ -147,6 +147,7 @@ export default function PlanoComercial({ refreshSignal }) {
   const [mesReferencia, setMesReferencia] = useState(mesAtualISO())
   const [planos, setPlanos] = useState([])
   const [staff, setStaff] = useState([])
+  const [avulso, setAvulso] = useState([])
   const [config, setConfig] = useState({})
   const [metaGlobal, setMetaGlobal] = useState({})
   const [loading, setLoading] = useState(true)
@@ -159,14 +160,16 @@ export default function PlanoComercial({ refreshSignal }) {
   const fetchDados = useCallback(async () => {
     setLoading(true)
     const mesData = `${mesReferencia}-01`
-    const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }] = await Promise.all([
+    const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }, { data: avulsoData }] = await Promise.all([
       supabase.from('plano_comercial').select('*').eq('mes_referencia', mesData),
       supabase.from('consultores_staff').select('id, nome, perfil, plano_comercial_ativo').order('nome'),
       supabase.from('plano_comercial_config').select('*'),
       supabase.from('plano_comercial_meta_global').select('*').eq('mes_referencia', mesData),
+      supabase.from('plano_comercial_avulso').select('*').eq('mes_referencia', mesData),
     ])
     setPlanos(planosData || [])
     setStaff(staffData || [])
+    setAvulso(avulsoData || [])
     const mapaConfig = {}
     for (const c of (configData || [])) mapaConfig[c.vertical] = c.fator_conversao
     setConfig(mapaConfig)
@@ -241,11 +244,12 @@ export default function PlanoComercial({ refreshSignal }) {
 
   const consolidado = ORDEM_VERTICAIS.map(v => {
     const linhas = planos.filter(p => p.vertical === v)
+    const avulsoLinha = avulso.find(a => a.vertical === v)
     return {
       vertical: v,
       meta: linhas.reduce((s, p) => s + Number(p.meta || 0), 0),
-      backlog: linhas.reduce((s, p) => s + Number(p.backlog || 0), 0),
-      esteira: linhas.reduce((s, p) => s + Number(p.esteira || 0), 0),
+      backlog: linhas.reduce((s, p) => s + Number(p.backlog || 0), 0) + Number(avulsoLinha?.backlog || 0),
+      esteira: linhas.reduce((s, p) => s + Number(p.esteira || 0), 0) + Number(avulsoLinha?.esteira || 0),
     }
   }).filter(c => c.meta > 0 || c.backlog > 0 || c.esteira > 0)
 
@@ -415,19 +419,48 @@ export default function PlanoComercial({ refreshSignal }) {
         </>
       )}
 
-      {Object.entries(porConsultor).map(([nome, linhasConsultor]) => (
-        <div key={nome} style={{ marginBottom: 24 }}>
-          <div className="plano-time-titulo">{nome}</div>
-          <div className="carteira-table-wrap pc-table-wrap">
-            <table className="carteira-table">
-              <thead>{cabecalho}</thead>
-              <tbody>
-                {linhasConsultor.map(row => renderLinha(row, `${row.consultor_id}-${row.vertical}`, true))}
-              </tbody>
-            </table>
+      {(() => {
+        const entradas = Object.entries(porConsultor)
+        const idxJoao = entradas.findIndex(([nome]) => nome === 'João Ramos')
+        const antes = idxJoao === -1 ? entradas : entradas.slice(0, idxJoao + 1)
+        const depois = idxJoao === -1 ? [] : entradas.slice(idxJoao + 1)
+        const renderTime = ([nome, linhasConsultor]) => (
+          <div key={nome} style={{ marginBottom: 24 }}>
+            <div className="plano-time-titulo">{nome}</div>
+            <div className="carteira-table-wrap pc-table-wrap">
+              <table className="carteira-table">
+                <thead>{cabecalho}</thead>
+                <tbody>
+                  {linhasConsultor.map(row => renderLinha(row, `${row.consultor_id}-${row.vertical}`, true))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+        const linhasAvulso = ORDEM_VERTICAIS
+          .map(v => avulso.find(a => a.vertical === v))
+          .filter(Boolean)
+          .map(a => ({ id: null, consultor_id: null, vertical: a.vertical, meta: 0, backlog: a.backlog, esteira: a.esteira }))
+        return (
+          <>
+            {antes.map(renderTime)}
+            {linhasAvulso.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <div className="plano-time-titulo">Sem Supervisor (Radar) <span style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 400 }}>— sem consultor vinculado, só entra no Total Geral</span></div>
+                <div className="carteira-table-wrap pc-table-wrap">
+                  <table className="carteira-table">
+                    <thead>{cabecalho}</thead>
+                    <tbody>
+                      {linhasAvulso.map(row => renderLinha(row, `avulso-${row.vertical}`, false))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {depois.map(renderTime)}
+          </>
+        )
+      })()}
     </div>
 
     <div className="print-relatorio">
