@@ -22,15 +22,17 @@ function calcularVerticais(s, consultorId) {
 
 // pra "Minha Comissão" — 6 pilares do plano de remuneração, diferente dos 6 do Plano
 // Comercial (Avançado e Outras Receitas não existem lá, ficam somados dentro de
-// RECEITA_TELECOM; Renovação Fixa não entra na comissão). Gatilho é a métrica que decide a
-// faixa (quantidade em Altas/BL/Renovação Móvel, R$ nos outros); receita é sempre o R$ que a
-// comissão de fato multiplica.
+// RECEITA_TELECOM; Renovação Fixa não tem pilar próprio nem gatilho de faixa — a receita
+// dela só entra somada dentro da receita de Renovação Móvel, na faixa que o gatilho de
+// Renovação Móvel (quantidade) alcançou). Gatilho é a métrica que decide a faixa (quantidade
+// em Altas/BL/Renovação Móvel, R$ nos outros); receita é sempre o R$ que a comissão de fato
+// multiplica.
 const JOAO_ID = '971645c3-b9a3-44a9-9848-5a5fa83ff8b1'
 function calcularComissaoPilares(s) {
   return {
     ALTAS: { gatilho: s.ha_qtd || 0, receita: s.ha_valor || 0 },
     BANDA_LARGA: { gatilho: s.bl_qtd || 0, receita: s.bl_valor || 0 },
-    RENOVACAO_MOVEL: { gatilho: s.renovacao_movel_qtd || 0, receita: s.renovacao_movel_valor || 0 },
+    RENOVACAO_MOVEL: { gatilho: s.renovacao_movel_qtd || 0, receita: (s.renovacao_movel_valor || 0) + (s.renovacao_fixa_valor || 0) },
     AVANCADO: { gatilho: s.avancado_valor || 0, receita: s.avancado_valor || 0 },
     OUTRAS_RECEITAS: { gatilho: (s.digital_valor || 0) + (s.cpf_valor || 0), receita: (s.digital_valor || 0) + (s.cpf_valor || 0) },
     APARELHO: { gatilho: s.aparelho_valor || 0, receita: s.aparelho_valor || 0 },
@@ -173,17 +175,21 @@ export default function UploadRadarPdf({ modo }) {
 
     // supervisor(es) sem match no radar — não têm consultor_id, mas o valor é produção real
     // e precisa contar no Total Geral (que soma toda plano_comercial sem filtrar por time)
+    let erroAvulso = ''
     for (const [vertical, valor] of Object.entries(avulsoSoma)) {
-      const { data: existenteAvulso } = await supabase.from('plano_comercial_avulso').select('id')
+      const { data: existenteAvulso, error: erroSelect } = await supabase.from('plano_comercial_avulso').select('id')
         .eq('mes_referencia', mesData).eq('vertical', vertical).eq('origem', 'radar_sem_match').maybeSingle()
+      if (erroSelect) { erroAvulso = erroSelect.message; continue }
       const camposAvulso = modo === 'backlog'
         ? { backlog: valor, atualizado_em: new Date().toISOString() }
         : { esteira: valor, atualizado_em: new Date().toISOString() }
       if (existenteAvulso) {
-        await supabase.from('plano_comercial_avulso').update(camposAvulso).eq('id', existenteAvulso.id)
+        const { error } = await supabase.from('plano_comercial_avulso').update(camposAvulso).eq('id', existenteAvulso.id)
+        if (error) erroAvulso = error.message
       } else {
-        await supabase.from('plano_comercial_avulso')
+        const { error } = await supabase.from('plano_comercial_avulso')
           .insert({ mes_referencia: mesData, vertical, origem: 'radar_sem_match', backlog: 0, esteira: 0, ...camposAvulso })
+        if (error) erroAvulso = error.message
       }
     }
 
@@ -225,7 +231,7 @@ export default function UploadRadarPdf({ modo }) {
     }
 
     setProcessando(false)
-    setResultado({ atualizadas, criadas, falhas, semMatch: Array.from(semMatch) })
+    setResultado({ atualizadas, criadas, falhas, semMatch: Array.from(semMatch), erroAvulso })
   }
 
   return (
@@ -304,6 +310,7 @@ export default function UploadRadarPdf({ modo }) {
             </div>
           )}
           {resultado.falhas > 0 && <div className="login-erro" style={{ marginTop: 8 }}>{resultado.falhas} falha(s) ao salvar.</div>}
+          {resultado.erroAvulso && <div className="login-erro" style={{ marginTop: 8 }}>Erro ao salvar valor sem match: {resultado.erroAvulso}</div>}
         </div>
       )}
     </div>
