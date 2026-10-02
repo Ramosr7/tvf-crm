@@ -31,6 +31,25 @@ function mesAtualISO() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+function mesAnteriorData(mesRef) {
+  const [ano, mes] = mesRef.split('-').map(Number)
+  const d = new Date(ano, mes - 2, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+// Meta vale até alguém mudar: linha do mês sem meta (ou que nem existe ainda) herda a do mês
+// anterior. Meta 0 é tratado como "não definida" — o radar cria as linhas do mês com meta 0.
+function herdarMetas(atuais, anteriores, mesData) {
+  const chave = p => `${p.consultor_id}|${p.vertical}`
+  const metaAnterior = {}
+  for (const p of anteriores) if (Number(p.meta) > 0) metaAnterior[chave(p)] = Number(p.meta)
+  const resultado = atuais.map(p => (Number(p.meta) > 0 || !metaAnterior[chave(p)]) ? p : { ...p, meta: metaAnterior[chave(p)] })
+  const existentes = new Set(atuais.map(chave))
+  for (const p of anteriores) {
+    if (existentes.has(chave(p)) || !(Number(p.meta) > 0)) continue
+    resultado.push({ id: null, mes_referencia: mesData, consultor_id: p.consultor_id, vertical: p.vertical, meta: Number(p.meta), backlog: 0, esteira: 0, concluido: 0 })
+  }
+  return resultado
+}
 function isDiaUtil(d) {
   const dia = d.getDay()
   return dia !== 0 && dia !== 6
@@ -160,21 +179,25 @@ export default function PlanoComercial({ refreshSignal }) {
   const fetchDados = useCallback(async () => {
     setLoading(true)
     const mesData = `${mesReferencia}-01`
-    const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }, { data: avulsoData }] = await Promise.all([
+    const mesAnterior = mesAnteriorData(mesReferencia)
+    const [{ data: planosData }, { data: staffData }, { data: configData }, { data: metaGlobalData }, { data: avulsoData }, { data: planosAnteriorData }, { data: metaGlobalAnteriorData }] = await Promise.all([
       supabase.from('plano_comercial').select('*').eq('mes_referencia', mesData),
       supabase.from('consultores_staff').select('id, nome, perfil, plano_comercial_ativo').order('nome'),
       supabase.from('plano_comercial_config').select('*'),
       supabase.from('plano_comercial_meta_global').select('*').eq('mes_referencia', mesData),
       supabase.from('plano_comercial_avulso').select('*').eq('mes_referencia', mesData),
+      supabase.from('plano_comercial').select('consultor_id, vertical, meta').eq('mes_referencia', mesAnterior),
+      supabase.from('plano_comercial_meta_global').select('vertical, meta').eq('mes_referencia', mesAnterior),
     ])
-    setPlanos(planosData || [])
+    setPlanos(herdarMetas(planosData || [], planosAnteriorData || [], mesData))
     setStaff(staffData || [])
     setAvulso(avulsoData || [])
     const mapaConfig = {}
     for (const c of (configData || [])) mapaConfig[c.vertical] = c.fator_conversao
     setConfig(mapaConfig)
     const mapaGlobal = {}
-    for (const g of (metaGlobalData || [])) mapaGlobal[g.vertical] = g.meta
+    for (const g of (metaGlobalAnteriorData || [])) if (Number(g.meta) > 0) mapaGlobal[g.vertical] = g.meta
+    for (const g of (metaGlobalData || [])) if (Number(g.meta) > 0 || mapaGlobal[g.vertical] === undefined) mapaGlobal[g.vertical] = g.meta
     setMetaGlobal(mapaGlobal)
     setLoading(false)
   }, [mesReferencia])
@@ -195,7 +218,7 @@ export default function PlanoComercial({ refreshSignal }) {
       const { data } = await supabase.from('plano_comercial')
         .insert({ mes_referencia: mesData, consultor_id: row.consultor_id, vertical: row.vertical, meta: numero, backlog: 0, esteira: 0 })
         .select().single()
-      if (data) setPlanos(prev => [...prev, data])
+      if (data) setPlanos(prev => [...prev.filter(p => !(p.id === null && p.consultor_id === row.consultor_id && p.vertical === row.vertical)), data])
     }
   }
 
@@ -419,48 +442,20 @@ export default function PlanoComercial({ refreshSignal }) {
         </>
       )}
 
-      {(() => {
-        const entradas = Object.entries(porConsultor)
-        const idxJoao = entradas.findIndex(([nome]) => nome === 'João Ramos')
-        const antes = idxJoao === -1 ? entradas : entradas.slice(0, idxJoao + 1)
-        const depois = idxJoao === -1 ? [] : entradas.slice(idxJoao + 1)
-        const renderTime = ([nome, linhasConsultor]) => (
-          <div key={nome} style={{ marginBottom: 24 }}>
-            <div className="plano-time-titulo">{nome}</div>
-            <div className="carteira-table-wrap pc-table-wrap">
-              <table className="carteira-table">
-                <thead>{cabecalho}</thead>
-                <tbody>
-                  {linhasConsultor.map(row => renderLinha(row, `${row.consultor_id}-${row.vertical}`, true))}
-                </tbody>
-              </table>
-            </div>
+      {/* "Sem Supervisor" (plano_comercial_avulso) não ganha card próprio — só soma no Total Geral */}
+      {Object.entries(porConsultor).map(([nome, linhasConsultor]) => (
+        <div key={nome} style={{ marginBottom: 24 }}>
+          <div className="plano-time-titulo">{nome}</div>
+          <div className="carteira-table-wrap pc-table-wrap">
+            <table className="carteira-table">
+              <thead>{cabecalho}</thead>
+              <tbody>
+                {linhasConsultor.map(row => renderLinha(row, `${row.consultor_id}-${row.vertical}`, true))}
+              </tbody>
+            </table>
           </div>
-        )
-        const linhasAvulso = ORDEM_VERTICAIS
-          .map(v => avulso.find(a => a.vertical === v))
-          .filter(Boolean)
-          .map(a => ({ id: null, consultor_id: null, vertical: a.vertical, meta: 0, backlog: a.backlog, esteira: a.esteira }))
-        return (
-          <>
-            {antes.map(renderTime)}
-            {linhasAvulso.length > 0 && (
-              <div style={{ marginBottom: 24 }}>
-                <div className="plano-time-titulo">Sem Supervisor (Radar) <span style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 400 }}>— sem consultor vinculado, só entra no Total Geral</span></div>
-                <div className="carteira-table-wrap pc-table-wrap">
-                  <table className="carteira-table">
-                    <thead>{cabecalho}</thead>
-                    <tbody>
-                      {linhasAvulso.map(row => renderLinha(row, `avulso-${row.vertical}`, false))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            {depois.map(renderTime)}
-          </>
-        )
-      })()}
+        </div>
+      ))}
     </div>
 
     <div className="print-relatorio">

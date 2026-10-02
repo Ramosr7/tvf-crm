@@ -189,7 +189,12 @@ export default function MinhaComissao() {
     const [ano, mes] = mesReferencia.split('-').map(Number)
     const proximoMesData = `${mes === 12 ? ano + 1 : ano}-${String(mes === 12 ? 1 : mes + 1).padStart(2, '0')}-01`
 
-    const [{ data: pilaresData }, { data: vendasData }, { data: configData }] = await Promise.all([
+    const mesAnteriorData = (() => {
+      const d = new Date(ano, mes - 2, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    })()
+
+    const [{ data: pilaresData }, { data: vendasData }, { data: configData }, { data: pilaresAnteriorData }] = await Promise.all([
       supabase.from('comissao_pilar').select('*').eq('mes_referencia', mesData),
       // carteira_venda.consultor_id é o vendedor individual, não o supervisor/time — o João
       // (Gestor) nunca aparece aqui. A Variável é o resultado dos 4 times inteiros, então
@@ -200,10 +205,18 @@ export default function MinhaComissao() {
       // mesma "quebra" (fator de conversão) por vertical usada no Plano Comercial — projeção
       // da Variável tem que usar a mesma referência, não uma conta separada.
       supabase.from('plano_comercial_config').select('*'),
+      supabase.from('comissao_pilar').select('pilar, meta_gatilho').eq('mes_referencia', mesAnteriorData),
     ])
 
     const mapaPilares = {}
     for (const p of (pilaresData || [])) mapaPilares[p.pilar] = p
+    // meta vale até alguém mudar: pilar do mês sem meta (ou sem linha ainda) herda a do mês anterior
+    for (const ant of (pilaresAnteriorData || [])) {
+      if (!(Number(ant.meta_gatilho) > 0)) continue
+      const atual = mapaPilares[ant.pilar]
+      if (!atual) mapaPilares[ant.pilar] = { pilar: ant.pilar, gatilho: 0, receita: 0, meta_gatilho: ant.meta_gatilho }
+      else if (!(Number(atual.meta_gatilho) > 0)) mapaPilares[ant.pilar] = { ...atual, meta_gatilho: ant.meta_gatilho }
+    }
     setPilares(mapaPilares)
 
     const mapaConfig = {}

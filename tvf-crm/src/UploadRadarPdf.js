@@ -52,6 +52,11 @@ function normalizar(s) {
 function palavras(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(Boolean)
 }
+function mesAnteriorData(mesRef) {
+  const [ano, mes] = mesRef.split('-').map(Number)
+  const d = new Date(ano, mes - 2, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
 function hoje() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -138,6 +143,15 @@ export default function UploadRadarPdf({ modo }) {
     const semMatch = new Set()
     const avulsoSoma = {} // soma dos supervisores sem match — ainda entra no Total Geral
 
+    // meta vale até alguém mudar: linha nova do mês (ou ainda com meta 0) herda a do mês anterior
+    const mesAnterior = mesAnteriorData(mesReferencia)
+    const { data: planosAnterior } = await supabase.from('plano_comercial').select('consultor_id, vertical, meta').eq('mes_referencia', mesAnterior)
+    const metaAnteriorPc = {}
+    for (const p of (planosAnterior || [])) if (Number(p.meta) > 0) metaAnteriorPc[`${p.consultor_id}|${p.vertical}`] = Number(p.meta)
+    const { data: pilaresAnterior } = await supabase.from('comissao_pilar').select('pilar, meta_gatilho').eq('mes_referencia', mesAnterior)
+    const metaAnteriorPilar = {}
+    for (const p of (pilaresAnterior || [])) if (Number(p.meta_gatilho) > 0) metaAnteriorPilar[p.pilar] = Number(p.meta_gatilho)
+
     const consultoresMatched = []
 
     for (const s of listaFinal) {
@@ -155,19 +169,21 @@ export default function UploadRadarPdf({ modo }) {
       const verticais = calcularVerticais(s, consultor.id)
 
       for (const [vertical, valor] of Object.entries(verticais)) {
-        const { data: existente } = await supabase.from('plano_comercial').select('id')
+        const { data: existente } = await supabase.from('plano_comercial').select('id, meta')
           .eq('mes_referencia', mesData).eq('consultor_id', consultor.id).eq('vertical', vertical).maybeSingle()
 
         const campos = modo === 'backlog'
           ? { backlog: valor, atualizado_em: new Date().toISOString() }
           : { esteira: valor, atualizado_em: new Date().toISOString() }
+        const metaHerdada = metaAnteriorPc[`${consultor.id}|${vertical}`] || 0
 
         if (existente) {
+          if (!(Number(existente.meta) > 0) && metaHerdada > 0) campos.meta = metaHerdada
           const { error } = await supabase.from('plano_comercial').update(campos).eq('id', existente.id)
           if (error) falhas++; else atualizadas++
         } else {
           const { error } = await supabase.from('plano_comercial')
-            .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: 0, backlog: 0, esteira: 0, ...campos })
+            .insert({ mes_referencia: mesData, consultor_id: consultor.id, vertical, meta: metaHerdada, backlog: 0, esteira: 0, ...campos })
           if (error) falhas++; else criadas++
         }
       }
@@ -220,7 +236,7 @@ export default function UploadRadarPdf({ modo }) {
         const verticalPc = PILAR_PARA_VERTICAL_PC[pilar]
         const metaGatilho = verticalPc && metaPorVertical[verticalPc] !== undefined
           ? metaPorVertical[verticalPc]
-          : (existentePilar?.meta_gatilho ?? 0)
+          : (Number(existentePilar?.meta_gatilho) > 0 ? existentePilar.meta_gatilho : (metaAnteriorPilar[pilar] ?? 0))
 
         if (existentePilar) {
           await supabase.from('comissao_pilar').update({ gatilho, receita, meta_gatilho: metaGatilho, atualizado_em: new Date().toISOString() }).eq('id', existentePilar.id)
